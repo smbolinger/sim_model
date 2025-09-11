@@ -16,3 +16,6 @@ NEST DATA COLUMNS (SIMULATION):
 13 - num storms 
 14 - exposure days (total)
 15 - # days survived
+
+
+ 

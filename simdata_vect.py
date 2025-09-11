@@ -88,45 +88,46 @@ num_out  = 21 # number zof output parameters
 # NOTE the main problem is that my fate-masking variable (storm activity) also 
 #      leads to certain nest fates
 # NOTE 2: how many varying params is a reasonable number?
-breedingDays   = [160] 
-discProb       = [0.7, 1] 
-# discProb       = [1] 
+breedingDays1   = [160] 
+# discProb1       = [0.7, 1] 
+discProb1       = [1] 
 # numNests       = [500,1000]
-numNests       = [500]
+# numNests       = [500]
 # numNests       = [200]
+numNests1        = [20]
 uncertaintyDays = [1]
 print(
-        "STATIC PARAMS: breeding season length:", breedingDays,
-        "; discovery probability:", discProb
+        "STATIC PARAMS: breeding season length:", breedingDays1[0],
+        "; discovery probability:", discProb1[0]
         # "; number of nests:", numNests
         # "how long nest fate is discoverable (in days):", uncertaintyDays
         )
 # only really need to be in lists if they are part of the combinations below
-probSurv       = [0.95 ]   # daily prob of survival
+probSurv1       = [0.95 ]   # daily prob of survival
 # probSurv       = [0.93, 0.95 ]   # daily prob of survival
-probMortFlood  = [0.1] # 10% of failed nests - not of all nests
+probMortFlood1  = [0.1] # 10% of failed nests - not of all nests
 # probMortFlood  = [0.95] # 95% of nests active during storm fail
-SprobSurv      = [0.05, 0.1] # daily survival prob during storms - like intensity?
+SprobSurv1     = [0.2] # daily survival prob during storms - like intensity?
 # SprobSurv      = [0.05] # daily survival prob during storms - like intensity?
 SprobMortFlood = [1.0] # all failed nests during storms fail due to flooding
 # floodSurv      = []
 # stormDur       = [1,2,3]
 # NOTE maybe duration should be in hours so I can test more values?
-stormDur       = [1,3]
+stormDur1       = [1,3]
 # stormFreq      = [1,2,3]
-stormFreq      = [3,5]
+stormFreq1      = [3,5]
 # obsFreq        = [3,5,7]
-obsFreq        = [3,6,9]
+obsFreq1        = [3,6,9]
 # obsFreq        = [3]
 # hatchTime      = [16,20,24,28]
 # hatchTime      = [16,20,28]
-hatchTime      = [16, 28]
+hatchTime1      = [16, 28]
 # whether or not nests that end during storms are marked "unknown" (vs. flooded)
 #assignUnknown  = [0,1] 
-assignUnknown  = [0] 
+assignUnknown1  = [0] 
 #probCorrect     = 0.8
 #fateCuesPresent = [0.7,0.8,0.9] 
-fateCuesPresent = [0.8] 
+fateCuesPresent1 = [0.8] 
 # 80% chance that field cues about nest fate are present/observed
 # based on around 80% success rate in identifying nest fate (from camera study)
 # this is essentially uncertainty?
@@ -134,10 +135,10 @@ numMC           = 0 # number of nests misclassified
 paramsList      = list(
     product(
         #    0        1         2          3         4          5          
-        numNests, probSurv, SprobSurv, stormDur, stormFreq, hatchTime, 
+        numNests1, probSurv1, SprobSurv1, stormDur1, stormFreq1, hatchTime1, 
         #   6          7              8           9           10
         # obsFreq, probMortFlood, breedingDays, discProb, fateCuesPresent
-        obsFreq, probMortFlood, breedingDays, discProb 
+        obsFreq1, probMortFlood1, breedingDays1, discProb1 
         )
         )
 # NOTE fate cues prob will now be decided based on obs_int (11-14)
@@ -153,7 +154,7 @@ nrows   = len(paramsList)*nreps*nruns
 # -----------------------------------------------------------------------------
 init= np.genfromtxt(
         #fname="/mnt/c/Users/Sarah/Dropbox/nest_models/storm_init3.csv",
-        fname="C:/Users/Sarah/Dropbox/nest_models/sim_model/storm_init3.csv",
+        fname="C:/Users/Sarah/Dropbox/Models/sim_model/storm_init3.csv",
         dtype=float,
         delimiter=",",
         skip_header=1,
@@ -164,7 +165,7 @@ initProb = init / np.sum(init) # make them into probabilities again
 
 stormProb = np.genfromtxt(
         #fname="/mnt/c/Users/Sarah/Dropbox/nest_models/storm_init3.csv",
-        fname="C:/Users/Sarah/Dropbox/nest_models/sim_model/storm_init3.csv",
+        fname="C:/Users/Sarah/Dropbox/Models/sim_model/storm_init3.csv",
         dtype=float,
         delimiter=",",
         skip_header=1,
@@ -306,7 +307,8 @@ def mk_surv(numNests, hatchTime, pSurv):
 def mk_per(start, end):
 
     # nestPeriod = np.stack((nestData[:,1], (nestData[:,1]+nestData[:,2]))) # create array of tuples
-    nestPeriod = np.stack(start, end) # create array of tuples
+    # need the double parentheses so it knows output is tuples
+    nestPeriod = np.stack((start, end)) # create array of tuples
     nestPeriod = np.transpose(nestPeriod) # an array of start,end pairs 
     if debug: print(
         ">> start and end of nesting period:\n", 
@@ -340,7 +342,7 @@ def storm_nest(nestPeriod, stormDays):
 def discover_time(discProb, numNests):
     # NOTE this name is a little misleading - it's actually survey days til discovery
     daysTilDiscovery = rng.negative_binomial(n=1, p=discProb, size=numNests) # see above for explanation of p 
-    nestData[:,5]    = daysTilDiscovery 
+    # nestData[:,5]    = daysTilDiscovery 
     if debug: print(">> survey days until discovery:\n", daysTilDiscovery, len(daysTilDiscovery)) 
     return(daysTilDiscovery)
 
@@ -381,28 +383,30 @@ def discover_nests(svy_til_disc, pos):
     # discovered = svy_til_disc < (position2-position) 
     num_svy    = pos[1] - pos[0]
     discovered = svy_til_disc < num_svy
+    return(discovered)
 
 # -----------------------------------------------------------------------------
-def ijk(numNests, discovered, pos, fates):
+def ijk(numNests, discovered, svy_til_disc, pos, fates):
     firstFound = np.zeros(numNests) 
-    firstFound[discovered==True] = surveyDays[position+daysTilDiscovery][discovered==True] 
+    firstFound[discovered==True] = surveyDays[(pos[0]+svy_til_disc)][discovered==True] 
     if debug: print(">> nest first found:\n", firstFound, len(firstFound)) 
 
     lastActive = np.zeros(numNests)
-    lastActive[discovered==True] = surveyDays[position2][discovered==True] 
+    lastActive[discovered==True] = surveyDays[pos[1]][discovered==True] 
     if debug: print( ">> nest last active:\n", lastActive, len(lastActive)) 
     
     # Last checked will be one survey after last active, unless hatch == True
     lastChecked = np.zeros(numNests) 
-    lastChecked[discovered==True] = surveyDays[position2+1][discovered==True] 
+    lastChecked[discovered==True] = surveyDays[(pos[1]+1)][discovered==True] 
     if debug: print(">> nest last checked, w/o hatch:\n", lastChecked, len(lastChecked)) 
     #lastChecked[hatched==True] = lastActive[hatched==True] # take hatch date into account
-    lastChecked[trueHatch==True] = lastActive[trueHatch==True] # take hatch date into account
+    lastChecked[fates==0] = lastActive[fates==0] # take hatch date into account
     if debug: print(">> nest last checked:\n", lastChecked, len(lastChecked)) 
 
-    nestData[:,7]  = firstFound 
-    nestData[:,8]  = lastActive 
-    nestData[:,9]  = lastChecked
+    # nestData[:,7]  = firstFound 
+    # nestData[:,8]  = lastActive 
+    # nestData[:,9]  = lastChecked# 
+    return((firstFound, lastActive, lastChecked))
 
 # -----------------------------------------------------------------------------
 #   NEST DATA COLUMNS AND PARAM LIST: 
@@ -420,7 +424,7 @@ def ijk(numNests, discovered, pos, fates):
 #        obsFreq, probMortFlood, breedingDays, discProb, assignUnknown
 #        ))
 # -----------------------------------------------------------------------------
-def mk_nests(params, init, stormDays, surveyDays, nestData): 
+def mk_nests(params, init, nestData): 
 
     # 1. Unpack necessary parameters
     # NOTE about the params at the beginning of the script:
@@ -429,7 +433,6 @@ def mk_nests(params, init, stormDays, surveyDays, nestData):
     hatchTime = int(params[5]) 
     obsFreq   = int(params[6]) 
     numNests  = int(params[0]) 
-    discProb  = params[9]
     pSurv     = params[1]       # daily survival probability
     fateCuesPresent = 0.6 if obsFreq > 5 else 0.66 if obsFreq == 5 else 0.75
     if debug: print(
@@ -439,7 +442,8 @@ def mk_nests(params, init, stormDays, surveyDays, nestData):
 
     # 2. Assign values to the dataframe
     nestData[:,0] = np.arange(1,numNests+1) # column 1 = nest ID numbers 
-    nestData[:,1] = mk_init(weekStart, initProb, numNests)                              # record to a column of the data array
+    nestData[:,1] = mk_init(weekStart, init, numNests)                              # record to a column of the data array
+    # nestData[:,1] = mk_init(weekStart, initProb, numNests)                              # record to a column of the data array
     # if debug: print(">> end dates:\n", nestEnd, len(nestEnd)) 
     nestData[:,2] = mk_surv(numNests, hatchTime, pSurv)
     ## NOTE THIS IS NOT THE TRUE HATCHED NUMBER; DOESN'T TAKE STORMS INTO ACCOUNT
@@ -447,7 +451,7 @@ def mk_nests(params, init, stormDays, surveyDays, nestData):
     # nestData[:,3] = nestData[:,1] + nestData[:,2]
     # don't need to add end date to dataframe
     # NOTE Remember that int() only works for single values 
-    if debug: print(nestData[1:6,:])
+    # if debug: print(nestData[1:6,:])
     return(nestData)
 
 def mk_flood(params, stormNest):
@@ -462,7 +466,8 @@ def mk_flood(params, stormNest):
     #          on a storm day: prob of mortality = 0.9 
     #                          conditional prob of flooding = 1
 
-    pfMort    = params[2]       # prob of surviving (not flooding) during storm
+    pfMort = params[2]       # prob of surviving (not flooding) during storm
+    print("prob of failure due to flooding:", pfMort)
     pflood = rng.uniform(low=0, high=1, size=numNests) 
     # need to check whether this is the correct distribution 
     # NOTE: still needs to be conditional on nest having failed already...  
@@ -472,18 +477,19 @@ def mk_flood(params, stormNest):
     if debug: print("flooded:", flooded)
     # and/or/not don't work bc it's a vector; since it's 1 and 0, can use arithmetic: 
     floodFail = stormNest + flooded > 1 # both need to be true 
-    if debug: print("flooded and during storm:", floodFail)
+    if debug: print("flooded and during storm:", floodFail, floodFail.sum())
     # nestData[:,4] = floodFail.astype(int) 
     return(floodFail)
 
 # -----------------------------------------------------------------------------
 def mk_fates(numNests, hatched, flooded):
     trueFate = np.empty(numNests) 
+    print("hatched:", hatched)
     #print("length where flooded = True", len(trueFate[floodedAll==True]))
     trueFate.fill(1) # nests that didn't flood or hatch were depredated 
     #trueFate[flooded==True] = 2 
     #trueFate[floodedAll==True] = 2 
-    trueFate[hatched    == True] = 0 # was nest discovered?  
+    trueFate[hatched == True] = 0 # was nest discovered?  
     trueFate[flooded == True] = 2 
     # trueFate[floodedAll ] = 2 
     # hatched fate is assigned last, so hatched is taking precedence over flooded
@@ -520,15 +526,24 @@ def observer(discProb, numNests, fates, surveyDays, nData, out):
 
     #totalReal  = totalSurvey - daysTilDiscovery + 1 # totalSurvey - (daysTilDiscovery - 1)
     totalReal  = svy_possible - svy_til_disc # totalSurvey - (daysTilDiscovery - 1)
+    i_j_k      = ijk(numNests, discovered, svy_til_disc, pos, fates)
+    print("totalReal:",totalReal)
+    print("k-i:", i_j_k[2] - i_j_k[0])
     # need to decide if it's number of observations or observation intervals
 
     # print(">> nest discovered if surveys til discovery < total possible surveys (surveys while active):\n", discovered)
     # print(">> proportion of nests discovered:", sum(discovered)/numNests, "vs. expected proportion:", discProb)
-    out[:,0] = discovered.astype(int) # convert to numeric for numpy array  
-    out[:,1] = totalReal # total number of observation intervals
+    out[:,0] = svy_til_disc
+    out[:,1] = discovered.astype(int) # convert to numeric for numpy array  
+    out[:,2] = totalReal # total number of observation intervals
+    out[:,3] = i_j_k[0]
+    out[:,4] = i_j_k[1]
+    out[:,5] = i_j_k[2]
+
+    return(out)
 
  
-
+def obsStorm():
     # ---- STORMS DURING OBSERVATION PERIOD -------------------------------------------------------------------------
 
     obsPeriod      = lastChecked - firstFound 
@@ -1346,6 +1361,7 @@ with open(likeFile, "wb") as f:
                 likeVal =  np.zeros(shape=(numOut), dtype=np.longdouble)
                 surveyInts = survey_int(surveyDays)
                 nd = np.zeros(shape=(numNests, 3), dtype=int)
+                nd2 = np.zeros(shape=(numNests, 6), dtype=int)
                 try: # create nest/observer data
                     nestData = mk_nests(par, initProb, stormDays, surveyDays, nd)
                     # np.save(n, nestData) # make sure this is correct kind of save
@@ -1355,7 +1371,12 @@ with open(likeFile, "wb") as f:
                         error,
                         ". Go to next replicate.")
                     continue
-                nestPeriod     = mk_per(nestData[:,1], nestData[:,2])
+                nestPeriod     = mk_per(nestData[:,1], (nestData[:,1]+nestData[:,2]))
+                stormNest      = storm_nest(nestPeriod, stormDays)
+                flooded        = mk_flood(par, stormNest)
+                hatched        = nestData[:,2] >= hatchTime
+                nestFate       = mk_fates(numNests, hatched, flooded)
+                obs            = observer(pDisc, numNests, nestFate, surveyDays, nestData, nd2)
                 # print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
                 hatched = nestData[:,3] # true hatched (storms accounted for)
                 #hatchProp = sum(hatched)/numNests
