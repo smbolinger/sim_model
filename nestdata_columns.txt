@@ -1,0 +1,18 @@
+NEST DATA COLUMNS (SIMULATION):
+
+0 - nest ID
+1 - initiation date
+2 - end date
+3 - hatched T/F
+4 - flooded T/F
+5 - # days til discovery
+6 - discovered T/F
+7 - first found
+8 - last active
+9 - last checked
+10 - assigned fate
+11 - number of obs intervals
+12 - storm in final int? T/F
+13 - num storms 
+14 - exposure days (total)
+15 - # days survived

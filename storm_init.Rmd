@@ -1,0 +1,1020 @@
+---
+title: "Storms and Nest Initiation"
+author: "Sarah Bolinger"
+date: "2023-12-14"
+output: html_document
+---
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(stats)
+library(tidyverse)
+library(downloader)
+library(riem) # download weather data from ASOS stations (airports)
+```
+
+Import nest initiation data:
+
+```{r}
+# inits  <- read_csv("nest_data_inits.csv")
+
+nests <- read_csv("nest_data/nest_data_cleaned_1115_1421_.csv")
+inits <- nests |> 
+  # select(nest, species, init_date, year) |>
+  select(nest, species, init_date, year) |> 
+  filter(species=="LETE")
+```
+------------------------------------------------------------------------------------------
+## WHERE TO FIND STORM DATA/HOW TO ESTIMATE NUMBER OF STORMS
+------------------------------------------------------------------------------------------
+One concept is "thunderstorm days" or "thunderstorm hours"
+
+What indicators should be used? Wind speed, gust, precipitation, air pressure, humidity?
+ 
+Radar data???
+Files are probably too big.
+
+NOAA Weather & Climate Toolkit?
+------------------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------------------
+## SKIP IF YOU'VE ALREADY IMPORTED AND FILTERED THE STORM DATA:
+------------------------------------------------------------------------------------------
+
+Import data on tropical storms/hurricanes OR severe weather events (NOAA)
+
+'The “storms” dataset from the “dplyr” package is a subset of the NOAA (National Oceanic and Atmospheric Administration) Atlantic hurricane database best track data. This dataset includes the positions and attributes of 198 tropical storms, measured every six hours during the lifetime of a storm.'
+
+### IMPORTING DATA FROM WEBSITE:
+#### Import ASOS (airport) data from online and save to csv:
+--------------------------------------------------------------------------------------
+
+```{r eval=FALSE, include=FALSE}
+
+
+weath <- riem_measures(
+  station="KUXL",
+  date_start="1994-01-01",
+  date_end=as.character(Sys.Date())
+)
+
+
+prcp <- weath |>
+  select(station, valid, lon, lat, tmpf, dwpf, relh, drct, sknt, p01i) |>
+  mutate(time = strftime(valid, format="%H:%M:%S", tz="CST"),
+         date = strftime(valid, format="%d-%b"),
+         year = strftime(valid, format="%Y")) |>
+  filter(!is.na(p01i)) |>
+  filter(!is.na(sknt))
+
+```
+
+
+```{r eval=FALSE, include=FALSE}
+storms <- prcp |>
+  # mutate(day = strftime(as.numeric(as.character(date)), format="%j")) |>
+  # mutate(day = strftime(valid, format="%j"),
+  mutate(jdate = strftime(valid, format="%j"),
+         week = strftime(valid, format="%W")) |>
+  filter(sknt > 19)
+```
+
+
+
+
+--------------------------------------------------------------------------------------
+#### Import NOAA data from online and save to csv (do one time):
+--------------------------------------------------------------------------------------
+NOAA buoy station names:
+KCVW - Cameron (2005); 
+CAPL1 - Calcasieu Pass (2005,2007-2023); 
+42051 - offshore, seems to be only ocean data (2009-2023); 
+TXPT2 - Sabine Pass (2012-2023)
+Then save to csv to be loaded in later.
+
+--------------------------------------------------------------------------------------
+```{r eval=FALSE, include=FALSE}
+station <- "capl1" # lowercase
+s <- 2007
+e <- 2023
+
+yrs <- seq(s,e)
+yrs[length(yrs)+1] <- 2005
+# yrs[1]<-2005
+url <- list()
+
+for(y in 1:length(yrs)){
+  u <- paste0(
+    "https://www.ndbc.noaa.gov/data/historical/stdmet/",station,"h",yrs[y],".txt.gz", sep=""
+    )
+  url[y] <- u
+  cat("\nURL:", u)
+  
+}
+```
+
+
+```{r eval=FALSE, include=FALSE}
+# file_list <- vector(mode="list", length=length(url))
+
+
+# NOTE: read_table deals with whitespace delimiters AND doesn't give errors that read.table does
+ 
+# for(n in 1:length(file_list)){
+  # file_list[[n]] <- read_lines(url[[n]]) # does not work for tab-delimited
+  # file_list[[n]] <- read.delim(url[[n]], header=F, skip=2)
+    #Warning: line 1 appears to contain an embedded nul - try specifying encoding
+  
+  # file_list[[n]] <- read_delim(url[[n]], delim="/t",col_names=F, skip=2)
+  # file_list[[n]] <- read_delim(url[[n]], delim=" ",col_names=F, skip=2, col_types="c")
+  # col_types = "c" leads to parsing error
+  # cnames <- names(read_delim(url[[n]], delim=" ", n_max=1))
+  # file_list[[n]] <- read_delim(
+      # url[[n]], delim=" ",col_names=cnames, skip=2, col_types=cols(.default="c"))
+    # still parsing warning; trim_ws=T doesn't help
+    # read.table should deal with the uneven spaces for delimiters
+    # but it gives the "appears to contain an embedded nul" warning and a scan error
+    # as.is and strip_white don't help - had them in the wrong call
+    # nothing with read.table() seems to be working...
+  # # sep = "" means any amount of white space
+  # file_list[[n]] <- read.table(
+  #     url[[n]],
+  #     header=F,
+  #     skip=2, 
+  #     sep=""
+  #     # strip.white=T,
+  #     # fill=T
+  #     )
+  # n <- read.table(url[[n]], as.is=T, sep="", strip_white=T, header=F, nrows=1)
+  # n <- read.table(url[[n]], header=F, nrows=1)
+  # names(file_list[[n]]) <- n
+```
+
+
+```{r eval=FALSE, include=FALSE}
+file_list <- vector(mode="list", length=length(url))
+
+for(n in 1:length(file_list)){
+  cnames <- names(read_table(url[[n]], n_max=1,na=character()))
+  cnames[1] <- "YY"
+  cnames[6] <- "WDIR"
+  cnames[13] <- "PRES"
+  file_list[[n]] <- read_table(
+    url[[n]], col_names=cnames, skip=2, col_types=cols(.default="c"), na=character())
+    
+}
+
+filename <- paste0(station,"_data.csv")
+write.csv(weatherDF, filename)
+
+weatherDF <- map_df(file_list, as.data.frame)
+```
+
+
+```{r eval=FALSE, include=FALSE}
+# cnames[1] <- "YY"
+# weatherDF <- map_df(file_list, as.data.frame) 
+# something about stacking them introduces NAs?
+# for 2005 data, WDIR=WD, and PRES=BAR
+# names(weatherDF) <- cnames
+# weatherDF$year <- weatherDF[,2]
+# weatherDF <- weatherDF[colSums(!is.na(weatherDF)) > 0]
+  # col types aren't consistent across the list elements
+# filename <- "txpt2_data.csv"
+filename <- paste0(station,"_data.csv")
+write.csv(weatherDF, filename)
+```
+
+```{r eval=FALSE, include=FALSE}
+storms <- weatherDF |> 
+  mutate(date=paste(YY, DD, MM, sep="-")) |>
+  mutate(date=strptime(date, format="%Y-%d-%m")) |>
+  mutate(jdate=strftime(date, format="%j"),
+         week=strftime(date, format="%W"),
+         WSPD=as.numeric(WSPD)) |>
+  filter(WSPD > 19 & WSPD < 99)
+
+table(storms$WSPD)
+
+# storms <- storms |> 
+#   filter(WSPD > 18)
+```
+
+--------------------------------------------------------------------------------------
+### Import full dataset from csv (takes a while)
+---- --------------------------------------------------------------------------------------
+#### Severe weather data from:
+https://www.ncdc.noaa.gov/stormevents/listevents.jsp?eventType=ALL&beginDate_mm=12&beginDate_dd=01&beginDate_yyyy=1993&endDate_mm=12&endDate_dd=31&endDate_yyyy=2023&county=CAMERON%3A23&hailfilter=0.00&tornfilter=0&windfilter=000&sort=DT&submitbutton=Search&statefips=22%2CLOUISIANA
+------------------------------------------------------------------------------------------
+
+```{r eval=FALSE, include=FALSE}
+storms <- storms
+
+# stormsSev <- read_csv("weather_data/storm_data_search_results.csv", col_types=cols(.default=col_character()))
+stormsSev <- read_csv("weather_data/storm_data_search_results.csv")
+```
+
+```{r eval=FALSE, include=FALSE}
+storms$date <- as.Date(
+  # paste(storms$year, storms$month, storms$day, sep = "-"), "%Y-%m-%d"
+  storms$BEGIN_DATE, format="%m/%d/%Y"
+  )
+storms$jdate <- format(storms$date, "%j")
+
+# storms$jdate <- format(storms$BEGIN_DATE, "%j")
+
+# sMonths  = c(3, 4, 5, 6, 7, 8, 9)
+sMonths  = c(3, 4, 5, 6, 7, 8)
+# years    = c(1996:2021)
+years    = c(2000:2021) # re-run ENTIRE script when changing year range
+```
+------------------------------------------------------------------------------------------
+#### OR, get precip/wind data and try to identify storm events:
+airport weather stations (ASOS)
+(see further down)
+------------------------------------------------------------------------------------------
+
+
+```{r eval=FALSE, include=FALSE}
+
+
+```
+
+------------------------------------------------------------------------------------------
+#### Or use the NOAA buoy data (see further down for reading in files and saving to csv)
+------------------------------------------------------------------------------------------
+
+Read in the data that were downloaded and saved to csv:
+
+```{r eval=FALSE, include=FALSE}
+# station <- "txpt2" # lowercase
+#stations <- c("capl1", "txpt2") # lowercase
+stations <- c("kvbs", "42051", "capl1", "txpt2") # lowercase
+filenames <- c(paste0(stations[1],"_data.csv"), paste0(stations[2], "_data.csv"))
+# weath <- read.csv(filenames[1])
+weath <- filenames |> map_df(~read.csv(.))
+```
+
+
+```{r eval=FALSE, include=FALSE}
+storms_ <- weath |> 
+  mutate(date=as.POSIXlt(paste(YY, DD, MM, hh, mm, sep=" "), format="%Y %d %m %H %M")) |>
+  # mutate(date=paste(YY, DD, MM, sep="-")) |>
+  # mutate(date=strptime(date, format="%Y-%d-%m")) |>
+  mutate(jdate=strftime(date, format="%j"),
+         week=strftime(date, format="%W"),
+         WSPD=as.numeric(WSPD)) |>
+  filter(WSPD!=99,
+         GST!=99)
+```
+
+
+```{r eval=FALSE, include=FALSE}
+colSums(is.na(storms_))
+
+table(storms_$YY[is.na(storms_$date)])
+table(storms_$DD[is.na(storms_$date)])
+table(storms_$MM[is.na(storms_$date)])
+table(storms_$hh[is.na(storms_$date)])
+table(storms_$mm[is.na(storms_$date)])
+
+# storms |> write.csv("storms_data_capl1_txpt2")
+```
+
+
+```{r eval=FALSE, include=FALSE}
+cat("Wind speed:")
+table(storms_$WSPD)
+cat("range:",range(storms_$WSPD))
+
+cat("\n\n Gust:")
+table(storms_$GST)
+cat("range:",range(storms_$GST))
+```
+
+```{r eval=FALSE, include=FALSE}
+# # Cameron Parish severe storm data from NOAA:
+# stormsSev <- read.csv("weather_data/storm_data_search_results.csv")
+# # Convert dates to match the other csv, which was previously edited
+# stormsSev <- stormsSev |>
+#   mutate(dt = paste(BEGIN_DATE, sprintf("%04i",BEGIN_TIME))) |>
+#   # mutate(date = format(as.POSIXlt(dt, format="%m/%d/%Y %H%M"), format="%m %d %Y %H %M")) |>
+#   mutate(date = as.POSIXlt(dt, format="%m/%d/%Y %H%M"), format="%m %d %Y %H %M") |>
+#   # mutate(jdate = strftime(as.Date(date, format="%m %d %Y %H %M"), format="%j"))
+#   mutate(jdate = strftime(date, format="%j"),
+#          week = strftime(date, format="%W"))
+```
+
+--------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------
+### Filter for storm events:
+------------------------------------------------------------------------------------------
+
+- Filter for data points that exceed the wind threshold decided on
+- Of these points, find all consecutive points less than 2 hours apart
+  * These will be considered the same storm event
+
+```{r eval=FALSE, include=FALSE}
+# theDate <- "date" # date, valid, etc
+# windSpeed <- "WSPD" # WSPD, sknt, etc depending on which data
+# hrlyPrecip <- ""
+
+storms <- storms_ |>
+  #filter(WSPD > 19 & WSPD < 99)
+  filter(WSPD > 18 | GST > 18)
+cat("Wind speed:")
+table(storms$WSPD)
+cat("range:",range(storms$WSPD))
+```
+
+
+```{r eval=FALSE, include=FALSE}
+# lots of the data still has NAs so clearly didn't parse correctly...
+storms$dur[1] = 0
+for(t in 2:nrow(storms)){ # duration in number of timesteps - but steps aren't equal
+  
+  storms$dur[t] <- ifelse(
+    # storms$valid[t] - storms$valid[t-1] < 3, storms$dur[t-1] + 1, 0)
+    # storms$valid[t] - storms$valid[t-1] < 10800, storms$dur[t-1] + 1, 0) # time dif in s
+    # difftime(storms$valid[t],storms$valid[t-1],units="min") < 180, storms$dur[t-1] + 1, 0) # try using timediff
+    difftime(storms$date[t],storms$date[t-1],units="min") < 120, storms$dur[t-1] + 1, 0) # try using timediff
+}
+# storms$ID=1
+# storms <- storms |> 
+#   filter(dur > 0) # was supposed to get rid of storms lasting only 1 timestep, but also gets rid of first timestep for all other storms
+
+# table(storms$YY) # why do so few years have "storms"?
+```
+
+
+```{r eval=FALSE, include=FALSE}
+# storms |> write.csv("storms_data_capl1_txpt2.csv")
+```
+
+Separate into individual storm events by grouping consecutive observations that exceed the wind threshold decided on:
+
+```{r eval=FALSE, include=FALSE}
+storms$ID[1] = 1
+for(t in 2:nrow(storms)){
+  storms$ID[t] <- ifelse(
+    # storms$dur[t] !=0 & storms$dur[t-1]==0, storms$ID[t-1]+1, 0
+    storms$dur[t]-storms$dur[t-1]==1, storms$ID[t-1], storms$ID[t-1]+1
+  )
+}
+```
+
+Filter for storms lasting 2 hours or more:
+
+```{r eval=FALSE, include=FALSE}
+storms2 <- storms |> 
+  group_by(ID) |>
+  # mutate(durat = difftime(max(valid), min(valid), units="min")
+  mutate(durat = difftime(max(date), min(date), units="min") # "date" doesn't have info about time of day
+         # dircount = count(drct, sort=TRUE)
+         ) |>
+  filter(durat > 80) |>
+  # summarize(maxWind   = max(sknt),
+  summarize(maxWind   = max(.data[[windSpeed]]), # use the input to variable "windSpeed"
+            minWind   = min(.data[[windSpeed]]),
+            maxGust   = max(GST),
+            # avgHrPrcp = mean(p01i),
+            # direction = first(dircount),
+            # direction = max()
+            dur       = first(durat),
+            # start     = first(date),
+            start     = first(date),
+            end       = last(date),
+            week      = first(week), 
+            jdate     = first(jdate)
+            )
+
+storms3 <- storms2 |>
+  filter(week > 13 & week < 29)
+
+
+storms3 |> write.csv("storms_filtered_capl1_txpt2.csv")
+```
+
+
+```{r eval=FALSE, include=FALSE}
+
+# filter by duration in minutes rather than group size
+
+# storms2 <- storms2 |>
+#   filter(durat > 110)
+
+# storms <- storms |> 
+#   group_by(ID) |>
+#   filter(n()>5)
+# storms <- prcp |>
+#   mutate(dur = 0) |>
+#   mutate(dur = ifelse(sknt>19, dur+1, 0))
+```
+
+
+------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------
+## START HERE (after importing init data) - import filtered storm data for specified stations:
+------------------------------------------------------------------------------------------
+```{r}
+# To filter for rows in a data frame that is not in a list of values, use the following basic syntax in dplyr. df %>% filter(! col_name %in% c('value1', 'value2', 'value3', ...))
+
+# Cameron Parish severe storm data from NOAA:
+stormsSev <- read.csv("weather_data/storm_data_search_results.csv")
+# Convert dates to match the other csv, which was previously edited
+stormsSev <- stormsSev |>
+  mutate(dt = paste(BEGIN_DATE, sprintf("%04i",BEGIN_TIME))) |>
+  # mutate(date = format(as.POSIXlt(dt, format="%m/%d/%Y %H%M"), format="%m %d %Y %H %M")) |>
+  mutate(date = as.POSIXlt(dt, format="%m/%d/%Y %H%M"), format="%m %d %Y %H %M") |>
+  # mutate(jdate = strftime(as.Date(date, format="%m %d %Y %H %M"), format="%j"))
+  mutate(jdate = strftime(date, format="%j"),
+         week = strftime(date, format="%W"),
+         year = strftime(date, format="%Y"),
+         ID = EVENT_ID) |>
+  filter(year %in% c(2005:2024),
+         ! EVENT_TYPE %in% c(
+           "Astronomical Low Tide","Winter Weather","Winter Storm", "Ice Storm"))
+           # "Thunderstorm Wind", "Hail", "Tornado", "Coastal Flood", "Flood", "Fl"))
+
+# Storms I extracted from NOAA buoy data:
+stormsFilt <- read.csv("storms_filtered_capl1_txpt2.csv")
+```
+
+```{r eval=FALSE, include=FALSE}
+# % 0 [pad w/zeros] 4 [total # digits in result] i [input = integer]
+  # mutate(time = sprintf("%04i", BEGIN_TIME)) |>
+  # mutate(time = format(as.Date(time, format="%H%M"), format="%H:%M"))
+  # mutate(as.numeric(BEGIN_DATE),
+  #        as.numeric(BEGIN_TIME)) |>
+  # mutate(dt = paste(BEGIN_DATE, sprintf("%04i",BEGIN_TIME))) |>
+  # mutate(date = as.Date(dt, format="%m/%d/%Y %H%M"))
+  # mutate(date = as.Date(paste(BEGIN_DATE, BEGIN_TIME)))
+  # mutate(date = format(as.Date(paste(BEGIN_DATE, BEGIN_TIME), format="%m/%d/%Y %H%M"), format="%m %d %Y %H %M"))
+  # mutate(date = format(as.Date(dt, format="%m/%d/%Y %H%M"), format="%m %d %Y %H %M"))
+  # mutate(date = format(as.POSIXlt(dt, format="%m/%d/%Y %H%M"), format="%m %d %Y %H %M"))
+# needs to be datetime format, not Date
+```
+
+```{r eval=FALSE, include=FALSE}
+colSums(is.na(stormsSev))
+stormsSev$EVENT_ID[which(stormsSev$BEGIN_TIME < 100)] # wonky time formatting
+# there should not be as many date NAs as there are if this is the only cause
+```
+
+```{r eval=FALSE, include=FALSE}
+# cat("Wind speed:")
+# table(storms$WSPD)
+# cat("range:",range(storms$WSPD))
+# 
+# cat("\n\n Gust:")
+# table(storms$GST)
+# cat("range:",range(storms$GST))
+# 
+# cat("\n\n Storm events per year:")
+# table(storms$YY) # why do so few years have "storms"?
+# 
+# cat("\n\nStorm events per week:")
+# table(storms$week) # why do so few years have "storms"?
+
+```
+
+------------------------------------------------------------------------------------------
+Summarize for plotting
+- Group storms by date or by week number and count number per time
+- Plot number of storms per week for summer weeks (April-August)
+- Plot proportion of storms per week vs. proportion of nests initiated per week
+------------------------------------------------------------------------------------------
+
+```{r}
+stormGroup <- function(x) {
+  # x$weeknum <- format(as.Date(x$jdate, format="%j"), format="%W")
+  # x$weeknum <- as.Date(x$jdate, format="%W")
+  # browser()
+  # x <- stormsSev
+  storms <- x %>% 
+    group_by(jdate) %>% 
+    summarize(dailyS = n_distinct(ID)) |>
+    #mutate(weeknum = strptime(as.character(jdate,), format="%W")) #|>
+    mutate(weeknum = format(strptime(jdate, format="%j"), format="%V")) |>
+    filter(weeknum %in% c(14:28)) |>
+    ungroup() |>
+    group_by(weeknum) |>
+    summarize(weeklyS=sum(dailyS)) |>
+    mutate(stormprob = weeklyS/sum(weeklyS))
+  
+  return(storms)
+}
+```
+
+```{r eval=FALSE, include=FALSE}
+# # filter(month %in% sMonths) %>%
+  # # filter(year %in% years) %>%
+  #   group_by(jdate) %>% 
+  # # summarize(nstorms = n_distinct(name))
+  # # summarize(nstorms = n_distinct(EVENT_ID))
+  #   summarize(nstorms = n_distinct(ID))
+
+# sFRecent$jdate = as.Date(sFRecent$jdate, format="%j")
+# sFRecent$weeknum <- strptime(as.character(sFRecent$jdate), format="%j") # date needs to be parsed; is no longer in POSIXlt format
+# sFRecent$weeknum <- format(as.Date(sFRecent$jdate, format="%j"), format="%W")
+# 1. tell R what format you are feeding it; 2. tell R what format to output
+# allWeek <- sFRecent %>% ungroup %>%
+# # allWeek <- stormsFilt |>
+#   group_by(weeknum) %>%
+#   summarize(weeklyS = sum(nstorms))
+```
+
+```{r}
+sev <- stormGroup(stormsSev)
+sev$type <- "severe"
+stm <- stormGroup(stormsFilt)
+stm$type <- "wind"
+summerWeek <- rbind(sev, stm)
+```
+
+------------------------------------------------------------------------------------------
+For the built-in storm data:
+------------------------------------------------------------------------------------------
+
+```{r eval=FALSE, include=FALSE}
+sFSummer <- storms %>% 
+  filter(month %in% sMonths) %>%
+  filter(year %in% years) %>%
+  group_by(jdate) %>% 
+  summarize(nstorms = n_distinct(name))
+
+sFSummer$jdate = as.Date(sFSummer$jdate, format="%j")
+sFSummer$weeknum <- strftime(sFSummer$jdate, format="%V")
+
+summerWeek <- sFSummer %>% ungroup %>%
+  group_by(weeknum) %>%
+  summarize(weeklyS = sum(nstorms))
+summerWeek$stormprob = summerWeek$weeklyS / sum(summerWeek$weeklyS)
+sw <- c(14, 0, 0.00000000001)
+summerWeek <- rbind(sw, summerWeek)
+
+nstorm_recent <- sum(summerWeek$weeklyS)
+```
+
+------------------------------------------------------------------------------------------
+For the imported data:
+------------------------------------------------------------------------------------------=
+
+Filter for week numbers in "summer" (however you've defined it)
+
+```{r eval=FALSE, include=FALSE}
+summerWeek <- allWeek |>
+  # filter(weeknum %in% c(14:38)) |>
+  filter(weeknum %in% c(14:28)) |>
+  mutate(stormprob = weeklyS/sum(weeklyS))
+```
+
+------------------------------------------------------------------------------------------
+PLOTS
+------------------------------------------------------------------------------------------
+
+Plot titles:
+
+```{r}
+# ttl <- "Total Number of Severe Weather Events Reported for \nCameron Parish Per Week (1993-2023)"
+# ttl <- "Total Number of Atlantic Storms\n Per Week (2000-2021) [n=2340]"
+ttl <- "Total Number of Storm Events\n Per Week (2005-2023) [n=2340]"
+```
+
+Plot (number of storms):
+
+```{r}
+stormplot <- ggplot(data = summerWeek, aes(x=weeknum, y=weeklyS, fill=type)) +
+  # geom_bar(stat="identity", fill="turquoise3")+
+  # geom_bar(stat="identity", fill="turquoise4")+
+  geom_bar(stat="identity")+
+  # ggtitle("Total Number of Atlantic Storms Per Week (1975-2021)")+
+  # ggtitle("Total Number of Atlantic Storms\n Per Week (1996-2021) [n=2340]")+
+  # ggtitle("Total Number of Atlantic Storms\n Per Week (2000-2021) [n=2340]")+
+  ggtitle(ttl)+
+  xlab("Week of the Year")+
+  ylab("Number of Storms")+
+  theme(axis.text = element_text(size=12),
+        axis.title.x = element_text(size=14),
+        axis.title.y = element_text(size=14),
+        plot.title = element_text(size=20))
+
+stormplot
+```
+
+Plot (number of nests initiated)
+
+```{r}
+inits$init_date <- ifelse(inits$year==2020,inits$init_date+91,inits$init_date+90)
+inits$week      <- strftime(as.Date(inits$init_date), format="%V")
+
+weeklyInit <- ggplot(inits, aes(x=week)) +
+  geom_bar(fill="darkseagreen4", aes(alpha=0.8) )  # stat="count" is the default
+
+weeklyInit
+```
+
+Plot (nests initiated per week)
+
+```{r}
+inits_weekly <- inits %>%
+  group_by(week) %>%
+  summarize(nests_per_week = n_distinct(nest)) %>%
+  mutate(weeknum = week)
+# inits_weekly$week[1] <- 39
+inits_weekly$proportion <- inits_weekly$nests_per_week/sum(inits_weekly$nests_per_week)
+```
+
+Plot (number of storms and nests per week)
+
+```{r eval=FALSE, include=FALSE}
+stormInit <-  ggplot() +
+  geom_bar(data=summerWeek, 
+           aes(x=weeknum, y=weeklyS, fill=type), 
+           # fill="blue3", alpha=0.4,
+           # fill=type, alpha=0.4,
+           stat="identity") +
+  geom_bar(data=inits_weekly, 
+           aes(x=week, y=nests_per_week), 
+           fill="green4", alpha=0.4,
+           stat="identity") +
+  xlab("Week of the Year") +
+  ylab("Count") +
+  theme(legend.text = element_text(c("Number of Storms", "Number of Nests Initiated")))
+
+stormInit
+```
+
+
+
+Plot (proportion of storms and nests per week)
+
+```{r eval=F, include=F}
+
+# label1 <- "Summer Storms (1993-2023)"
+label1 <- "Summer Storms (2005-2023)"
+label2 <- "Nests Initiated"
+
+stormInitScaled <- ggplot() +
+  geom_bar(
+    data=summerWeek,
+    # aes(x=weeknum, y=stormprob),
+    aes(x=weeknum, y=stormprob, fill="blue3"),
+    alpha=0.4,
+    stat="identity", 
+    # position="dodge" # doesn't work for either one
+    position=position_dodge()
+    # position="jitter"
+    )+
+  geom_bar(
+    data=inits_weekly,
+    aes(x=week, y=proportion, fill="green4"),
+    alpha=0.4,
+    stat="identity",
+    # position="dodge"
+    ) +
+  scale_fill_identity(
+    # name="Probability of:", 
+    name="Proportion of:", 
+    guide="legend", 
+    # labels=c("Storm Occurrences", "Nests Initiated")
+    # labels=c("Storms (1996-2021)", "Beach-nesting Bird \nNests Initiated")
+    # labels=c("Summer Storms (1996-2021)", "Nests Initiated")
+    # labels=c("Summer Storms (2000-2021)", "Nests Initiated")
+    labels=c(label1, label2)
+    ) +
+  scale_y_continuous(
+    limits=c(0,0.16),
+    expand=c(0,0),
+    breaks=seq(0,0.18,by=0.02)
+    ) + #Error: Discrete value supplied to continuous scale
+  
+  ylab("Proportion") +
+  xlab("Week of the Year") +
+  theme(
+    legend.key=element_rect(color="white"),
+    legend.text=element_text(size=12),
+    legend.title=element_text(size=14),
+    legend.background = element_rect(color="darkgray"),
+    # legend.margin=margin(10,10,10,10),
+    legend.spacing.y=unit(0.4, "cm"),
+    # legend.box.spacing=unit(0.4, "cm"),
+    # panel.grid = element_line(color="lightgray"),
+    panel.grid.major.y = element_line(color="lightgray"),
+    panel.background = element_rect(fill="white"),
+    # panel.border = element_rect(color="black", fill="none"),
+    panel.border = element_rect(color="black", fill=NA),
+    axis.text=element_text(size=12),
+    # axis.text.y=element_text(size=12),
+    # axis.title=element_text(size=14),
+    axis.title.x=element_text(size=14, margin=margin(10,10,10,10)),
+    axis.title.y=element_text(size=14, margin=margin(10,10,10,10)),
+    # legend.position=c(0.5, 0.8)
+    legend.position=c(0.5, 0.86)
+    )
+
+stormInitScaled
+```
+
+Flip x and y axis if needed:
+
+```{r eval=FALSE, include=FALSE}
+stormInitSclFlip <- stormInitScaled + coord_flip()
+stormInitSclFlip
+```
+
+Plot again:
+```{r eval=FALSE, include=FALSE}
+# label1 <- "Summer Storms (1993-2023)"
+# label2 <- "Severe Weather Events (1993-2023)"
+label3 <- "Storm Events (2005-2023)"
+label2 <- "Severe Storms (2005-2023)"
+label1 <- "Nests Initiated"
+
+# stormInit_scaled <- ggplot(data=stormInit_dat, aes(x=weeknum, y=values, fill=as.factor(probs)), alpha=0.4) +
+stormInit_scaled <- ggplot(data=stormInit_dat, aes(x=weeknum, y=values, fill=as.factor(probs))) +
+  geom_bar(position="dodge", stat="identity", alpha=0.4) +
+  # scale_fill_manual(values = c("blue3", "green4")) +
+  # scale_fill_manual(values = c("blue3", "green4"), # make sure colors aren[t swapped]
+  scale_fill_manual(values = c("green4", "blue3", "turquoise3"), # make sure colors aren[t swapped]
+                    name = "Proportion of:",
+                    # guide = legend,
+                    labels = c(label1, label2, label3)) + # scale_fill_manual OR scale_fill_identity
+  # scale_fill_identity( # this worked in previous graph because I had specified colors for the vars
+  #   # name="Probability of:",
+  #   name="Proportion of:",
+  #   guide="legend",
+  #   # labels=c("Storm Occurrences", "Nests Initiated")
+  #   # labels=c("Storms (1996-2021)", "Beach-nesting Bird \nNests Initiated")
+  #   # labels=c("Summer Storms (1996-2021)", "Nests Initiated")
+  #   # labels=c("Summer Storms (2000-2021)", "Nests Initiated")
+  #   labels=c(label1, label2)
+  # )
+  #   ) +
+  scale_y_continuous(
+    limits=c(0,0.16),
+    expand=c(0,0),
+    breaks=seq(0,0.18,by=0.02)
+    ) + #Error: Discrete value supplied to continuous scale
+
+  ylab("Proportion") +
+  xlab("Week of the Year") +
+  # xlab("Week of the Year")
+  theme(
+    legend.key=element_rect(color="white"),
+    legend.text=element_text(size=10),
+    legend.title=element_text(size=12),
+    legend.background = element_rect(color="darkgray"),
+    # legend.margin=margin(10,10,10,10),
+    legend.spacing.y=unit(0.4, "cm"),
+    # legend.box.spacing=unit(0.4, "cm"),
+    # panel.grid = element_line(color="lightgray"),
+    panel.grid.major.y = element_line(color="lightgray"),
+    panel.background = element_rect(fill="white"),
+    # panel.border = element_rect(color="black", fill="none"),
+    panel.border = element_rect(color="black", fill=NA),
+    axis.text=element_text(size=12),
+    # axis.text.y=element_text(size=12),
+    # axis.title=element_text(size=14),
+    axis.title.x=element_text(size=14, margin=margin(10,10,10,10)),
+    axis.title.y=element_text(size=14, margin=margin(10,10,10,10)),
+    # legend.position=c(0.5, 0.8)
+    legend.position=c(0.9, 0.86)
+    )
+
+stormInit_scaled
+```
+
+```{r eval=FALSE, include=FALSE}
+storm_dat <- stormInit_dat |>
+  filter(probs != "initprob")
+label1 <- "Severe Storms (2005-2023)"
+label2 <- "Storm Events (2005-2023)"
+storm_init_plot <-ggplot(data=storm_dat, aes(x=weeknum, y=values, fill=as.factor(probs))) +
+  geom_bar(position="dodge", stat="identity", alpha=0.4) +
+  # scale_fill_manual(values = c("blue3", "green4")) +
+  # scale_fill_manual(values = c("blue3", "green4"), # make sure colors aren[t swapped]
+  scale_fill_manual(values = c("green4", "turquoise3"), # make sure colors aren[t swapped]
+                    name = "Proportion of:",
+                    # guide = legend,
+                    labels = c(label1, label2)) + # scale_fill_manual OR scale_fill_identity
+  # scale_fill_identity( # this worked in previous graph because I had specified colors for the vars
+  #   # name="Probability of:",
+  #   name="Proportion of:",
+  #   guide="legend",
+  #   # labels=c("Storm Occurrences", "Nests Initiated")
+  #   # labels=c("Storms (1996-2021)", "Beach-nesting Bird \nNests Initiated")
+  #   # labels=c("Summer Storms (1996-2021)", "Nests Initiated")
+  #   # labels=c("Summer Storms (2000-2021)", "Nests Initiated")
+  #   labels=c(label1, label2)
+  # )
+  #   ) +
+  scale_y_continuous(
+    limits=c(0,0.16),
+    expand=c(0,0),
+    breaks=seq(0,0.18,by=0.02)
+    ) + #Error: Discrete value supplied to continuous scale
+
+  ylab("Proportion") +
+  xlab("Week of the Year") +
+  # xlab("Week of the Year")
+  theme(
+    legend.key=element_rect(color="white"),
+    legend.text=element_text(size=10),
+    legend.title=element_text(size=12),
+    legend.background = element_rect(color="darkgray"),
+    # legend.margin=margin(10,10,10,10),
+    legend.spacing.y=unit(0.4, "cm"),
+    # legend.box.spacing=unit(0.4, "cm"),
+    # panel.grid = element_line(color="lightgray"),
+    panel.grid.major.y = element_line(color="lightgray"),
+    panel.background = element_rect(fill="white"),
+    # panel.border = element_rect(color="black", fill="none"),
+    panel.border = element_rect(color="black", fill=NA),
+    axis.text=element_text(size=12),
+    # axis.text.y=element_text(size=12),
+    # axis.title=element_text(size=14),
+    axis.title.x=element_text(size=14, margin=margin(10,10,10,10)),
+    axis.title.y=element_text(size=14, margin=margin(10,10,10,10)),
+    # legend.position=c(0.5, 0.8)
+    legend.position=c(0.8, 0.86)
+    )
+
+storm_init_plot
+```
+
+```{r}
+# stormInitDat <- stormInit_dat_ |> 
+#   # mutate(avgStorms = mean(c(stormprob_severe, stormprob_wind), na.rm=T))
+#   mutate(avgStorms = (stormprob_severe+stormprob_wind)/2)
+```
+
+
+------------------------------------------------------------------------------------------
+Plot function (more efficient)
+------------------------------------------------------------------------------------------
+
+```{r}
+plotStormInit <- function(d, labels, colorscl, title, xylab){
+  plt <- ggplot(
+    d, 
+    aes(x=weeknum, y=values, fill=as.factor(probs))
+    ) +
+    geom_bar(
+      position="dodge", 
+      stat="identity", 
+      alpha=0.4
+      ) +
+    scale_fill_manual(
+      values = colorscl, # make sure colors aren[t swapped]
+      name = "Proportion of:",
+      labels = labels
+      ) +
+    scale_y_continuous(    
+      limits=c(0,0.16),
+      expand=c(0,0),
+      breaks=seq(0,0.18,by=0.02)
+      ) +
+    ylab(xylab[2]) +
+    xlab(xylab[1]) +
+    ggtitle(title) +
+    theme(
+      legend.key=element_rect(color="white"),
+      legend.text=element_text(size=10),
+      legend.title=element_text(size=14),
+      legend.background = element_rect(color="darkgray"),
+      # legend.margin=margin(10,10,10,10),
+      legend.spacing.y=unit(0.4, "cm"),
+      # legend.box.spacing=unit(0.4, "cm"),
+      # panel.grid = element_line(color="lightgray"),
+      panel.grid.major.y = element_line(color="lightgray"),
+      panel.background = element_rect(fill="white"),
+      # panel.border = element_rect(color="black", fill="none"),
+      panel.border = element_rect(color="black", fill=NA),
+      axis.text=element_text(size=12),
+      # axis.text.y=element_text(size=12),
+      # axis.title=element_text(size=14),
+      axis.title.x=element_text(size=12, margin=margin(10,10,10,10)),
+      axis.title.y=element_text(size=12, margin=margin(10,10,10,10)),
+      # legend.position=c(0.5, 0.8)
+      legend.position=c(0.8, 0.86)
+    )
+  return(plt)
+}
+```
+
+------------------------------------------------------------------------------------------
+Filter the data and create the plots
+------------------------------------------------------------------------------------------
+
+Save nest initiated and storm data to one csv for import into python script:
+- Pivot to longer form so that all probabilities/proportions are the same variable
+
+```{r}
+# stormInit_dat <- cbind(summerWeek, inits_weekly)
+# summerWeek <- pivot_wider(summerWeek,id_cols=C(weeklyS,stormprob),names_from=type)
+summerWeek2 <- pivot_wider(summerWeek,names_from=type, values_from=c(weeklyS,stormprob))
+
+stormInit_dat_ <- merge(summerWeek2, inits_weekly) |>
+  mutate(initprob=proportion) |>
+  select(weeknum, initprob, stormprob_severe, stormprob_wind) 
+# 
+# stormInit_dat |>
+#   write.csv("model_data/storm_init_data2.csv", fileEncoding="UTF-8")
+
+write.csv(stormInit_dat, "storm_init_dat12.csv", eol="\r\n")
+
+stormInit_dat <- stormInit_dat_ |> 
+  # mutate(initprob = proportion) |>
+  # pivot_longer(cols = ends_with("prob"),
+  pivot_longer(cols = c(initprob,stormprob_wind,stormprob_severe), 
+               names_to = "probs",
+               values_to = "values") 
+
+
+# 
+# |>
+#   select(weeknum,probs,values)
+```
+
+```{r}
+xy <- c(
+  "Week of the Year",
+  "Proportion"
+)
+ttl <- "Storms and Nest Initiation in Cameron Parish"
+```
+
+```{r}
+labs <- c(
+  "Storms (2005-2024)",
+  "Severe storms (2005-2024)",
+  "Nests Initiated"
+)
+cols <- c(
+  "green4",
+  "cadetblue",
+  "blue4"
+)
+```
+
+```{r}
+sPlot <- plotStormInit(stormInit_dat, labs, cols, ttl, xy)
+sPlot
+```
+
+```{r}
+storm_dat <- stormInit_dat |>
+  filter(probs != "initprob")
+
+labs <- c(
+  "severe",
+  "wind"
+)
+
+cols <- c(
+  "purple3",
+  "blue3"
+)
+sPlot <- plotStormInit(storm_dat, labs, cols, ttl, xy)
+sPlot
+
+```
+
+```{r}
+stormInitDat <- stormInit_dat_ |> 
+  # mutate(avgStorms = mean(c(stormprob_severe, stormprob_wind), na.rm=T))
+  mutate(avgStorms = (stormprob_severe+stormprob_wind)/2) |>
+  pivot_longer(cols = c(initprob,stormprob_wind,stormprob_severe,avgStorms), 
+               names_to = "probs",
+               values_to = "values") |>
+  filter(probs %in% c("initprob", "avgStorms"))
+
+labs <- c(
+  "nests initiated",
+  "storm events"
+)
+
+cols <- c(  
+  "bisque4",
+  "darkcyan"
+)
+
+sPlot <- plotStormInit(stormInitDat, labs, cols, ttl, xy)
+sPlot
+```
+
+
+```{r}
+pltDat <- 
+sPlot <- plotStormInit(pltDat, labs, cols, ttl, xy)
+sPlot
+```
+
+
+
+
+
