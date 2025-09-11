@@ -61,6 +61,16 @@ def searchSorted2(a, b):
     return(out)
 
 # -----------------------------------------------------------------------------
+# This function computes intersection of 2 arrays more quickly than intersect1d
+#    > possible observations = intersection of observable & survey days
+
+#@profile
+def in1d_sorted(A,B): 
+    idx = np.searchsorted(B, A)
+    idx[idx==len(B)] = 0
+    return A[B[idx] == A]
+
+# -----------------------------------------------------------------------------
 #   OPTIMIZER PARAMETERS: 
 # -----------------------------------------------------------------------------
 nruns    = 1 # number of times to run  the optimizer 
@@ -228,16 +238,6 @@ def logistic(x)->np.longdouble:
     return 1.0/( 1.0 + np.exp(-x) )
 
 # -----------------------------------------------------------------------------
-# This function computes intersection of 2 arrays more quickly than intersect1d
-#    > possible observations = intersection of observable & survey days
-
-#@profile
-def in1d_sorted(A,B): 
-    idx = np.searchsorted(B, A)
-    idx[idx==len(B)] = 0
-    return A[B[idx] == A]
-
-# -----------------------------------------------------------------------------
 # This function creates the list of survey days by taking a random start date 
 # from the first 5 breeding days and creating a range with step size determined
 # by observation frequency. Then remove storm days.
@@ -383,7 +383,7 @@ def mk_nests(params, init, stormDays, surveyDays, nestData):
     if debug: print(nestData[1:6,:])
     return(nestData)
 
-def mk_flood(params, nestData, stormNestIndex):
+def mk_flood(params, ,nestData):
     # ---- FAILED NESTS --------------------------------------------------------
 
     # 5. Decide cause of failure for failed nests:
@@ -396,21 +396,14 @@ def mk_flood(params, nestData, stormNestIndex):
     #                          conditional prob of flooding = 1
 
     pfMort    = params[2]       # prob of surviving (not flooding) during storm
-
     pflood = rng.uniform(low=0, high=1, size=numNests) 
     # need to check whether this is the correct distribution 
     # NOTE: still needs to be conditional on nest having failed already...  
     # NOTE np.concatenate joins existing axes, while np.stack creates new ones
     
-# -----------------------------------------------------------------------------
-    # NOTE maybe also depends when in season storms are
-    # flooded is just all nests that did not hatch & are during storm? 
-    # or just all nests during storm except some small percentage?
     flooded = np.where(pflood>pfMort, 1, 0) # if pflood>pfMort, flooded=1, else flooded=0 
     if debug: print("flooded:", flooded)
-    # since it's 1 and 0, can use arithmetic: 
-    # if debug: print("flooded & storm:", stormNest + flooded)
-    # can't use and or not because it's a vector
+    # and/or/not don't work bc it's a vector; since it's 1 and 0, can use arithmetic: 
     floodFail = stormNest + flooded > 1 # both need to be true 
     if debug: print("flooded and during storm:", floodFail)
     # floodedAll = stormNest + flooded > 1
