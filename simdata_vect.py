@@ -507,6 +507,7 @@ def svydays_nest(surveyDays, pos):
 
     possSurveyDates = np.stack((firstSurvey, lastSurvey)) # double parens so numpy knows it's not two separate arguments
     possSurveyDates = np.transpose(possSurveyDates)
+    if debug: print("first and last possible survey:", possSurveyDates)
     # if debug:
         # print(
             #   ">> start of nest, end of nest, first possible survey, last possible survey:\n",
@@ -522,15 +523,18 @@ def svydays_nest(surveyDays, pos):
 def discover_nests(discProb, numNests, pos):
     # discovered = svy_til_disc < (position2-position) 
 
-    daysTilDiscovery = rng.negative_binomial(n=1, p=discProb, size=numNests) # see above for explanation of p 
-    if debug: print(">> survey days until discovery:\n", daysTilDiscovery, len(daysTilDiscovery)) 
+    ijk = np.zeros(numNests, 3)
+    svysTilDiscovery = rng.negative_binomial(n=1, p=discProb, size=numNests) # see above for explanation of p 
+    if debug: print(">> survey days until discovery:\n", svysTilDiscovery, len(svysTilDiscovery)) 
     num_svy    = pos[1] - pos[0] # total possible number of surveys
-    num_svy[num_svy < 0] = 0 # exclude negative numbers of surveys
-    if debug: print("total possible number of surveys:", num_svy)
-    # discovered = svy_til_disc < num_svy
-    discovered = daysTilDiscovery < num_svy
+    # num_svy[num_svy < 0] = 0 # exclude negative numbers of surveys
+    if debug: print("total possible number of surveys for this nest:", num_svy)
+    discovered = svysTilDiscovery < num_svy
+    ijk[:,1] = surveyDays[pos[0]+svysTilDiscovery]
+    ijk[:,2] = surveyDays[pos[0]+svysTilDiscovery]
+    ijk[:,3] = surveyDays[pos[0]+svysTilDiscovery]
     # daysTilDiscovery also acts as a T/F for whether nest was discovered:
-    daysTilDiscovery[discovered==False] = 999
+    svysTilDiscovery[discovered==False] = 999
     
     if debug: print(
         ">> nest discovered if surveys til discovery < total possible surveys (surveys while active):\n", 
@@ -542,7 +546,7 @@ def discover_nests(discProb, numNests, pos):
                     # "vs. expected proportion:", sum(discProb**num_svy)
                     )
     # return(discovered)
-    return(daysTilDiscovery)
+    return(svysTilDiscovery)
 
 # -----------------------------------------------------------------------------
 # Calculate i, j, and k
@@ -551,7 +555,8 @@ def discover_nests(discProb, numNests, pos):
 # so is discovered==True not a mask? 
 # so can't use 999 bc index is too big. but needs to be the same type (integer)
 def calc_ijk(numNests, discovered, svy_til_disc, pos, fates):
-    firstFound = np.zeros(numNests) 
+    ijk = np.zeros(numNests, 3)
+    ijk[:,1] = 
     if debug: print("surveys til discovery:", svy_til_disc)
     # firstFound[discovered==True] = surveyDays[(pos[0]+svy_til_disc)][discovered==True] 
     # firstFound[svy_til_disc!=999] = surveyDays[(pos[0]+svy_til_disc)][svy_til_disc!=999] 
