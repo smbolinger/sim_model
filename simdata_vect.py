@@ -522,19 +522,18 @@ def svydays_nest(surveyDays, pos):
 # def discover_nests(svy_til_disc, pos):
 def discover_nests(discProb, numNests, pos):
     # discovered = svy_til_disc < (position2-position) 
-
-    ijk = np.zeros(numNests, 3)
+    # ijk = np.zeros(numNests, 3)
     svysTilDiscovery = rng.negative_binomial(n=1, p=discProb, size=numNests) # see above for explanation of p 
     if debug: print(">> survey days until discovery:\n", svysTilDiscovery, len(svysTilDiscovery)) 
     num_svy    = pos[1] - pos[0] # total possible number of surveys
     # num_svy[num_svy < 0] = 0 # exclude negative numbers of surveys
     if debug: print("total possible number of surveys for this nest:", num_svy)
     discovered = svysTilDiscovery < num_svy
-    ijk[:,1] = surveyDays[pos[0]+svysTilDiscovery]
-    ijk[:,2] = surveyDays[pos[0]+svysTilDiscovery]
-    ijk[:,3] = surveyDays[pos[0]+svysTilDiscovery]
+    # ijk[:,1] = surveyDays[pos[0]+svysTilDiscovery]
+    # ijk[:,2] = surveyDays[pos[0]+svysTilDiscovery]
+    # ijk[:,3] = surveyDays[pos[0]+svysTilDiscovery]
     # daysTilDiscovery also acts as a T/F for whether nest was discovered:
-    svysTilDiscovery[discovered==False] = 999
+    # svysTilDiscovery[discovered==False] = 999
     
     if debug: print(
         ">> nest discovered if surveys til discovery < total possible surveys (surveys while active):\n", 
@@ -546,9 +545,13 @@ def discover_nests(discProb, numNests, pos):
                     # "vs. expected proportion:", sum(discProb**num_svy)
                     )
     # return(discovered)
+    # discDate =  np.zeros(numNests)
+    # discDate[discovered] = surveyDays[pos[0]+svysTilDiscovery][discovered]
+    # return(discDate)
     return(svysTilDiscovery)
 
 # -----------------------------------------------------------------------------
+
 # Calculate i, j, and k
 # Need to exclude nests where surveys til discovery = 999 because 
 # numpy still calculates these values and then excludes them
@@ -592,27 +595,35 @@ def observer(par, fateCues, fates, surveyDays, nData, out):
     numNests, obsFreq, discProb, stormFate = par # unpack par
 
     # svy_til_disc = discover_time(discProb, numNests)
-    pos          = svy_position(initiation, end, surveyDays)
+    pos              = svy_position(initiation, end, surveyDays)
+    num_svy          = pos[1] - pos[0]   
+    svysTilDiscovery = rng.negative_binomial(n=1, p=discProb, size=numNests) # see above for explanation of p 
+    discovered       = svysTilDiscovery < num_svy
+    stormIntFinal    = surveyInts[pos[1]] > obsFreq  # was obs interval longer than usual? (== there was a storm)
+    # out is already a 2d array of zeros
     # svy_possible = svydays_nest(surveyDays, pos)
     # discovered   = discover_nests(svy_til_disc, pos)
-    svy_til_disc  = discover_nests(discProb, numNests, pos)
-    stormIntFinal= surveyInts[pos[1]] > obsFreq  # was obs interval longer than usual? (== there was a storm)
-    discovered = svy_til_disc != 999
+    # svy_til_disc  = discover_nests(discProb, numNests, pos)
+    # discovered = svy_til_disc != 999
     #totalReal  = totalSurvey - daysTilDiscovery + 1 # totalSurvey - (daysTilDiscovery - 1)
     # totalReal  = svy_possible - svy_til_disc  + 1# totalSurvey - (daysTilDiscovery - 1)
-    ijk      = calc_ijk(numNests, discovered, svy_til_disc, pos, fates)
+    # ijk      = calc_ijk(numNests, discovered, svy_til_disc, pos, fates)
     # if debug_obs: print("totalReal:",totalReal)
     # need to decide if it's number of observations or observation intervals
     # can extract discovered T/F from svy_til_disc; don't need another column
-    out[:,0] = svy_til_disc # do we even need this??
+    # out[:,0] = svy_til_disc # do we even need this??
     # out[:,1] = discovered.astype(int) # convert to numeric for numpy array  
     # out[:,1] = discovered.astype(int) # convert to numeric for numpy array  
     # could probably get this from ijk?
     # out[:,1] = totalReal # total number of observation intervals
-    out[:,2] = ijk[0]
-    out[:,3] = ijk[1]
-    out[:,4] = ijk[2]
-    out[:,5] = assign_fate(fateCues, fates, numNests, stormIntFinal, stormFate)
+    # out[:,2] = discover_nests(discProb, numNests, pos) # i
+    # out = number of obs, i, j, k, assigned fate
+    out[:,0] = num_svy - svysTilDiscovery  # number of observations for the nest
+    out[:,1][discovered] = surveyDays[pos[0]+svysTilDiscovery][discovered] # i
+    out[:,2][discovered] = surveyDays[pos[1]][discovered] # j
+    out[:,3][discovered] = surveyDays[pos[1]+1][discovered] # k
+    out[:,4] = assign_fate(fateCues, fates, numNests, stormIntFinal, stormFate)
+    if debug: print("i, j, k, assigned fate:", out)
     return(out)
 
 # -----------------------------------------------------------------------------
