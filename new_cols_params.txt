@@ -8,16 +8,18 @@ obsFreq1, probMortFlood1, breedingDays1, discProb1, stormFate1
 mk_nests:
 
 0		1		2
-nest ID		initiation	survival days
+nest ID		initiation	survival days (w/o storm)
 
 fates
 numStorms
 
 obs:
 
-0 surveys til discovery		
-1 discovered T/F		
-2 # obs intervals
-3 i
-4 j		
-5 k
+0 surveys til discovery	- 999 means nest wasn't discovered	
+got rid of discovered T/F bc can be calculated from surveys til discovery
+		
+1 # obs intervals
+2 i
+3 j		
+4 k
+5 assigned fate

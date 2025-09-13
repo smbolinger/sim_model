@@ -90,7 +90,7 @@ num_out  = 21 # number zof output parameters
 # NOTE 2: how many varying params is a reasonable number?
 breedingDays1   = [160] 
 # discProb1       = [0.7, 0.9] 
-discProb1       = [1] 
+discProb1       = [0.9] 
 # numNests       = [500,1000]
 # numNests       = [500]
 # numNests       = [200]
@@ -521,24 +521,46 @@ def svydays_nest(surveyDays, pos):
 # def discover_nests(svy_til_disc, pos):
 def discover_nests(discProb, numNests, pos):
     # discovered = svy_til_disc < (position2-position) 
+
     daysTilDiscovery = rng.negative_binomial(n=1, p=discProb, size=numNests) # see above for explanation of p 
     if debug: print(">> survey days until discovery:\n", daysTilDiscovery, len(daysTilDiscovery)) 
     num_svy    = pos[1] - pos[0] # total possible number of surveys
+    num_svy[num_svy < 0] = 0 # exclude negative numbers of surveys
+    if debug: print("total possible number of surveys:", num_svy)
     # discovered = svy_til_disc < num_svy
     discovered = daysTilDiscovery < num_svy
+    # daysTilDiscovery also acts as a T/F for whether nest was discovered:
+    daysTilDiscovery[discovered==False] = 999
+    
     if debug: print(
         ">> nest discovered if surveys til discovery < total possible surveys (surveys while active):\n", 
         discovered
         )
     if debug: print(">> proportion of nests discovered:", sum(discovered)/numNests, 
-                    "vs. expected proportion:", discProb
+                    "vs. expected proportion:", discProb # expected isn't discProb
+                    # this isn't right either, obviously...
+                    # "vs. expected proportion:", sum(discProb**num_svy)
                     )
-    return(discovered)
+    # return(discovered)
+    return(daysTilDiscovery)
 
 # -----------------------------------------------------------------------------
+# Calculate i, j, and k
+# Need to exclude nests where surveys til discovery = 999 because 
+# numpy still calculates these values and then excludes them
+# so is discovered==True not a mask? 
+# so can't use 999 bc index is too big. but needs to be the same type (integer)
 def calc_ijk(numNests, discovered, svy_til_disc, pos, fates):
     firstFound = np.zeros(numNests) 
-    firstFound[discovered==True] = surveyDays[(pos[0]+svy_til_disc)][discovered==True] 
+    if debug: print("surveys til discovery:", svy_til_disc)
+    # firstFound[discovered==True] = surveyDays[(pos[0]+svy_til_disc)][discovered==True] 
+    # firstFound[svy_til_disc!=999] = surveyDays[(pos[0]+svy_til_disc)][svy_til_disc!=999] 
+    discSurvey = pos[0] + svy_til_disc
+    # I'm still not sure exactly how this line works:
+    # firstFound[discovered] = surveyDays[(pos[0]+svy_til_disc)][discovered] 
+    # I guess it is indexing surveyDays for ALL nests before then indexing
+    # the result for only discovered nests?
+    firstFound[discovered] = surveyDays[discSurvey][discovered] 
     if debug: print(">> nest first found:\n", firstFound, len(firstFound)) 
 
     lastActive = np.zeros(numNests)
@@ -566,24 +588,26 @@ def observer(par, fateCues, fates, surveyDays, nData, out):
 
     # svy_til_disc = discover_time(discProb, numNests)
     pos          = svy_position(initiation, end, surveyDays)
-    svy_possible = svydays_nest(surveyDays, pos)
+    # svy_possible = svydays_nest(surveyDays, pos)
     # discovered   = discover_nests(svy_til_disc, pos)
-    discovered   = discover_nests(discProb, numNests, pos)
+    svy_til_disc  = discover_nests(discProb, numNests, pos)
     stormIntFinal= surveyInts[pos[1]] > obsFreq  # was obs interval longer than usual? (== there was a storm)
-
+    discovered = svy_til_disc != 999
     #totalReal  = totalSurvey - daysTilDiscovery + 1 # totalSurvey - (daysTilDiscovery - 1)
-    totalReal  = svy_possible - svy_til_disc  + 1# totalSurvey - (daysTilDiscovery - 1)
+    # totalReal  = svy_possible - svy_til_disc  + 1# totalSurvey - (daysTilDiscovery - 1)
     ijk      = calc_ijk(numNests, discovered, svy_til_disc, pos, fates)
-    if debug_obs: print("totalReal:",totalReal)
+    # if debug_obs: print("totalReal:",totalReal)
     # need to decide if it's number of observations or observation intervals
-    # out[:,0] = svy_til_disc # do we even need this??
-    out[:,1] = discovered.astype(int) # convert to numeric for numpy array  
-    out[:,2] = totalReal # total number of observation intervals
-    out[:,3] = ijk[0]
-    out[:,4] = ijk[1]
-    out[:,5] = ijk[2]
-    out[:,6] = assign_fate(fateCues, fates, numNests, stormIntFinal, stormFate)
-
+    # can extract discovered T/F from svy_til_disc; don't need another column
+    out[:,0] = svy_til_disc # do we even need this??
+    # out[:,1] = discovered.astype(int) # convert to numeric for numpy array  
+    # out[:,1] = discovered.astype(int) # convert to numeric for numpy array  
+    # could probably get this from ijk?
+    # out[:,1] = totalReal # total number of observation intervals
+    out[:,2] = ijk[0]
+    out[:,3] = ijk[1]
+    out[:,4] = ijk[2]
+    out[:,5] = assign_fate(fateCues, fates, numNests, stormIntFinal, stormFate)
     return(out)
 
 # -----------------------------------------------------------------------------
@@ -1389,19 +1413,6 @@ with open(likeFile, "wb") as f:
         repID      = 0  # keep trackof replicates
         numOut     = 21 # number of output params
 
-        # Create a file to store the nest data as you go: nestfile
-        now      = datetime.now().strftime("%H%M%S")
-        nestfile = Path(uniquify(Path.home()/
-                                'C://Users/sarah/Dropbox/nest_models/py_output'/
-                                dirName/
-                                ('nests'+now+'.npy')))
-        nestfile.parent.mkdir(parents=True, exist_ok=True)
-        columns = [
-                'rep_ID','ID','initiation','end_date','true_fate','first_found',
-                'last_active','last_observed','ass_fate','n_obs','storm_true'
-                ]
-        colnames = ', '.join([str(x) for x in columns])
-        print(">> nest data file address:", nestfile)
         print(
             ">>> nest params in this set:", 
             pSurv, 
@@ -1425,20 +1436,34 @@ with open(likeFile, "wb") as f:
                         ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
                         "\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
                 if debug: print("\n>>>>>>>>>>>> replicate ID:", repID)
+                # -------------------------------------------------------------
+                # empty arrays to store data for this replicate:
                 likeVal =  np.zeros(shape=(numOut), dtype=np.longdouble)
                 nd = np.zeros(shape=(numNests, 3), dtype=int)
                 nd2 = np.zeros(shape=(numNests, 7), dtype=int)
-                nData       = mk_nests(par, initProb, nd)
-                nestPeriod     = mk_per(nestData[:,1], (nestData[:,1]+nestData[:,2]))
+                # -------------------------------------------------------------
+                # make the nests:
+                nData          = mk_nests(par, initProb, nd)
+                nestPeriod     = mk_per(nData[:,1], (nData[:,1]+nData[:,2]))
                 stormsPerNest  = storm_nest(nestPeriod, stormDays)
-                # stormNest = stormNest.astype(int) # of those nests, tiny fraction do survive
                 flooded        = mk_flood(par, stormsPerNest)
-                hatched        = nestData[:,2] >= hatchTime
+                hatched        = nData[:,2] >= hatchTime
                 nestFate       = mk_fates(numNests, hatched, flooded)
-                # obs            = observer(pDisc, numNests, fateCues, nestFate, surveyDays, nestData, nd2)
+                # -------------------------------------------------------------
+                # observer:
                 par2           = [numNests, obsFreq, pDisc, stormF]
-                obs            = observer(par2, fateCues, nestFate, surveyDays, nestData, nd2)
-                nestData          = np.concatenate((nData, nestFate[:,None], obs), axis=1)
+                obs            = observer(par2, fateCues, nestFate, surveyDays, nData, nd2)
+                # -------------------------------------------------------------
+                # concatenate to make data for the nest models:
+                #   0. nest ID                  6. # obs int                
+                #   1. initiation               7. first found       
+                #   2. survival (w/o storms)    8. last active              
+                #   3. fate                     9. last checked   
+                #   4. num storms               10. assigned fate
+                #   5. survey til disc
+                #   
+                nestData = np.concatenate((nData, nestFate[:,None], obs), axis=1)
+                # not sure where indexError will show up again
                 # try: # create nest/observer data
                 #     # np.save(n, nestData) # make sure this is correct kind of save
                 # except IndexError as error:
@@ -1456,17 +1481,21 @@ with open(likeFile, "wb") as f:
                 # trueDSR = 1 - ((numNests - hatched.sum()) / expDays)
                 ###########################################################
                 # Keep only discovered nests, then count them:
-                nestData   = nestData[np.where(nestData[:,6]==1)] 
+                # nestData   = nestData[np.where(nestData[:,6]==1)] 
+                nestData   = nestData[np.where(nestData[:,5]!=999)] 
                 discovered = nestData.shape[0]   
+
                 if debug: print(">> proportion of nests assigned hatch fate:", 
-                                np.sum((obs[:,6]==0)[discovered==True])/(sum(discovered==True)),
+                                np.sum((nestData[:,3]==0)[discovered==True])/(sum(discovered==True)),
                                 "vs period survival:", 
                                 pSurv**hatchTime)
+
+
                 if debug:
                     print(
                         ">> nests w/ only 1 obs while active:",
                         np.where(nestData[:,7] == nestData[:,8]),
-                        "& unknown fate:",
+                        "& nests w/ unknown fate:",
                         np.where(nestData[:,10] == 7)
                         ) 
                 exclude  = ((nestData[:,10] == 7) | 
