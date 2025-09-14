@@ -90,13 +90,13 @@ num_out  = 21 # number zof output parameters
 # NOTE 2: how many varying params is a reasonable number?
 breedingDays1   = [160] 
 # discProb1       = [0.7, 0.9] 
-discProb1       = [0.9] 
+discProb1       = [1] 
 # numNests       = [500,1000]
 # numNests       = [500]
 # numNests       = [200]
 numNests1        = [20]
 uncertaintyDays = [1]
-stormFate1       = [0,1]
+stormFate1       = [False,True]
 print(
         "STATIC PARAMS: breeding season length:", breedingDays1[0],
         "; discovery probability:", discProb1[0]
@@ -355,21 +355,21 @@ def storm_nest(nestPeriod, stormDays):
 #        obsFreq, probMortFlood, breedingDays, discProb, assignUnknown
 #        ))
 # -----------------------------------------------------------------------------
-def mk_nests(params, init, nestData): 
+def mk_nests(params, init, weekStart, nestData): 
 
     # 1. Unpack necessary parameters
     # NOTE about the params at the beginning of the script:
     # some have only 1 member, but they are still treated as arrays, not scalars
 
     hatchTime = int(params[5]) 
-    obsFreq   = int(params[6]) 
+    # obsFreq   = int(params[6]) 
     numNests  = int(params[0]) 
     pSurv     = params[1]       # daily survival probability
-    fateCuesPresent = 0.6 if obsFreq > 5 else 0.66 if obsFreq == 5 else 0.75
-    if debug: print(
-        ">> observation frequency:", obsFreq, 
-        ">> prob of correct fate:", fateCuesPresent,
-        )
+    # fateCuesPresent = 0.6 if obsFreq > 5 else 0.66 if obsFreq == 5 else 0.75
+    # if debug: print(
+    #     ">> observation frequency:", obsFreq, 
+    #     ">> prob of correct fate:", fateCuesPresent,
+    #     )
 
     # 2. Assign values to the dataframe
     nestData[:,0] = np.arange(1,numNests+1) # column 1 = nest ID numbers 
@@ -427,7 +427,7 @@ def mk_fates(numNests, hatched, flooded):
     # hatched fate is assigned last, so hatched is taking precedence over flooded
     # so maybe that's why the true DSR is always higher than 0.93, but what about true DSR of discovered?
     # fates = [np.sum(trueFate==x) for x in range(3)]
-    if debug: print(">>>>> true final nest fates:\n", trueFate)
+    if debug: print(">>>>> true final nest fates:\n", trueFate, sum(trueFate))
     return(trueFate)
 
     # # ---- TRUE DSR ------------------------------------------------------------
@@ -466,22 +466,14 @@ def assign_fate(fateCuesPresent, trueFate, numNests, stormIntFinal, stormFate):
     if debug: print(">> fate cue present comparison", fateCuesPres)
     # assignedFate[fateCuesProb < fateCuesPresent] = trueFate[fateCuesProb < fateCuesPresent]
     assignedFate[fateCuesProb < fateCuesPres] = trueFate[fateCuesProb < fateCuesPres] 
-    if debug: print(">> assigned fates:", assignedFate)
+    if debug: print(">> assigned fates:", assignedFate, sum(assignedFate))
+
     if stormFate: assignedFate[stormIntFinal] = 2
-    if debug: print(">> assigned fates after storm fates assigned:", assignedFate)
+    if debug: print(">> assigned fates after storm fates assigned:", assignedFate, sum(assignedFate))
     # fate cues prob should be affecting all nest fates equally, not just failures.
     # if debug: print(">> proportion of nests assigned hatch fate:", np.sum((assignedFate==0)[discovered==True])/(sum(discovered==True)),"vs period survival:", pSurv**hatchTime)
     # print(">> assigned fate array & its shape:\n", assignedFate, assignedFate.shape)
     return(assignedFate)
-
-# -----------------------------------------------------------------------------
-# GET RID OF THIS ONE
-def discover_time(discProb, numNests):
-    # NOTE this name is a little misleading - it's actually survey days til discovery
-    daysTilDiscovery = rng.negative_binomial(n=1, p=discProb, size=numNests) # see above for explanation of p 
-    # nestData[:,5]    = daysTilDiscovery 
-    if debug: print(">> survey days until discovery:\n", daysTilDiscovery, len(daysTilDiscovery)) 
-    return(daysTilDiscovery)
 
 # -----------------------------------------------------------------------------
 def svy_position(initiation, nestEnd, surveyDays):
@@ -495,100 +487,6 @@ def svy_position(initiation, nestEnd, surveyDays):
     return((position, position2)) # return a tuple
     # position2
 # -----------------------------------------------------------------------------
-# get rid of this one ??
-# I think this calculation may just be for debugging purposes
-def svydays_nest(surveyDays, pos):
-    # what are the first and last *possible* survey dates for the nest?  
-    # pos is a tuple of (position, position2)
-    # this finds the index of where initiation would be inserted in surveyDays 
-    firstSurvey = surveyDays[pos[0]] 
-    # NOTE last possible survey will be after nest ends (either hatch or fail) 
-    lastSurvey = surveyDays[pos[1]] 
-
-    possSurveyDates = np.stack((firstSurvey, lastSurvey)) # double parens so numpy knows it's not two separate arguments
-    possSurveyDates = np.transpose(possSurveyDates)
-    if debug: print("first and last possible survey:", possSurveyDates)
-    # if debug:
-        # print(
-            #   ">> start of nest, end of nest, first possible survey, last possible survey:\n",
-            #   np.concatenate((nestPeriod,possSurveyDates), axis=1)
-            #   )
-    totalSurvey = pos[0] - pos[1] + 1# this gives the difference in index values from surveyDays, AKA number of surveys
-    return(totalSurvey)
-    # number of surveys when nest is active (when it could be discovered)
-    #print(">> total possible surveys to observe nest (position2 - position):\n", position2-position) 
-    # print(">> total possible surveys to observe nest (position2 - position):\n", totalSurvey) 
-# -----------------------------------------------------------------------------
-# def discover_nests(svy_til_disc, pos):
-def discover_nests(discProb, numNests, pos):
-    # discovered = svy_til_disc < (position2-position) 
-    # ijk = np.zeros(numNests, 3)
-    svysTilDiscovery = rng.negative_binomial(n=1, p=discProb, size=numNests) # see above for explanation of p 
-    if debug: print(">> survey days until discovery:\n", svysTilDiscovery, len(svysTilDiscovery)) 
-    num_svy    = pos[1] - pos[0] # total possible number of surveys
-    # num_svy[num_svy < 0] = 0 # exclude negative numbers of surveys
-    if debug: print("total possible number of surveys for this nest:", num_svy)
-    discovered = svysTilDiscovery < num_svy
-    # ijk[:,1] = surveyDays[pos[0]+svysTilDiscovery]
-    # ijk[:,2] = surveyDays[pos[0]+svysTilDiscovery]
-    # ijk[:,3] = surveyDays[pos[0]+svysTilDiscovery]
-    # daysTilDiscovery also acts as a T/F for whether nest was discovered:
-    # svysTilDiscovery[discovered==False] = 999
-    
-    if debug: print(
-        ">> nest discovered if surveys til discovery < total possible surveys (surveys while active):\n", 
-        discovered
-        )
-    if debug: print(">> proportion of nests discovered:", sum(discovered)/numNests, 
-                    "vs. expected proportion:", discProb # expected isn't discProb
-                    # this isn't right either, obviously...
-                    # "vs. expected proportion:", sum(discProb**num_svy)
-                    )
-    # return(discovered)
-    # discDate =  np.zeros(numNests)
-    # discDate[discovered] = surveyDays[pos[0]+svysTilDiscovery][discovered]
-    # return(discDate)
-    return(svysTilDiscovery)
-
-# -----------------------------------------------------------------------------
-
-# Calculate i, j, and k
-# Need to exclude nests where surveys til discovery = 999 because 
-# numpy still calculates these values and then excludes them
-# so is discovered==True not a mask? 
-# so can't use 999 bc index is too big. but needs to be the same type (integer)
-def calc_ijk(numNests, discovered, svy_til_disc, pos, fates):
-    ijk = np.zeros(numNests, 3)
-    ijk[:,1] = 
-    if debug: print("surveys til discovery:", svy_til_disc)
-    # firstFound[discovered==True] = surveyDays[(pos[0]+svy_til_disc)][discovered==True] 
-    # firstFound[svy_til_disc!=999] = surveyDays[(pos[0]+svy_til_disc)][svy_til_disc!=999] 
-    discSurvey = pos[0] + svy_til_disc
-    # I'm still not sure exactly how this line works:
-    # firstFound[discovered] = surveyDays[(pos[0]+svy_til_disc)][discovered] 
-    # I guess it is indexing surveyDays for ALL nests before then indexing
-    # the result for only discovered nests?
-    firstFound[discovered] = surveyDays[discSurvey][discovered] 
-    if debug: print(">> nest first found:\n", firstFound, len(firstFound)) 
-
-    lastActive = np.zeros(numNests)
-    lastActive[discovered==True] = surveyDays[pos[1]][discovered==True] 
-    if debug: print( ">> nest last active:\n", lastActive, len(lastActive)) 
-    
-    # Last checked will be one survey after last active, unless hatch == True
-    lastChecked = np.zeros(numNests) 
-    lastChecked[discovered==True] = surveyDays[(pos[1]+1)][discovered==True] 
-    if debug: print(">> nest last checked, w/o hatch:\n", lastChecked, len(lastChecked)) 
-    #lastChecked[hatched==True] = lastActive[hatched==True] # take hatch date into account
-    lastChecked[fates==0] = lastActive[fates==0] # take hatch date into account
-    if debug: print(">> nest last checked:\n", lastChecked, len(lastChecked)) 
-
-    # nestData[:,7]  = firstFound 
-    # nestData[:,8]  = lastActive 
-    # nestData[:,9]  = lastChecked# 
-    return((firstFound, lastActive, lastChecked))
-
-# -----------------------------------------------------------------------------
 def observer(par, fateCues, fates, surveyDays, nData, out):
     initiation = nData[:,1]
     end        = nData[:,1] + nData[:,2]
@@ -601,70 +499,14 @@ def observer(par, fateCues, fates, surveyDays, nData, out):
     discovered       = svysTilDiscovery < num_svy
     stormIntFinal    = surveyInts[pos[1]] > obsFreq  # was obs interval longer than usual? (== there was a storm)
     # out is already a 2d array of zeros
-    # svy_possible = svydays_nest(surveyDays, pos)
-    # discovered   = discover_nests(svy_til_disc, pos)
-    # svy_til_disc  = discover_nests(discProb, numNests, pos)
-    # discovered = svy_til_disc != 999
-    #totalReal  = totalSurvey - daysTilDiscovery + 1 # totalSurvey - (daysTilDiscovery - 1)
-    # totalReal  = svy_possible - svy_til_disc  + 1# totalSurvey - (daysTilDiscovery - 1)
-    # ijk      = calc_ijk(numNests, discovered, svy_til_disc, pos, fates)
-    # if debug_obs: print("totalReal:",totalReal)
-    # need to decide if it's number of observations or observation intervals
-    # can extract discovered T/F from svy_til_disc; don't need another column
-    # out[:,0] = svy_til_disc # do we even need this??
-    # out[:,1] = discovered.astype(int) # convert to numeric for numpy array  
-    # out[:,1] = discovered.astype(int) # convert to numeric for numpy array  
-    # could probably get this from ijk?
-    # out[:,1] = totalReal # total number of observation intervals
-    # out[:,2] = discover_nests(discProb, numNests, pos) # i
-    # out = number of obs, i, j, k, assigned fate
+    # out = num observations, i, j, k, assigned fate
     out[:,0] = num_svy - svysTilDiscovery  # number of observations for the nest
     out[:,1][discovered] = surveyDays[pos[0]+svysTilDiscovery][discovered] # i
     out[:,2][discovered] = surveyDays[pos[1]][discovered] # j
     out[:,3][discovered] = surveyDays[pos[1]+1][discovered] # k
     out[:,4] = assign_fate(fateCues, fates, numNests, stormIntFinal, stormFate)
-    if debug: print("i, j, k, assigned fate:", out)
+    if debug: print("num obs, i, j, k, assigned fate:\n", out)
     return(out)
-
-# -----------------------------------------------------------------------------
-def obsStorm(pos, fate, out):
-    # ---- STORMS DURING OBSERVATION PERIOD -------------------------------------------------------------------------
-
-    # obsPeriod      = lastChecked - firstFound 
-    # print(">> length of observation period:\n", obsPeriod, len(obsPeriod)) # is the actual number of days in the period greater than expectedsPeriod) 
-    # numStorms = (obsPeriod/obsFreq - totalReal) / obsFreq # number extra days in period divided by normal interval length 
-    # NOTE already calculated numStorms earlier in function
-    # print(">> number of storm intervals during nest active:", numStorms )
-    # I changed how surveyInts was defined; now it's current minus previous, not next minus current
-    # stormInterval = surveyInts > obsFreq
-    #@#print(">> was there a storm in this interval?\n", stormInterval)
-    stormIntFinal = surveyInts[pos[1]] > obsFreq  # was obs interval longer than usual? (== there was a storm)
-    #@#print(">> was there a storm in the final interval for a given nest?\n", stormIntFinal, len(stormIntFinal)) # basically ask is final interval > 3 
-    # needs to be positionEnd -1 because of how intervals are calculated 
-    out[:,0] = stormIntFinal.astype(int) #nestData[:,13] = numStorms - as.integer(stormFinal) 
-    #@#print(">> stormIntFinal in integer form:\n", nestData[:,12], stormIntFinal.shape)
-    # out[:,1] = nstorm 
-
-
-    #@#print("days from end date to final check:", lastChecked - nestEnd)
-    #y = 3
-    #assignedFate[lastChecked-nestEnd < y] = trueFate[lastChecked-nestEnd < y]
-
-
-    # >>>>>>>>>>> SAVE NEST DATA AS CSV (may be more memory-intensive) >>>>>>>>>>>>>>
-    #now       = datetime.now().strftime("%H%M%S")
-    #nests  = Path.home()/'/mnt/c/Users/sarah/Dropbox/nest_models/py_output'/dirName/('nests'+now+'.csv')
-    #nests.parent.mkdir(parents=True, exist_ok=True)
-
-    #csvHead = "ID, initiation, end, hatched, flooded, surveys_til_discovery, discovered,\
-    #           i, j, k, a_fate, num_obs, storm_during_final, num_storms" 
-
-               #num_stm_survey_excl_final 
-    #np.savetxt("nestdata.csv", nestData, fmt="%d", delimiter=",", header=csvHead) 
-    #np.savetxt(nests, nestData, fmt="%d", delimiter=",", header=csvHead) 
-    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-
-    return(nestData) 
 
 # -----------------------------------------------------------------------------
 #   MAYFIELD & JOHNSON
@@ -716,37 +558,43 @@ def obsStorm(pos, fate, out):
 #       > not calculating nestling exposure bc precocial/semi-precocial chicks
 #         leave the nest so early 
 
-def exposure(inp, numNests, expPercent): # inp = ijk (cols) for all nests (rows)
-    exp = np.zeros(numNests, 3)
+def exposure(inp, numNests, expPercent): 
+    # expo = np.zeros((numNests, 3))
+    expo = np.zeros((len(inp), 3))
+    # inp = ijk (cols) for all nests (rows)
     for n in range(len(inp)-1): # want n to be the row NUMBER
-        alive_days = inp[n,2] - inp[n,1] # interval from first found to last active 
+        # alive_days = inp[n,1] - inp[n,0] # interval from first found to last active 
+        expo[n,0] = inp[n,1] - inp[n,0] # interval from first found to last active 
                                          # all nests are KNOWN to be alive
-        alive_days = alive_days - 1 # since this is essentially 1-day intervals, 
+        expo[n,0] = expo[n,0] - 1 # since this is essentially 1-day intervals, 
                                     # need 1 fewer than total number
-        final_int  = inp[n,3] - inp[n,2] 
-        final_int  = final_int - 1
-        exposure   = alive_days + (final_int*expPercent)
+        expo[n,1] = inp[n,2] - inp[n,1] # interval from last active to last checked
+        if expo[n,1]!=0: expo[n,1] = expo[n,1]- 1 # for hatched nests, stays 0
+        # exposure = sum(alive days) + days in final int * expPercent
+        expo[n,2]   = expo[n,0] + (expo[n,1]*expPercent)
         if debug: print(
-            "days nest was alive:", alive_days,
-            "& final int:", final_int, 
-            "& exposure:", exposure
+            "days nest was alive:", expo[n,0],
+            "& final int:", expo[n,1], 
+            "& exposure:", expo[n,2]
             )
         # NOTE need nests to be alive for at least one interval
-    exp[:,0] = alive_days
-    exp[:,1] = final_int
-    exp[:,2] = exposure# if hatch, final_int=0 so won't affect outcome
-    return(exp)
+    if debug: print("output from exposure function:", expo)
+    return(expo)
 
 
 # -----------------------------------------------------------------------------
-def mayfield(ndata, exp):
+# def mayfield(ndata, expo):
+def mayfield(num_fail, expo):
 #    I am assuming the nest data that is input has already been filtered to only discovered nests w/ known fate
 #    dat = ndata[
     # hatched = np.sum(ndata[:,3])
     # failed = len(ndata) - hatched
-    exposure = exp[2]
-    hatch  = ndata[:,3]
-    fail   = ~hatch 
+    # expo is output from exposure function
+    exposure = expo[2]
+    # hatch  = sum(ndata[:,3==0])
+    # fail   = ~hatch 
+    # fail = sum(ndata[:,3]!=0) # number of failed nests
+    
     # failExp = sum()
     # if debug: print(">> exposure percentage for final interval:", expPercent)
     # if debug: print(">> hatch:\n",hatch,"\n>> and fail:\n",fail) 
@@ -754,7 +602,7 @@ def mayfield(ndata, exp):
     # if debug: print(">> number of nests hatched:", hatched, "and failed", failed)
     # mayf = failed / (hatched + 0.5*failed)
     # mayf = failed / (hatched + (expPercent*failed))
-    mayf = fail / (exposure.sum())
+    mayf = num_fail / (exposure.sum())
     if debug: print(">> Mayfield estimator of daily mortality (1-DSR) =", mayf) 
 
     return(mayf)
@@ -762,37 +610,41 @@ def mayfield(ndata, exp):
 # def johnson(ndata):
 
 # -----------------------------------------------------------------------------
+# --- PRINT FUNCTIONS ---------------------------------------------------------
 
-def fates_dsr(assignedFate, trueFate):
+def pr_fates_dsr(nData, expo, trueDSR, nestType):
+    nNests = len(nData)
+    hatched = len(nData[:,3] == 0)
+    if debug:
+        print(
+            f"> {nestType} nests - hatched:",
+            hatched.sum(),
+            "; failed:", 
+            nNests - hatched.sum(), 
+            "; exposure days:", 
+            expo,
+            "; true DSR:",
+            trueDSR
+            )
+
+def print_prop(assignedFate, trueFate, discovered):  
     aFates = [np.sum((assignedFate == x)[discovered==True]) for x in range(4)]
     # this proportion needs to be out of nests discovered AND assigned
     aFatesProp = [np.sum((assignedFate == x)[discovered==True])/(np.sum(discovered==True)) for x in range(4)]
     tFates = [np.sum((trueFate == x)[discovered==True]) for x in range(4)]
     tFatesProp = [np.sum((trueFate == x)[discovered==True])/(np.sum(discovered==True)) for x in range(4)]
-    
-    if debug:
-        print(
-            "> ALL NESTS - hatched:",
-            hatched.sum(),
-            "; failed:", 
-            numNests - hatched.sum(), 
-            "; exposure days:", 
-            exp
-            # "; true DSR:",
-            # trueDSR
+    if debug: print(
+            ">> assigned fate (hatched, depredated, flooded, unknown):", 
+            # ">> assigned fate proportions (hatched, depredated, flooded, unknown):", 
+            aFatesProp[0:3], 
+            (np.sum(discovered==True) - np.sum(aFates)) / (np.sum(discovered==True)),
+            # (np.sum(aFates==7) )/ (np.sum(discovered==True)),
+            "\n\n>> proportions of known (assigned) fates (H, D, F):",
+            aFates[0:3]/np.sum(aFates),
+            "\n>> vs. actual proportions for discovered only (H, D, F):",
+            tFatesProp[0:3],
+            # np.sum(discovered==True)- np.sum(tFates)
             )
-    # print(
-    #         ">> assigned fate (hatched, depredated, flooded, unknown):", 
-    #         # ">> assigned fate proportions (hatched, depredated, flooded, unknown):", 
-    #         aFatesProp[0:3], 
-    #         (np.sum(discovered==True) - np.sum(aFates)) / (np.sum(discovered==True)),
-    #         # (np.sum(aFates==7) )/ (np.sum(discovered==True)),
-    #         "\n\n>> proportions of known (assigned) fates (H, D, F):",
-    #         aFates[0:3]/np.sum(aFates),
-    #         "\n>> vs. actual proportions for discovered only (H, D, F):",
-    #         tFatesProp[0:3],
-    #         # np.sum(discovered==True)- np.sum(tFates)
-    #         )
     # nestData[:,10] = assignedFate
     # expDays = survival.sum()
     # fail = ~trueHatch
@@ -1456,10 +1308,11 @@ with open(likeFile, "wb") as f:
                 # empty arrays to store data for this replicate:
                 likeVal =  np.zeros(shape=(numOut), dtype=np.longdouble)
                 nd = np.zeros(shape=(numNests, 3), dtype=int)
-                nd2 = np.zeros(shape=(numNests, 7), dtype=int)
+                nd2 = np.zeros(shape=(numNests, 5), dtype=int)
                 # -------------------------------------------------------------
                 # make the nests:
-                nData          = mk_nests(par, initProb, nd)
+                nData          = mk_nests(params=par, init=initProb, 
+                                             weekStart=weekStart, nestData=nd)
                 nestPeriod     = mk_per(nData[:,1], (nData[:,1]+nData[:,2]))
                 stormsPerNest  = storm_nest(nestPeriod, stormDays)
                 flooded        = mk_flood(par, stormsPerNest)
@@ -1478,7 +1331,11 @@ with open(likeFile, "wb") as f:
                 #   4. num storms               10. assigned fate
                 #   5. survey til disc
                 #   
-                nestData = np.concatenate((nData, nestFate[:,None], obs), axis=1)
+                nestData = np.concatenate((nData, 
+                                           stormsPerNest[:,None],
+                                           nestFate[:,None], 
+                                           obs), axis=1)
+                if debug: print("nestData:\n", nestData)
                 # not sure where indexError will show up again
                 # try: # create nest/observer data
                 #     # np.save(n, nestData) # make sure this is correct kind of save
@@ -1496,13 +1353,15 @@ with open(likeFile, "wb") as f:
                 # expDays = exposure()
                 # trueDSR = 1 - ((numNests - hatched.sum()) / expDays)
                 ###########################################################
+                # -------------------------------------------------------------
                 # Keep only discovered nests, then count them:
                 # nestData   = nestData[np.where(nestData[:,6]==1)] 
-                nestData   = nestData[np.where(nestData[:,5]!=999)] 
-                discovered = nestData.shape[0]   
+                nestData   = nestData[np.where(nestData[:,6]!=0)] 
+                if debug: print("nestData, discovered only:\n", nestData)
+                discovered = int(nestData.shape[0])
 
                 if debug: print(">> proportion of nests assigned hatch fate:", 
-                                np.sum((nestData[:,3]==0)[discovered==True])/(sum(discovered==True)),
+                                np.sum(nestData[:,3]==0)/(discovered),
                                 "vs period survival:", 
                                 pSurv**hatchTime)
 
@@ -1510,35 +1369,58 @@ with open(likeFile, "wb") as f:
                 if debug:
                     print(
                         ">> nests w/ only 1 obs while active:",
-                        np.where(nestData[:,7] == nestData[:,8]),
+                        np.where(nestData[:,6] == nestData[:,7]), # where i==j
                         "& nests w/ unknown fate:",
-                        np.where(nestData[:,10] == 7)
+                        np.where(nestData[:,9] == 7)
                         ) 
-                exclude  = ((nestData[:,10] == 7) | 
-                            (nestData[:,7]==nestData[:,8]))                         
+                exclude  = ((nestData[:,9] == 7) | 
+                            (nestData[:,6]==nestData[:,7]))                         
                 # if there's only one observation, firstFound will == lastActive
                 excluded = sum(exclude) # exclude = boolean array; sum = num True
                 analyzed = discovered - excluded
-                failed   = nestData.shape[0] - sum(nestData[:,3]) # num nests - num hatched
-                expDisc  = sum(nestData[:,15])
-                trueDSR_disc = 1 - ((nestData.shape[0] - sum(nestData[:,3])) / 
-                                    sum(nestData[:,15]))
+                failed   = nestData.shape[0] - sum(nestData[:,3]==0) # num nests - num hatched
+                # trueDSR_disc = 1 - ((nestData.shape[0] - sum(nestData[:,3])) / 
+                                    # sum(nestData[:,15]))
+                # remember slices don't include end number
+                expDays = exposure(nestData[:,6:9], numNests, expPercent=0.4)
+                if debug: print("exposure, discovered nests:", expDays)
+                trueDSR_disc = 1 - mayfield(num_fail=failed, expo=expDays)
                 
+                # -------------------------------------------------------------
                 nestData    = nestData[~(exclude),:]    # remove excluded nests 
+                if debug: print("nestData, after excluding:\n", nestData)
             
-                trueDSR_analysis = 1 - ((nestData.shape[0] - sum(nestData[:,3])) / 
-                                          sum(nestData[:,15]) )
+                failed2   = nestData.shape[0] - sum(nestData[:,3]==0) # num nests - num hatched
+                # don't think this works:
+                # expDays     = expDays[~exclude,:]
+                expDays = exposure(nestData[:,6:9], numNests, expPercent=0.4)
+                if debug: print("exposure, after excluding:", expDays)
+                trueDSR_an  = 1 - mayfield(num_fail=failed2, expo=expDays)
+                # trueDSR_analysis = 1 - ((nestData.shape[0] - sum(nestData[:,3])) / 
+                                        #   sum(nestData[:,15]) )
 
                 if debug:
                     print(
                         "> DISCOVERED NESTS - total | analyzed: hatched:", 
                         discovered, "|", analyzed,
                         # "excluded from analysis:", excluded,
-                        "failed:", failed, "|",
-                        nestData.shape[0] - sum(nestData[:,3]),
-                        "exposure days:", expDisc, "|", sum(nestData[:,15])
-                        # "true DSR:", trueDSR_disc, "|", trueDSR_analysis
+                        "failed:", failed, "|", failed2,
+                        # nestData.shape[0] - sum(nestData[:,3])
+                        # "exposure days:", expDays, "|", sum(nestData[:,15])
+                        "true DSR:", trueDSR_disc, "|", trueDSR_an
                         )
+                # if debug:
+                #     print(
+                #         "\n>> assigned DSR:",
+                #         pSurv,
+                #         "true DSR of all nests:", 
+                #         trueDSR, 
+                #         "discovered nests:",
+                #         trueDSR_disc,
+                #         "and nests used in analysis:", 
+                #         trueDSR_an
+                #         )
+
                 z = randArgs()
                 # NOTE: optimizer for matrix function takes an array (z) but 
                 #       optimizer for MARK takes one param (srand) which just 
@@ -1590,18 +1472,6 @@ with open(likeFile, "wb") as f:
                 #
                 # #@#print("Success?", ans.success, ans.message)
                 res = ansTransform(ans)
-                if debug:
-                    print(
-                        "\n>> assigned DSR:",
-                        pSurv,
-                        "true DSR of all nests:", 
-                        trueDSR, 
-                        "discovered nests:",
-                        trueDSR_disc,
-                        "and nests used in analysis:", 
-                        trueDSR_analysis
-                        )
-
                 #OPTIMIZER: MARK function
                 # inp = disc[:,np.r_[0,7:11]] # doesn't include index 11
                 markProb = mark_probs(srand, nData)
