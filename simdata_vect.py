@@ -23,6 +23,7 @@ import sys
 rng = np.random.default_rng(seed=102891) 
 args = sys.argv
 
+debugLL = True
 debug = True
 debug_obs = True
 debugM = False # use different debug var bc these will print for every time optimizer runs
@@ -104,7 +105,7 @@ print(
         # "how long nest fate is discoverable (in days):", uncertaintyDays
         )
 # only really need to be in lists if they are part of the combinations below
-probSurv1       = [0.95 ]   # daily prob of survival
+probSurv1       = [0.965 ]   # daily prob of survival
 # probSurv       = [0.93, 0.95 ]   # daily prob of survival
 probMortFlood1  = [0.1] # 10% of failed nests - not of all nests
 # probMortFlood  = [0.95] # 95% of nests active during storm fail
@@ -116,7 +117,8 @@ SprobMortFlood = [1.0] # all failed nests during storms fail due to flooding
 # NOTE maybe duration should be in hours so I can test more values?
 stormDur1       = [1,3]
 # stormFreq      = [1,2,3]
-stormFreq1      = [3,5]
+# stormFreq1      = [1,2]
+stormFreq1      = [0,2]
 # obsFreq        = [3,5,7]
 obsFreq1        = [3,6,9]
 # obsFreq        = [3]
@@ -566,10 +568,10 @@ def exposure(inp, numNests, expPercent):
         # alive_days = inp[n,1] - inp[n,0] # interval from first found to last active 
         expo[n,0] = inp[n,1] - inp[n,0] # interval from first found to last active 
                                          # all nests are KNOWN to be alive
-        expo[n,0] = expo[n,0] - 1 # since this is essentially 1-day intervals, 
+        # expo[n,0] = expo[n,0] - 1 # since this is essentially 1-day intervals, 
                                     # need 1 fewer than total number
         expo[n,1] = inp[n,2] - inp[n,1] # interval from last active to last checked
-        if expo[n,1]!=0: expo[n,1] = expo[n,1]- 1 # for hatched nests, stays 0
+        # if expo[n,1]!=0: expo[n,1] = expo[n,1]- 1 # for hatched nests, stays 0
         # exposure = sum(alive days) + days in final int * expPercent
         expo[n,2]   = expo[n,0] + (expo[n,1]*expPercent)
         if debug: print(
@@ -718,16 +720,16 @@ def print_prop(assignedFate, trueFate, discovered):
 #   >     probability of failure sometime during days 4-6 is 1-s4*s5*s6
 #   > hatched nests also have one extra degree of freedom (dof)
 
-def mark_probs(s, exp, ndata):
+def mark_probs(s, expo, ndata):
     # exp[hatched==True] = nDays[hatched==True] # do I need the ==True?
     allp   = np.array(range(1,len(ndata)), 
                       dtype=np.longdouble) # all nest probabilities 
     alldof = np.array(range(1,len(ndata)), 
                       dtype=np.double) # all degrees of freedom
     for n in range(len(ndata)-1): # want n to be the row NUMBER
-        alive_days = exp[n,0]
-        final_int  = exp[n,1]
-        exposure   = exp[n,2]
+        alive_days = expo[n,0]
+        final_int  = expo[n,1]
+        exposure   = expo[n,2]
         if final_int > 0:
             # if final_int==0 (hatched), s^final_int = 0
             p   = (s**alive_days)*(1-(s**final_int)) 
@@ -964,35 +966,30 @@ def like_old(argL, obsFreq, nestData, surveyDays, stormDays ):
     # )
     return(logLike) 
 
-# -----------------------------------------------------------------------------
-# try to keep these in numpy:
-def like(perfectInfo, hatchTime, argL, numNests, obsFreq, nestData, surveyDays):
-    # perfectInfo == 0 or 1 to tell you whether you know all nest fates or not
-# NEST DATA COLUMNS: 
-# 0) ID number              | 4) flooded? (T/F)        | 8) j (last active)  
-# 1) initiation date        | 5) surveys til discovery | 9) k (last checked) 
-# 2) end date               | 6) discovered? (T/F)     | 10) assigned fate
-# 3) hatched? (T/F)         | 7) i (first found)       | 11) num obs intervals 
-# 12) final int storm (T/F) | 13) num other storms 
-    # ---------------------------------------------------------------------------------------------------
-    # 1. Unpack:
-    #    a. Initial values for optimizer:
-    a_s, a_mp, a_mf, a_ss, a_mps, a_mfs, sM = argL
+# # -----------------------------------------------------------------------------
+# # try to keep these in numpy:
+# def like(perfectInfo, hatchTime, argL, numNests, obsFreq, obsDat, surveyDays):
+#     # perfectInfo == 0 or 1 to tell you whether you know all nest fates or not
+#     # ---------------------------------------------------------------------------------------------------
+#     # 1. Unpack:
+#     #    a. Initial values for optimizer:
+#     a_s, a_mp, a_mf, a_ss, a_mps, a_mfs, sM = argL
+#     #    b. Observation history values from nest data:
+#     fl, ha, ff, la, lc, nInt = obsDat
+#     # NOTE NOTE should this be the assigned fate or true fate?
+#     if debug:
+#         print(
+#             ">>>> run likelihood function - ",
+#             "num flooded:", sum(fl), "& hatched:", sum(ha),
+#             "number of obs intervals:", nInt,
+#             "\n>> ijk:\n", [ff, la, lc]
+#             )
 
-    # b. Observation history values from nest data:
-    #@#print(">> nest data going into likelihood function:\n", nestData, nestData.shape)
-    # NOTE NOTE should this be the assigned fate or true fate?
-    flooded = nestData[:,4]
-    hatched = nestData[:,3] # actual hatched nests (after storms accounted for)
-    ff      = nestData[:,7]
-    la      = nestData[:,8]
-    lc      = nestData[:,9]
-    numInt  = nestData[:,11]
-    # print("number of obs intervals:", numInt)
+    # ---------------------------------------------------------------------------------------------------
 
     # obsDays  = int(la - ff) # doesn't work bc it's an array
-    obsDays  = la - ff 
-    finalInt = lc - la
+    # obsDays  = la - ff 
+    # finalInt = lc - la
     
     #ff, la, lc = nestData[:,8:10] # doesn't work bc they aren't lists
     # print(
@@ -1011,9 +1008,7 @@ def like(perfectInfo, hatchTime, argL, numNests, obsFreq, nestData, surveyDays):
     #      obs intervals, so I'll roll with it
 
     # ---------------------------------------------------------------------------------------------------
-    # 2. Initialize the overall likelihood counter; Decimal gives more precision
-    logLike = Decimal(0.0)         
-    # ---------------------------------------------------------------------------------------------------
+def state_vect(numNests, flooded, hatched):
     # 3. Define state vectors (1x3 matrices) - all the possible nest states 
     #       [1 0 0] (alive)   [0 1 0] (fail-predation)   [0 0 1] (fail-flood) 
     stillAlive = np.array([1,0,0]) 
@@ -1026,14 +1021,21 @@ def like(perfectInfo, hatchTime, argL, numNests, obsFreq, nestData, surveyDays):
     # Could also calculate bassed on nest fate value
     # FOR THE INITIAL STATE (stateFF), just one vector (see notebook) - later in code
     stateEnd    = np.empty((numNests, 3))     # state at end of normal interval
-    stateLC     = np.empty((numNests, 3)) 
+    stateLC     = np.empty((numNests, 3))     # state at end of final interval
      # > use broadcasting - fill doesn't work with arrays as the fill value:
-    stateEnd[:] = stillAlive
+    stateEnd[:] = stillAlive # alive at end of normal interval
     stateLC[:]  = mortPred   # default is still depredation
 
     stateLC[flooded==True] = mortFlood  # flooded status gets flooded state vector
     stateLC[hatched==True] = stillAlive # hatched nests stay alive the entire time
 
+    # nests always start alive, or they wouldn't be checked
+    # TstateI = np.transpose(stillAlive)  # this is just one, not a vector?
+    
+    return([stateEnd, stateLC])
+    ##print(">> transpose of initial state vector:", TstateI, TstateI.shape)
+    #                                             this will depend on how many storms/when they are
+    # NOTE need the transpose of each row, not entire matrix. 
     # print(">> state at the end of a normal interval:\n",stateEnd) 
     # print(">> state on final nest observation:\n", stateLC)
     # ---------------------------------------------------------------------------------------------------
@@ -1064,16 +1066,33 @@ def like(perfectInfo, hatchTime, argL, numNests, obsFreq, nestData, surveyDays):
     # (based on what the actual fate is)
     # > all nests start interval as alive - don't need stateFF
     # > transition matrix, from etterson 2007:
+    # the values being optimized are integral to the matrices, so can't pull that out
+    # NOTE NOTE which of these are vectorized and which aren't??
+# def nest_mat(a_s, a_mf, a_mp, obsFreq, stormTrue):
+def nest_mat(argL, obsFreq, stormTrue):
+    a_s, a_mp, a_mf, a_ss, a_mps, a_mfs, sM = argL
     trMatrix = np.array([[a_s,0,0], [a_mf,1,0], [a_mp,0,1]]) 
-    # print(">> transition matrix\n:", trMatrix, trMatrix.shape)
-    TstateI = np.transpose(stillAlive) 
-    ##print(">> transpose of initial state vector:", TstateI, TstateI.shape)
-    #                                             this will depend on how many storms/when they are
-    # NOTE need the transpose of each row, not entire matrix. 
-    pwr = np.linalg.matrix_power(trMatrix, obsFreq) # raise the matrix to the power of the number of days in obs int
-    pwrStm = np.linalg.matrix_power(trMatrix, obsFreq*2) # power equation for storm intervals (longer obs int)
-    # print(">> transition matrix raised to the obs int power:\n", pwr, pwr.shape)
+    trMatStm = np.array([[a_ss,0,0], [a_mfs,1,0], [a_mps,0,1]]) 
+    if debugLL: print(">> transition matrix\n:", trMatrix, trMatrix.shape)
 
+    pwr = np.linalg.matrix_power(trMatrix, obsFreq) # raise the matrix to the power of the number of days in obs int
+    if debugLL: print(">> transition matrix to the obs int power:\n", pwr, pwr.shape)
+    # pwrStm = np.linalg.matrix_power(trMatrix, obsFreq*2) # power equation for storm intervals (longer obs int)
+    # NOTE NOTE should it be the regular matrix or the storm matrix??
+    # pwr[stormTrue] = np.linalg.matrix_power(trMatrix, obsFreq*2) # power equation for storm intervals (longer obs int)
+    pwr[stormTrue] = np.linalg.matrix_power(trMatStm, obsFreq*2) # power equation for storm intervals (longer obs int)
+    if debugLL: 
+        print(">> transition matrix to the obs int power (w/storms):\n", pwr, pwr.shape)
+    # if stormTrue:
+    #     return(pwrStm)
+    # else:                                
+    #     return(pwr)
+    return(pwr)
+    
+def interval(pwr, stateEnd, stateLC ): # can maybe calculate these only once
+    stillAlive = np.array([1,0,0]) 
+    # nests always start alive, or they wouldn't be checked
+    TstateI = np.transpose(stillAlive)  # this is just one, not a vector?
     normalInt = stateEnd@pwr@TstateI
     # print(
     #     ">> likelihood of one normal interval:\n",
@@ -1082,23 +1101,34 @@ def like(perfectInfo, hatchTime, argL, numNests, obsFreq, nestData, surveyDays):
     #     normalInt.dtype)
 
     # The final interval is one of these two (ends in final state):
-    normalFinal = stateLC@pwr@TstateI
+    # normalFinal = stateLC@pwr@TstateI
+    finalInt = stateLC@pwr@TstateI
+    # NOTE now pwr has storms incorporated
     # print("final interval:", normalFinal, "and -log likelihood:", -np.log(normalFinal))
-    stormFinal  = stateLC@pwrStm@TstateI
+    # stormFinal  = stateLC@pwrStm@TstateI
+    # finalInt[stormTrue] = stormFinal
 
+    return([normalInt, finalInt])
+
+# def logL(normalInt, normalFinal, stormFinal, numInt):
+def logL(normalInt, finalInt, numInt):
+    # 2. Initialize the overall likelihood counter; Decimal gives more precision
+    logLike = Decimal(0.0)         
     logLik   = np.ones(numNests, dtype=np.longdouble) # this should give it enough precision & avoid errors
     logLik      = logLik * np.log(normalInt) * -1 # dtype changes to float64 unless you multiply it by itself
-    # print("-log likelihood of 1 interval:", logLik)
+    if debugLL: print(">> -log likelihood of 1 interval:", logLik)
     
     # logLikFin    = np.ones(numNests, dtype=np.longdouble)
     logLikFin = np.empty(numNests, dtype=np.longdouble)
     # logLikFin.fill(-np.log(normalFinal))
-    logLikFin= -np.log(normalFinal)
+    # logLikFin= -np.log(normalFinal)
+    logLikFin= -np.log(finalInt)
     logLikFin[hatched == True] = 0
     logLikFin[flooded == True] = -np.log(stormFinal[flooded==True])
     # logLikFin[]    = logLikFin * (-np.log(normalFinal))
     # logLikFinStm = logLikFinStm * (-np.log(stormFinal))
-    # print(">> log likelihood final interval, updated with storms/hatch:\n", logLikFin)
+    if debug:
+        print(">> log likelihood final interval, updated with storms/hatch:\n", logLikFin)
 
     stormDuringFin = nestData[:,12] # was there a storm during the final interval?
     logLikelihood  = (logLik*numInt) + (logLikFin)
@@ -1118,6 +1148,30 @@ def like(perfectInfo, hatchTime, argL, numNests, obsFreq, nestData, surveyDays):
     logLike        = np.sum(logLikelihood)
     # print("overall log likelihood:", logLike)
     return(logLike)
+
+# -----------------------------------------------------------------------------
+# try to keep these in numpy:
+def like(perfectInfo, hatchTime, argL, numNests, obsFreq, obsDat, surveyDays):
+    # perfectInfo == 0 or 1 to tell you whether you know all nest fates or not
+    # ---------------------------------------------------------------------------------------------------
+    # 1. Unpack:
+    #    a. Initial values for optimizer:
+    # a_s, a_mp, a_mf, a_ss, a_mps, a_mfs, sM = argL
+    #    b. Observation history values from nest data:
+    fl, ha, ff, la, lc, nInt = obsDat
+    # NOTE NOTE should this be the assigned fate or true fate?
+    if debug:
+        print(
+            ">>>> run likelihood function - ",
+            "num flooded:", sum(fl), "& hatched:", sum(ha),
+            "number of obs intervals:", nInt,
+            "\n>> ijk:\n", [ff, la, lc]
+            )
+    
+    inter = interval(pwr=pwr, stateEnd=stEnd, stateLC=stFin)   
+    norm, fin = inter
+    # llVal = logL(normalInt=norm, normalFinal=fin, stormFinal=sfin, numInt=nInt)
+    llVal = logL(normalInt=norm, finalInt=fin, numInt=nInt)
 
 # this function does the matrix multiplication for a SINGLE interval of length intElt days 
  # during observaton, nest state is assessed on each visit to form an observation history 
@@ -1318,6 +1372,7 @@ with open(likeFile, "wb") as f:
                 flooded        = mk_flood(par, stormsPerNest)
                 hatched        = nData[:,2] >= hatchTime
                 nestFate       = mk_fates(numNests, hatched, flooded)
+                print(nestFate)
                 # -------------------------------------------------------------
                 # observer:
                 par2           = [numNests, obsFreq, pDisc, stormF]
@@ -1332,8 +1387,8 @@ with open(likeFile, "wb") as f:
                 #   5. survey til disc
                 #   
                 nestData = np.concatenate((nData, 
-                                           stormsPerNest[:,None],
                                            nestFate[:,None], 
+                                           stormsPerNest[:,None],
                                            obs), axis=1)
                 if debug: print("nestData:\n", nestData)
                 # not sure where indexError will show up again
