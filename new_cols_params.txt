@@ -5,6 +5,17 @@ numNests1, probSurv1, SprobSurv1, stormDur1, stormFreq1, hatchTime1,
 #   6          7              8           9           10
 obsFreq1, probMortFlood1, breedingDays1, discProb1, stormFate1
 
+
+nestData column indices:
+
+0. nest ID				5. num obs intervals
+1. initiation (of incubation)		6. first found (i)
+2. survival days (w/o storms)		7. last active (j)
+3. true fate				8. last checked (k)
+4. num storms while active		9. assigned fate`
+
+(took this one out) 5. num surveys til discovery
+
 mk_nests:
 
 0		1		2
@@ -23,3 +34,4 @@ got rid of discovered T/F bc can be calculated from surveys til discovery
 3 j		
 4 k
 5 assigned fate
+
