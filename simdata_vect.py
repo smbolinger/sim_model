@@ -456,23 +456,23 @@ def mk_fates(numNests, hatched, flooded):
 # How does the observer assign nest fates? 
 
 def assign_fate(fateCuesPresent, trueFate, numNests, stormIntFinal, stormFate):
+    
     assignedFate = np.zeros(numNests) # if there was no storm in the final interval, correct fate is assigned 
     assignedFate.fill(7) # default is unknown; fill with known fates if field cues allow
+
     fateCuesProb = rng.uniform(low=0, high=1, size=numNests)
-    if debug: print(">> random probs to compare to fateCuesPresent:\n", fateCuesProb, fateCuesProb.shape)
-    # fateCuesProb[stormIntFinal] = 0.1
-    # if debug: print(">> random probs after storms accounted for:\n", fateCuesProb, fateCuesProb.shape)
-    if debug: print(">> nests with storm in final interval:", stormIntFinal)
-    # assignedFate[stormIntFinal==True and fateCuesProb < 0.1] = trueFate[stormIntFinal==True and fateCuesProb < 0.1] 
     fateCuesPres = np.zeros(numNests)
     fateCuesPres.fill(fateCuesPresent)
     fateCuesPres[stormIntFinal==True] = 0.1
-    if debug: print(">> fate cue present comparison", fateCuesPres)
-    # assignedFate[fateCuesProb < fateCuesPresent] = trueFate[fateCuesProb < fateCuesPresent]
+    if debug: 
+        print(">> compare random probs to fateCuesPresent:\n", 
+              [fateCuesProb,fateCuesPres], 
+              fateCuesProb.shape)
+        
     assignedFate[fateCuesProb < fateCuesPres] = trueFate[fateCuesProb < fateCuesPres] 
     if debug: print(">> assigned fates:", assignedFate, sum(assignedFate))
-
     if stormFate: assignedFate[stormIntFinal] = 2
+    if debug: print(">> nests with storm in final interval:", stormIntFinal)
     if debug: print(">> assigned fates after storm fates assigned:", assignedFate, sum(assignedFate))
     # fate cues prob should be affecting all nest fates equally, not just failures.
     # if debug: print(">> proportion of nests assigned hatch fate:", np.sum((assignedFate==0)[discovered==True])/(sum(discovered==True)),"vs period survival:", pSurv**hatchTime)
@@ -1052,7 +1052,14 @@ def like_old(argL, obsFreq, nestData, surveyDays, stormDays ):
     # NOTE this SHOULD be number of obs (I think) but it's giving number of 
     #      obs intervals, so I'll roll with it
 
-    # ---------------------------------------------------------------------------------------------------
+    # start and end status for the "alive days" are lumped into two lists of 
+    # length numNests; the only thing that differs is the number of intervals
+    # you account for in the matrix multiplication. for hatched nests, that's 
+    # all. for failed nests, there is one more interval ending in a final nest 
+    # state, which is also stored in a list of length numNests.
+    # 
+
+# ---------------------------------------------------------------------------------------------------
 def state_vect(numNests, flooded, hatched):# can maybe calculate these only once
     # 3. Define state vectors (1x3 matrices) - all the possible nest states 
     #       [1 0 0] (alive)   [0 1 0] (fail-predation)   [0 0 1] (fail-flood) 
@@ -1115,6 +1122,7 @@ def state_vect(numNests, flooded, hatched):# can maybe calculate these only once
     # NOTE NOTE which of these are vectorized and which aren't??
 # def nest_mat(a_s, a_mf, a_mp, obsFreq, stormTrue):
 # def interval(pwr, stateEnd, stateLC ): 
+# ---------------------------------------------------------------------------------------------------
 def interval(pwr, stateMat): 
     stateEnd, stateLC = stateMat
     stillAlive = np.array([1,0,0]) 
@@ -1149,19 +1157,24 @@ def nest_mat(argL, obsFreq, stormFin, useStormMat):
 
     # NOTE NOTE should it be the regular matrix or the storm matrix??
     ###### power equation for storm intervals (longer obs int): ###############
+    # pwr is a 3x3 matrix; can't index with stormFin
+    # it isn't a list of 3x3 matrices to use for multiplication
+    # but the output is ultimately a 1x3 matrix, so just need to do all the multiplication at once?
     if useStormMat:
-        pwr[stormFin] = np.linalg.matrix_power(trMatStm, obsFreq*2) 
+        # pwr[stormFin] = np.linalg.matrix_power(trMatStm, obsFreq*2) 
+        pwrStm = np.linalg.matrix_power(trMatStm, obsFreq*2) 
     else:
-        pwr[stormFin] = np.linalg.matrix_power(trMatrix, obsFreq*2) 
+        pwrStm = np.linalg.matrix_power(trMatrix, obsFreq*2) 
     if debugLL: 
-        print(">> transition matrix to the obs int power (w/storms):\n", pwr, pwr.shape)
+        print(">> transition matrix to the obs int power (w/storms):\n", pwrStm, pwr.shape)
     # if stormTrue:
     #     return(pwrStm)
     # else:                                
     #     return(pwr)
-    return(pwr)
+    return([pwr, pwrStm])
     
 # def logL(normalInt, normalFinal, stormFinal, numInt):
+# ---------------------------------------------------------------------------------------------------
 def logL(numNests, normalInt, finalInt, numInt):
     # 2. Initialize the overall likelihood counter; Decimal gives more precision
     logLike = Decimal(0.0)         
@@ -1210,6 +1223,9 @@ def printLL(numNests, logLik, logLikFin, numInt, logL):
 # try to keep these in numpy:
 # def like(perfectInfo, hatchTime, argL, numNests, obsFreq, obsDat, surveyDays):
 # def like(argL, numN, obsFr, obsDat, stMat, sTrue, useSM):
+# This one uses a matrix multiplication equation created from building blocks
+#   > so you create these blocks:
+#   > a normal interval, a final interval, and a final interval with storm
 def like(argL, numN, obsFr, obsDat, stMat, useSM):
     # perfectInfo == 0 or 1 to tell you whether you know all nest fates or not
     # ---------------------------------------------------------------------------------------------------
@@ -1233,8 +1249,9 @@ def like(argL, numN, obsFr, obsDat, stMat, useSM):
             "\n>> ijk:\n", [ff, la, lc]
             )
     stEnd, stFin = stMat 
-    pwr   = nest_mat(argl=argL, obsFreq=obsFr, stormFin=sFinal, useStormMat=useSM)
-    inter = interval(pwr=pwr, stateEnd=stEnd, stateLC=stFin)   
+    pwrOut = nest_mat(argL=argL, obsFreq=obsFr, stormFin=sFinal, useStormMat=useSM)
+    pwr, pwrStm = pwrOut
+    inter  = interval(pwr=pwr, stateEnd=stEnd, stateLC=stFin)   
     norm, fin = inter
     # llVal = logL(normalInt=norm, normalFinal=fin, stormFinal=sfin, numInt=nInt)
     llVal = logL(numNests=numN, normalInt=norm, finalInt=fin, numInt=nInt)
