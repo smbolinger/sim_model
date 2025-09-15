@@ -35,8 +35,12 @@ if len(args) > 1:
 # -----------------------------------------------------------------------------
 #  HELPER FUNCTIONS
 # -----------------------------------------------------------------------------
-# from https://stackoverflow.com/questions/13852700/create-file-but-if-name-exists-add-number
 def uniquify(path):
+    """
+    from https://stackoverflow.com/questions/13852700/create-file-but-if-name-exists-add-number
+    
+    Adds a number to the end of duplicate filenames
+    """
     filename, extension = os.path.splitext(path)
     counter = 1
     # print("filename, extension:", filename, extension)
@@ -49,6 +53,7 @@ def uniquify(path):
 
 # -----------------------------------------------------------------------------
 def searchSorted2(a, b):
+    """Get the index of where b would be located in a"""
     #out = np.zeros(a.shape)
     out = np.zeros((a.shape[0], len(b)))
     for i in range(len(a)):
@@ -64,11 +69,13 @@ def searchSorted2(a, b):
     return(out)
 
 # -----------------------------------------------------------------------------
-# This function computes intersection of 2 arrays more quickly than intersect1d
-#    > possible observations = intersection of observable & survey days
 
 #@profile
 def in1d_sorted(A,B): 
+    """
+    This function computes intersection of 2 arrays more quickly than intersect1d
+        > ex: possible observations = intersection of observable & survey days
+    """
     idx = np.searchsorted(B, A)
     idx[idx==len(B)] = 0
     return A[B[idx] == A]
@@ -86,7 +93,7 @@ num_out  = 21 # number zof output parameters
 #dir_name = datetime.now().strftime("%m%d%Y")
 # -----------------------------------------------------------------------------
 #   NEST MODEL PARAMETERS:
-# -----------------------------------------------------------------------------
+#region-----------------------------------------------------------------------
 # NOTE the main problem is that my fate-masking variable (storm activity) also 
 #      leads to certain nest fates
 # NOTE 2: how many varying params is a reasonable number?
@@ -152,11 +159,11 @@ paramsList      = list(
 paramsArray = np.array(paramsList) # don't want prob surv to be an integer!
 print("NUMBER OF PARAM SETS:", len(paramsList))
 nrows   = len(paramsList)*nreps*nruns
-# -----------------------------------------------------------------------------
+#endregion---------------------------------------------------------------------
 #   IMPORT REAL DATA
 #   do it here once instead of every time you run the function
 #   weekly storm probability and weekly nest initiation probability:
-# -----------------------------------------------------------------------------
+#region-----------------------------------------------------------------------
 init= np.genfromtxt(
         #fname="/mnt/c/Users/Sarah/Dropbox/nest_models/storm_init3.csv",
         fname="C:/Users/Sarah/Dropbox/Models/sim_model/storm_init3.csv",
@@ -183,9 +190,9 @@ if debug:
     print(">> storm prob, by week:",stormProb, len(stormProb),"sum=",np.sum(stormProb))
     print(">> initiation prob, by week:",initProb,len(initProb),"sum=",np.sum(initProb))
     print(">> start day for each week:", weekStart, len(weekStart))
-# -----------------------------------------------------------------------------
+#endregion--------------------------------------------------------------------
 #   SAVE FILES 
-# -----------------------------------------------------------------------------
+#region-----------------------------------------------------------------------
 # name for unique directory to hold all output:
 dirName    = datetime.today().strftime('%m%d%Y_%H%M%S') 
 print(">> save directory name:", dirName)
@@ -203,25 +210,34 @@ column_names     = np.array([
     'obs_int', 'num_discovered','num_excluded', 'exception'
     ])
 colnames = ', '.join([str(x) for x in column_names]) # needs to be string
-# -----------------------------------------------------------------------------
+#endregion--------------------------------------------------------------------
 #   FUNCTIONS
 # -----------------------------------------------------------------------------
 # Some are very small and specific (e.g. logistic function); others are 
 # quite involved.
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-def stormGen(frq, dur):
-    out = rng.choice(a=weekStart, size=frq, replace=False, p=stormProb)
+def stormGen(frq, dur, wStart, pStorm):
+    """
+    generate a list of days where storms happened.
+
+    the probabilities and week start dates used are read from csv outside the 
+    function to streamline it.
+    """
+    # out = rng.choice(a=weekStart, size=frq, replace=False, p=stormProb)
+    out = rng.choice(a=wStart, size=frq, replace=False, p=pStorm)
     dr = np.arange(0, dur, 1)
-    stormDays = [out + x for x in dr]
+    stormDays = [out + x for x in dr] # add sequential storm days when dur>1
     stormDays = np.array(stormDays).flatten()
     print(">> storm days:", stormDays)
     return(stormDays)
 
 # -----------------------------------------------------------------------------
-# This function remaps values from R^2 into the lower left triangle located 
-# within the unit square.
 def triangle(x0, y0):
+    """
+    This function remaps values from R^2 into the lower left triangle located 
+    within the unit square.
+    """
     if y0 > x0:
         ret = triangle(y0, x0)
         return ret[1], ret[0]
@@ -238,18 +254,20 @@ def triangle(x0, y0):
     return x3, y3
 
 # -----------------------------------------------------------------------------
-# This is just the logistic function
-# Trying out type hints (PEP 484) to keep output from overflowing
 #def logistic(x)->np.float128:
 def logistic(x)->np.longdouble:
+    """This is just the logistic function"""
+    # Trying out type hints (PEP 484) to keep output from overflowing
     #return 1.0/( 1.0 + math.exp(-x) )
     return 1.0/( 1.0 + np.exp(-x) )
 
 # -----------------------------------------------------------------------------
-# This function creates the list of survey days by taking a random start date 
-# from the first 5 breeding days and creating a range with step size determined
-# by observation frequency. Then remove storm days.
 def mk_surveys(stormDays, obsFreq, breedingDays):
+    """
+    This function creates the list of survey days by taking a random start date 
+    from the first 5 breeding days and creating a range with step size determined
+    by observation frequency. Then remove storm days.
+    """
     # first day of each week because the initiation probability is weekly 
     # the upper value should not be == to the total number of season days 
     # because then nests end after season is over 
@@ -266,6 +284,7 @@ def mk_surveys(stormDays, obsFreq, breedingDays):
 
 # -----------------------------------------------------------------------------
 def survey_int(surveyDays):
+    """ create a list of the lengths of all intervals between survey days. """
     surveyInts = np.array( [surveyDays[n] - surveyDays[n-1] for n in range(1, len(surveyDays)-1) ] )
     #print(">> interval between current survey and previous survey:\n", surveyInts, len(surveyInts))
 
@@ -766,11 +785,13 @@ def print_nd(nestData, nDisc, pSurv, hatchTime):
 #   > hatched nests also have one extra degree of freedom (dof)
 
 def mark_probs(s, expo, ndata):
+    """
+    creates probabilities for nest observation histories for use with prog_mark.
+        > uses prob surv (s), so needs to be inside the optimizer
+    """
     # exp[hatched==True] = nDays[hatched==True] # do I need the ==True?
-    allp   = np.array(range(1,len(ndata)), 
-                      dtype=np.longdouble) # all nest probabilities 
-    alldof = np.array(range(1,len(ndata)), 
-                      dtype=np.double) # all degrees of freedom
+    allp   = np.array(range(1,len(ndata)), dtype=np.longdouble) # all nest probabilities 
+    alldof = np.array(range(1,len(ndata)), dtype=np.double) # all degrees of freedom
     for n in range(len(ndata)-1): # want n to be the row NUMBER
         alive_days = expo[n,0]
         final_int  = expo[n,1]
@@ -810,7 +831,7 @@ def mark_probs(s, expo, ndata):
 def prog_mark(s, ndata, probs, nocc):
     prob, dof = probs
     # print("all nests:", len(ndata)) 
-    disc = ndata[np.where(ndata[:,6]==1)] # discovered==True
+    disc = ndata[np.where(ndata[:,6]!=0)] # i != 0
     if debugM: print(">>>>> Program MARK >>>>>>>>>>")
     if debugM: print("> number of nests:", len(ndata), "discovered nests:", len(disc))
     inp = disc[:,np.r_[0,7:11]] # doesn't include index 11
@@ -822,7 +843,7 @@ def prog_mark(s, ndata, probs, nocc):
     inpInd = inp[(inp[:,2]-inp[:,1]) != 0] # access all rows; 
     #                                     create mask, index inp using it
     allp = prob[inpInd]
-    alldof = dof[inoInd]
+    alldof = dof[inpInd]
     if debugM: print(">> all nest cell probabilities:\n", allp)
     if debugM: print(">> all degrees of freedom:\n", alldof)
     lnp  = -np.log(allp) # vector of all log-transformed probabilities
@@ -843,6 +864,7 @@ def prog_mark(s, ndata, probs, nocc):
 #   > Create vector to store the log-transformed values, then fill
 
 def mark_wrapper(srn, ndata):
+    numNests = len(ndata)
     s = np.ones(numNests, dtype=np.longdouble)
     s = logistic(srn)
     # NOTE is this multiple random starting values (for each nest) or one random starting value?
@@ -1238,7 +1260,7 @@ def like(argL, numN, obsFr, obsDat, stMat, useSM):
     
     # numpy array should be unpacked along the first dimension, so transpose:
     fate, nInt, ff, la, lc, sFinal = obsDat.T
-    fl = fate==2
+    fl = fate==2 # are these necessary for more than print statements?
     ha = fate==0
     # NOTE NOTE should this be the assigned fate or true fate?
     if debug:
@@ -1416,7 +1438,7 @@ with open(likeFile, "wb") as f:
         fateCues   = 0.6 if obsFreq > 5 else 0.66 if obsFreq == 5 else 0.75
         # NOTE do you want new storms/survey days for each replicate 
         #      or each parameter set?
-        stormDays  = stormGen(freq, dur)
+        stormDays  = stormGen(frq=freq, dur=dur, wStart=weekStart, pStorm=stormProb)
         surveyDays = mk_surveys(stormDays, obsFreq, brDays)
         surveyInts = survey_int(surveyDays)
         repID      = 0  # keep trackof replicates
