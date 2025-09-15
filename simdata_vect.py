@@ -128,6 +128,7 @@ def mk_param_list(parList: Dict[str, list]) -> list:
     # output in the original is a list of tuples
     # listVal = parList.values() # doesn't seem to be what i want
     # p_List = list(product(parList.values()))
+    if debug: print(f"using the {parList} params lists")
     listVal = [parList[key] for key in parList]
     p_List = list(itertools.product(*listVal))
     # p_List = list(product(parList)) # doesn't work either; just gets keys
@@ -1391,6 +1392,7 @@ def randArgs():
 with open(likeFile, "wb") as f:
 # with open(likeFile, "ab") as f: # changing this to append didn't help...
     # append shouldn't matter if the file is just open the whole time
+    paramsArray = mk_param_list(parList=plTest)
     parID     = 0
     for i in range(0, len(paramsList)): # for each set of params
         #par = paramsList[i]
@@ -1398,38 +1400,24 @@ with open(likeFile, "wb") as f:
         print(">>>>>>>>> param set number:", parID)
         # paramsArray is a 2d array; loop through the rows 
         # each row is a set of parameters we are trying
-        #   0          1        2           3           4
-        #numNests1, probSurv1, stormDur1, stormFreq1, hatchTime1, 
-        #   5       6               7
-        #obsFreq1, stormFate1, useStormMat1
+        #   0          1        2           3           4            5
+        #numNests, probSurv, stormDur, stormFreq, hatchTime, obsFreq
         par        = paramsArray[i] 
         # in an array, all values have the same numpy dtype (float in this case) 
         # after selecting the row, unpack the params & change dtype as needed:
         numN, pSurv, freq, dur, hTime, obsFr, stormF, useSM = par
-        fateCues   = 0.6 if obsFreq > 5 else 0.66 if obsFreq == 5 else 0.75
-        # numN   = par[0].astype(int)
-        # pSurv      = par[1]
-        # pSurvStorm = par[2]
-        # freq       = par[4].astype(int)
-        # dur        = par[3].astype(int)
-        # hatchTime  = par[5].astype(int)
-        # obsFreq    = par[6].astype(int)
-        # pMFlood    = par[7]
-        # brDays     = par[8]
-        # pDisc      = par[9]
-        # stormF     = par[10]
-        # useSM      = par[11]
-# 80% chance that field cues about nest fate are present/observed
-# based on around 80% success rate in identifying nest fate (from camera study)
-# this is essentially uncertainty?
+        fateCues   = 0.6 if obsFr > 5 else 0.66 if obsFr == 5 else 0.75
+        # 80% chance that field cues about nest fate are present/observed
+        # based on around 80% success rate in identifying nest fate (from camera study)
+        # this is essentially uncertainty?
         # NOTE do you want new storms/survey days for each replicate 
         #      or each parameter set?
-        stormDays  = stormGen(frq=freq, dur=dur, wStart=weekStart, pStorm=stormProb)
-        surveyDays = mk_surveys(stormDays, obsFreq, brDays)
+        stormDays  = stormGen()
+        surveyDays = mk_surveys(stormDays, obsFr, brDays)
         surveyInts = survey_int(surveyDays)
         repID      = 0  # keep trackof replicates
         numOut     = 21 # number of output params
-        numMC           = 0 # number of nests misclassified
+        numMC      = 0 # number of nests misclassified
         nrows   = len(paramsList)*nreps*nruns
 
         print(
