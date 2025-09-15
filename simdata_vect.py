@@ -85,16 +85,29 @@ def in1d_sorted(A,B):
 # NOTE 2: how many varying params is a reasonable number?
 staticPar = {'nruns':1,
              'nreps':5,
-             'makeNest':True,
              'num_out':21,
              'brDays':160,
              'SprobSurv':0.2,
-             'probMortFlood':0.1}
-# discProb1       = [0.7, 0.9] 
-discProb1        = [1] 
+             'probMortFlood':0.1,
+             'discProb':0.7,
+             'makeNest':True,
+             'stormFate':True,
+             'useStormMat':False}
 # numNests       = [500,1000]
-# numNests       = [500]
 # numNests       = [200]
+parLists = {'numNests' : [500,1000],
+            'probSurv' : [0.95, 0.96],
+            'stormDur' : [1, 2, 3],
+            'stormFrq' : [1, 3, 5],
+            'obsFreq'  : [3, 5, 7],
+            'hatchTime': [16, 20, 28] }
+
+plTest  = {'numNests'  : [50],
+           'probSurv'  : [0.95],
+           'stormDur'  : [1, 2],
+           'stormFrq'  : [1, 3],
+           'obsFreq'   : [3, 5],
+           'hatchTime' : [20, 28] }
 numNests1        = [20]
 stormFate1       = [False,True]
 useStormMat1     = [False, True]
@@ -107,29 +120,28 @@ useStormMat1     = [False, True]
 # only really need to be in lists if they are part of the combinations below
 probSurv1       = [0.95 ]   # daily prob of survival
 # probSurv       = [0.93, 0.95 ]   # daily prob of survival
-probMortFlood1  = [0.1] # 10% of failed nests - not of all nests
-SprobSurv1     = [0.2] # daily survival prob during storms - like intensity?
-SprobMortFlood = [1.0] # all failed nests during storms fail due to flooding
 # stormDur       = [1,2,3]
 # NOTE maybe duration should be in hours so I can test more values?
 stormDur1       = [1,3]
 # stormFreq      = [1,2,3]
 stormFreq1      = [1,2]
 # stormFreq1      = [0,2]
-obsFreq        = [3,5,7]
+obsFreq1        = [3,5,7]
 # obsFreq1        = [3,6,9]
 # hatchTime      = [16,20,24,28]
 # hatchTime      = [16,20,28]
 hatchTime1      = [16, 28]
 # whether or not nests that end during storms are marked "unknown" (vs. flooded)
-numMC           = 0 # number of nests misclassified
 paramsList      = list(
     product(
         #    0        1         2          3         4          5          
-        numNests1, probSurv1, SprobSurv1, stormDur1, stormFreq1, hatchTime1, 
+        # numNests1, probSurv1, SprobSurv1, stormDur1, stormFreq1, hatchTime1, 
         #   6          7              8           9           10             11
         # obsFreq, probMortFlood, breedingDays, discProb, fateCuesPresent
-        obsFreq1, probMortFlood1, breedingDays1, discProb1, stormFate1, useStormMat1
+        #   0          1        2           3           4
+        numNests1, probSurv1, stormDur1, stormFreq1, hatchTime1, 
+        #   5       6               7
+        obsFreq1, stormFate1, useStormMat1
         )
         )
 # NOTE fate cues prob will now be decided based on obs_int (11-14)
@@ -1399,22 +1411,27 @@ with open(likeFile, "wb") as f:
         print(">>>>>>>>> param set number:", parID)
         # paramsArray is a 2d array; loop through the rows 
         # each row is a set of parameters we are trying
+        #   0          1        2           3           4
+        #numNests1, probSurv1, stormDur1, stormFreq1, hatchTime1, 
+        #   5       6               7
+        #obsFreq1, stormFate1, useStormMat1
         par        = paramsArray[i] 
         # in an array, all values have the same numpy dtype (float in this case) 
         # after selecting the row, unpack the params & change dtype as needed:
-        numN   = par[0].astype(int)
-        pSurv      = par[1]
-        pSurvStorm = par[2]
-        freq       = par[4].astype(int)
-        dur        = par[3].astype(int)
-        hatchTime  = par[5].astype(int)
-        obsFreq    = par[6].astype(int)
-        pMFlood    = par[7]
-        brDays     = par[8]
-        pDisc      = par[9]
-        stormF     = par[10]
-        useSM      = par[11]
+        numN, pSurv, freq, dur, hTime, obsFr, stormF, useSM = par
         fateCues   = 0.6 if obsFreq > 5 else 0.66 if obsFreq == 5 else 0.75
+        # numN   = par[0].astype(int)
+        # pSurv      = par[1]
+        # pSurvStorm = par[2]
+        # freq       = par[4].astype(int)
+        # dur        = par[3].astype(int)
+        # hatchTime  = par[5].astype(int)
+        # obsFreq    = par[6].astype(int)
+        # pMFlood    = par[7]
+        # brDays     = par[8]
+        # pDisc      = par[9]
+        # stormF     = par[10]
+        # useSM      = par[11]
 # 80% chance that field cues about nest fate are present/observed
 # based on around 80% success rate in identifying nest fate (from camera study)
 # this is essentially uncertainty?
@@ -1425,6 +1442,7 @@ with open(likeFile, "wb") as f:
         surveyInts = survey_int(surveyDays)
         repID      = 0  # keep trackof replicates
         numOut     = 21 # number of output params
+        numMC           = 0 # number of nests misclassified
 
         print(
             ">>> nest params in this set:", 
