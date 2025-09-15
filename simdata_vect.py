@@ -107,7 +107,7 @@ print(
         # "how long nest fate is discoverable (in days):", uncertaintyDays
         )
 # only really need to be in lists if they are part of the combinations below
-probSurv1       = [0.965 ]   # daily prob of survival
+probSurv1       = [0.95 ]   # daily prob of survival
 # probSurv       = [0.93, 0.95 ]   # daily prob of survival
 probMortFlood1  = [0.1] # 10% of failed nests - not of all nests
 # probMortFlood  = [0.95] # 95% of nests active during storm fail
@@ -502,15 +502,20 @@ def observer(nData, par, cues, fate, surveys, out):
     num_svy          = pos[1] - pos[0]   
     svysTilDiscovery = rng.negative_binomial(n=1, p=discProb, size=numNests) # see above for explanation of p 
     discovered       = svysTilDiscovery < num_svy
+    num_svy[discovered] = 0
     stormIntFinal    = surveyInts[pos[1]] > obsFreq  # was obs interval longer than usual? (== there was a storm)
     # out is already a 2d array of zeros
     # out = num observations, i, j, k, assigned fate
-    out[:,0] = num_svy - svysTilDiscovery  # number of observations for the nest
-    out[:,1][discovered] = surveys[pos[0]+svysTilDiscovery][discovered] # i
-    out[:,2][discovered] = surveys[pos[1]][discovered] # j
-    out[:,3][discovered] = surveys[pos[1]+1][discovered] # k
-    out[:,4] = assign_fate(cues, fate, numNests, stormIntFinal, stormFate)
-    if debug: print("num obs, i, j, k, assigned fate:\n", out)
+    out[:,0] = assign_fate(cues, fate, numNests, stormIntFinal, stormFate)
+    out[:,1] = num_svy - svysTilDiscovery  # number of observations for the nest
+    # NOTE would these be quicker w/o the mask??
+    # can get discovered/not from out[:,1], I think
+    out[:,2][discovered] = surveys[pos[0]+svysTilDiscovery][discovered] # i
+    out[:,3][discovered] = surveys[pos[1]][discovered] # j
+    out[:,4][discovered] = surveys[pos[1]+1][discovered] # k
+    out[:,5] = stormIntFinal
+    
+    if debug: print("assigned fate, num obs, i, j, k:\n", out)
     return(out)
 
 # -----------------------------------------------------------------------------
@@ -622,13 +627,24 @@ def calc_dsr(nData, nestType):
     dmr     = mayfield(num_fail=nNests-hatched, expo=expDays)
     if debug:
         print(
-            f"> {nestType} nests - hatched:", hatched.sum(),
-            "; failed:", nNests - hatched.sum(), 
+            # f"> {nestType} nests - hatched:", hatched.sum(),
+            f"> {nestType} nests - hatched:", hatched,
+            "; failed:", nNests - hatched, 
             "; exposure days:", expDays[:,2].sum(),
             "; & Mayfield-40 DSR:", 1-dmr
             )
     return(1-dmr)
 
+                # if debug:
+                #     print(
+                #         "> DISCOVERED NESTS - total | analyzed: hatched:", 
+                #         discovered, "|", analyzed,
+                #         # "excluded from analysis:", excluded,
+                #         "failed:", failed, "|", failed2,
+                #         # nestData.shape[0] - sum(nestData[:,3])
+                #         # "exposure days:", expDays, "|", sum(nestData[:,15])
+                #         "true DSR:", trueDSR_disc, "|", trueDSR_an
+                #         )
 # -----------------------------------------------------------------------------
 # --- PRINT FUNCTIONS ---------------------------------------------------------
 
@@ -1122,7 +1138,7 @@ def interval(pwr, stateMat):
     return([normalInt, finalInt])
 
 # -----------------------------------------------------------------------------
-def nest_mat(argL, obsFreq, stormTrue, useStormMat):
+def nest_mat(argL, obsFreq, stormFin, useStormMat):
     
     a_s, a_mp, a_mf, a_ss, a_mps, a_mfs, sM = argL
     trMatrix = np.array([[a_s,0,0], [a_mf,1,0], [a_mp,0,1]]) 
@@ -1134,9 +1150,9 @@ def nest_mat(argL, obsFreq, stormTrue, useStormMat):
     # NOTE NOTE should it be the regular matrix or the storm matrix??
     ###### power equation for storm intervals (longer obs int): ###############
     if useStormMat:
-        pwr[stormTrue] = np.linalg.matrix_power(trMatStm, obsFreq*2) 
+        pwr[stormFin] = np.linalg.matrix_power(trMatStm, obsFreq*2) 
     else:
-        pwr[stormTrue] = np.linalg.matrix_power(trMatrix, obsFreq*2) 
+        pwr[stormFin] = np.linalg.matrix_power(trMatrix, obsFreq*2) 
     if debugLL: 
         print(">> transition matrix to the obs int power (w/storms):\n", pwr, pwr.shape)
     # if stormTrue:
@@ -1201,8 +1217,13 @@ def like(argL, numN, obsFr, obsDat, stMat, useSM):
     #    a. Initial values for optimizer:
     # a_s, a_mp, a_mf, a_ss, a_mps, a_mfs, sM = argL
     #    b. Observation history values from nest data:
-    fl, ha, ff, la, lc, nInt, sTrue = obsDat
+    # fl, ha, ff, la, lc, nInt, sTrue = obsDat
     # fl, ha, ff, la, lc, nInt = obsDat
+    
+    # numpy array should be unpacked along the first dimension, so transpose:
+    fate, nInt, ff, la, lc, sFinal = obsDat.T
+    fl = fate==2
+    ha = fate==0
     # NOTE NOTE should this be the assigned fate or true fate?
     if debug:
         print(
@@ -1212,7 +1233,7 @@ def like(argL, numN, obsFr, obsDat, stMat, useSM):
             "\n>> ijk:\n", [ff, la, lc]
             )
     stEnd, stFin = stMat 
-    pwr   = nest_mat(argl=argL, obsFreq=obsFr, stormTrue=sTrue, useStormMat=useSM)
+    pwr   = nest_mat(argl=argL, obsFreq=obsFr, stormFin=sFinal, useStormMat=useSM)
     inter = interval(pwr=pwr, stateEnd=stEnd, stateLC=stFin)   
     norm, fin = inter
     # llVal = logL(normalInt=norm, normalFinal=fin, stormFinal=sfin, numInt=nInt)
@@ -1235,7 +1256,7 @@ def like(argL, numN, obsFr, obsDat, stMat, useSM):
 def like_smd( 
         # x, perfectInfo, hatchTime, nestData, obsFreq, 
         # stormDays, surveyDays, whichRet):
-        x, nestData, obsFreq, stateMat, useSM, sTrue, whichRet=1, **kwargs):
+        x, obsData, obsFreq, stateMat, useSM, whichRet=1, **kwargs):
     # use kwargs for stormDays & surveysDays, which are only needed w/ like_old
 
 
@@ -1267,7 +1288,7 @@ def like_smd(
     mf2  = 1.0 - s2 - mp2
     mfs2 = 1.0 - ss2 - mps2
 
-    numNests = nestData.shape[0]
+    numNests = obsData.shape[0]
     #@#print(">> number of nests:", numNests)
 
     # call the likelihood function:
@@ -1278,13 +1299,13 @@ def like_smd(
     # obsDat is a subset of nestData
     
     if whichRet == 1:
-        ret = like(argL, numN=numNests, obsFr=obsFreq, obsDat=nestData, 
-                   stMat=stateMat, sTrue=,useSM=useSM)
+        ret = like(argL, numN=numNests, obsFr=obsFreq, obsDat=obsData, 
+                   stMat=stateMat, useSM=useSM)
         # print('like_smd(): Msg : ret = ', ret)
     
     # else:
     elif whichRet == 2:
-        ret = like_old(argL, obsFreq, nestData, surveyDays, stormDays)
+        ret = like_old(argL, obsFreq, obsData, surveyDays, stormDays)
         # print('like_smd(): Msg : using old function; ret = ', ret)
     
     else:
@@ -1411,7 +1432,7 @@ with open(likeFile, "wb") as f:
                 # ---- empty arrays to store data for this replicate: ---------
                 likeVal =  np.zeros(shape=(numOut), dtype=np.longdouble)
                 nd      = np.zeros(shape=(numN, 3), dtype=int)
-                nd2     = np.zeros(shape=(numN, 5), dtype=int)
+                nd2     = np.zeros(shape=(numN, 6), dtype=int)
                 # -------------------------------------------------------------
                 # ---- make the nests: ----------------------------------------
                 nData          = mk_nests(params=par, init=initProb, 
@@ -1431,19 +1452,20 @@ with open(likeFile, "wb") as f:
                 # / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / 
                 # -------------------------------------------------------------
                 # concatenate to make data for the nest models:
-                #   0. nest ID                  6. # obs int                
-                #   1. initiation               7. first found       
-                #   2. survival (w/o storms)    8. last active              
-                #   3. fate                     9. last checked   
-                #   4. num storms               10. assigned fate
-                #   5. survey til disc
+                #   0. nest ID                  5. # obs int                
+                #   1. initiation               6. first found       
+                #   2. survival (w/o storms)    7. last active              
+                #   3. fate                     8. last checked   
+                #   4. assigned fate            9.num storms                
                 #   
                 # fl, ha, ff, la, lc, nInt, sTrue = obsDat
                 nestData = np.concatenate((nData, 
                                            nestFate[:,None], 
-                                           stormsPerNest[:,None],
-                                           obs), axis=1)
+                                           obs,
+                                           stormsPerNest[:,None]
+                                           ), axis=1)
                 if debug: print("nestData:\n", nestData)
+                trueDSR = calc_dsr(nData=nestData, nestType="all") 
                 # not sure where indexError will show up again
                 # try: # create nest/observer data
                 #     # np.save(n, nestData) # make sure this is correct kind of save
@@ -1453,53 +1475,32 @@ with open(likeFile, "wb") as f:
                 #         error,
                 #         ". Go to next replicate.")
                 #     continue
-                expDays   = exposure(nestData[:,6:9], numNests=numN, expPercent=0.4)
-                trueDSR   = mayfield(num_fail=sum(nestFate!=0),
-                                          expo=expDays)
-                
                 # -------------------------------------------------------------
                 # / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / 
                 # -------------------------------------------------------------
                 # Keep only discovered nests, then count them:
                 nestData   = nestData[np.where(nestData[:,6]!=0)] 
                 discovered = int(nestData.shape[0])
-
                 exclude  = ((nestData[:,9] == 7) | 
                             (nestData[:,6]==nestData[:,7]))                         
                 # if there's only one observation, firstFound will == lastActive
                 excluded = sum(exclude) # exclude = boolean array; sum = num True
                 analyzed = discovered - excluded
-                failed   = nestData.shape[0] - sum(nestData[:,3]==0) # num nests - num hatched
-                # remember slices don't include end number
-                expDays = exposure(nestData[:,6:9], numN, expPercent=0.4)
-                if debug: print("exposure, discovered nests:", expDays)
-                trueDSR_disc = 1 - mayfield(num_fail=failed, expo=expDays)
-                
+                trueDSR_disc = calc_dsr(nData=nestData, nestType="discovered")
+                # -------------------------------------------------------------
+                # Then remove nests with unknown fate or only 1 observation:
+                nestData    = nestData[~(exclude),:]    # remove excluded nests 
+                trueDSR_an  = calc_dsr(nData=nestData, nestType="analyzed")
+
                 # -------------------------------------------------------------
                 # / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / 
                 # -------------------------------------------------------------
-                nestData    = nestData[~(exclude),:]    # remove excluded nests 
-                if debug: print("nestData, after excluding:\n", nestData)
-            
-                failed2   = nestData.shape[0] - sum(nestData[:,3]==0) # num nests - num hatched
-                # don't think this works:
-                # expDays     = expDays[~exclude,:]
-                expDays = exposure(nestData[:,6:9], numN, expPercent=0.4)
-                if debug: print("exposure, after excluding:", expDays)
-                trueDSR_an  = 1 - mayfield(num_fail=failed2, expo=expDays)
-                # trueDSR_analysis = 1 - ((nestData.shape[0] - sum(nestData[:,3])) / 
-                                        #   sum(nestData[:,15]) )
-
-                if debug:
-                    print(
-                        "> DISCOVERED NESTS - total | analyzed: hatched:", 
-                        discovered, "|", analyzed,
-                        # "excluded from analysis:", excluded,
-                        "failed:", failed, "|", failed2,
-                        # nestData.shape[0] - sum(nestData[:,3])
-                        # "exposure days:", expDays, "|", sum(nestData[:,15])
-                        "true DSR:", trueDSR_disc, "|", trueDSR_an
-                        )
+                # Run the optimizer on the likelihood function you choose:
+                # ------- LIKE_SMD --------------------------------------------
+                # print("main.py: Msg: Running optimizer") 
+                # args to like_smd:
+                #       x, nestData, obsFreq, stateMat, useSM, 
+                #       sFin, whichRet=1, **kwargs):
                 z = randArgs()
                 # NOTE: optimizer for matrix function takes an array (z) but 
                 #       optimizer for MARK takes one param (srand) which just 
@@ -1511,20 +1512,12 @@ with open(likeFile, "wb") as f:
                                    flooded=(nestData[:,3]==2),
                                    hatched=(nestData[:,3]==0)
                                    )
-
                 # -------------------------------------------------------------
-                # / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / 
-                # -------------------------------------------------------------
-                # Run the optimizer on the likelihood function you choose:
-                # ------- LIKE_SMD --------------------------------------------
-                # print("main.py: Msg: Running optimizer") 
-                # args to like_smd:
-                #       x, nestData, obsFreq, stateMat, useSM, 
-                #       sTrue, whichRet=1, **kwargs):
                 try:
                     ans = optimize.minimize(
                             like_smd, z, 
-                            args=( nestData, obsFreq, stMat, useSM, 1),
+                            # args=( nestData, obsFreq, stMat, useSM, 1),
+                            args=( obs, obsFreq, stMat, useSM, 1),
                             method='Nelder-Mead'
                             # method='SLSQP'
                             )
@@ -1548,6 +1541,7 @@ with open(likeFile, "wb") as f:
                 #
                 # #@#print("Success?", ans.success, ans.message)
                 res = ansTransform(ans)
+                # -------------------------------------------------------------
                 #OPTIMIZER: MARK function
                 # inp = disc[:,np.r_[0,7:11]] # doesn't include index 11
                 markProb = mark_probs(srand, nData)
@@ -1617,7 +1611,6 @@ with open(likeFile, "wb") as f:
                     if debug: print(">> ** saving likelihood values with header **")
                 else:
                     np.savetxt(f, [like_val], delimiter=",")
-                    #np.savetxt(f, like_val, delimiter=",")
                     if debug: print(">> ** saving likelihood values **")
                 # except this adds the header before every line
                 # could just remove them later in R
@@ -1887,19 +1880,19 @@ with open(likeFile, "wb") as f:
             # print(">> param set ID increased:", parID)
             
 
-    # sudo vim -o file1 file2 [open 2 files] 
-    # BLAH
-    # NOTE 5/16/25 - The percent bias responds more like I would expect when I use
-    #                the actual calculated DSR, not the assigned DSR (0.93 or 0.95)
-    #                BUT I still don't know why the calculated DSR is consistently low.
+    # # sudo vim -o file1 file2 [open 2 files] 
+    # # BLAH
+    # # NOTE 5/16/25 - The percent bias responds more like I would expect when I use
+    # #                the actual calculated DSR, not the assigned DSR (0.93 or 0.95)
+    # #                BUT I still don't know why the calculated DSR is consistently low.
 
-    from datetime import datetime
-    import decimal
-    from decimal import Decimal
-    from itertools import product
-    import itertools
-    import numpy as np 
-    from os.path import exists
-    import os
-    from pathlib import Path
-    from scipy import optimize
+    # from datetime import datetime
+    # import decimal
+    # from decimal import Decimal
+    # from itertools import product
+    # import itertools
+    # import numpy as np 
+    # from os.path import exists
+    # import os
+    # from pathlib import Path
+    # from scipy import optimize
