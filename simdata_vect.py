@@ -54,20 +54,20 @@ class Config:
 # for i, arg in enumerate(sys.argv):
     # print(f"Argument {i}: {arg}")
  # use different debug var bc these will print for every time optimizer runs
-debugList = dict( debug_nest = False,
-                  debug_obs = False, 
-                  debugLL = False, 
-                  debug = False,
-                  debugM = False,
-                  debugL = False )
-if len(args) > 1:
-    # debug = args[1] == "debugTrue"
-    # enumerate() give sboth index and value
-    for i in range(len(args)):
-        debugList[args[i]] = True
-for key, val in debugList.items():
-    globals()[key] = val
-    print(globals()[key], val)
+# debugList = dict( debug_nest = False,
+#                   debug_obs = False, 
+#                   debugLL = False, 
+#                   debug = False,
+#                   debugM = False,
+#                   debugL = False )
+# if len(args) > 1:
+#     # debug = args[1] == "debugTrue"
+#     # enumerate() give sboth index and value
+#     for i in range(len(args)):
+#         debugList[args[i]] = True
+# for key, val in debugList.items():
+#     globals()[key] = val
+#     print(globals()[key], val)
 # v = debugList.values() #test
 # -----------------------------------------------------------------------------
 #  HELPER FUNCTIONS
@@ -143,7 +143,7 @@ plTest  = {'numNests'  : [50],
            'obsFreq'   : [3, 5],
            'hatchTime' : [20, 28] }
 
-def mk_param_list(parList: Dict[str, list]) -> list:
+def mk_param_list(parList: Dict[str, list], config) -> list:
     """
     Take the dictionary of lists of param values, then unpack the lists to a 
     list of lists. Then feed this list of lists to itertools.product using *.
@@ -155,7 +155,7 @@ def mk_param_list(parList: Dict[str, list]) -> list:
     # output in the original is a list of tuples
     # listVal = parList.values() # doesn't seem to be what i want
     # p_List = list(product(parList.values()))
-    if debug: print(f"using the {parList} params lists")
+    if config.debug: print(f"using the {parList} params lists")
     listVal = [parList[key] for key in parList]
     p_List = list(itertools.product(*listVal))
     # p_List = list(product(parList)) # doesn't work either; just gets keys
@@ -252,7 +252,7 @@ def sprob_from_csv(file="C:/Users/Sarah/Dropbox/Models/sim_model/storm_init3.csv
     print(">> week: storm probability = ",ret)
     return(ret)
 # -----------------------------------------------------------------------------
-def stormGen(frq, dur, wStart, pStorm):
+def stormGen(frq, dur, wStart, pStorm, config):
     """
     generate a list of days where storms happened.
 
@@ -260,7 +260,7 @@ def stormGen(frq, dur, wStart, pStorm):
     function to streamline it.
     """
     # out = rng.choice(a=weekStart, size=frq, replace=False, p=stormProb)
-    out = rng.choice(a=wStart, size=frq, replace=False, p=pStorm)
+    out = config.rng.choice(a=wStart, size=frq, replace=False, p=pStorm)
     dr = np.arange(0, dur, 1)
     stormDays = [out + x for x in dr] # add sequential storm days when dur>1
     stormDays = np.array(stormDays).flatten()
@@ -294,7 +294,7 @@ def logistic(x)->np.longdouble:
     #return 1.0/( 1.0 + math.exp(-x) )
     return 1.0/( 1.0 + np.exp(-x) )
 # -----------------------------------------------------------------------------
-def mk_surveys(stormDays, obsFreq, breedingDays):
+def mk_surveys(stormDays, obsFreq, breedingDays, config):
     """
     This function creates the list of survey days by taking a random start date 
     from the first 5 breeding days and creating a range with step size determined
@@ -309,14 +309,14 @@ def mk_surveys(stormDays, obsFreq, breedingDays):
     # the upper value should not be == to the total number of season days 
     # because then nests end after season is over 
 
-    start       = rng.integers(1, high=5) # random day of 1st survey from 1st 5 breeding days          
+    start       = config.rng.integers(1, high=5) # random day of 1st survey from 1st 5 breeding days          
     end         = start + breedingDays
     surveyDays  = np.arange(start, end, step=obsFreq)
     stormSurvey = np.isin(surveyDays, stormDays) 
     surveyDays  = surveyDays[np.isin(surveyDays, stormDays) == False] # keep only values that aren't in storm_days 
     surveyInts  = np.array([0] + [surveyDays[n] - surveyDays[n-1] for n in range(1, len(surveyDays)-1) ] )
     # surveyInts  = np.append(surveyInts, )
-    if debug: 
+    if config.debug: 
         print(">> all survey days, minus storms:\n", surveyDays, len(surveyDays)) 
 
     return(surveyDays, surveyInts)
@@ -330,13 +330,13 @@ def survey_int(surveyDays):
 # -----------------------------------------------------------------------------
 # ------ NEST DATA HELPER FUNCTIONS -------------------------------------------
 # -----------------------------------------------------------------------------
-def mk_init(weekStart, initProb, numNests):
-    initWeek = rng.choice(a=weekStart, size=numNests, p=initProb)  # random starting weeks; len(a) must equal len(p)
-    initiation = initWeek + rng.integers(7)                    # add a random number from 1 to 6 (?) 
-    if debug: print(">> initiation week start days:\n", initWeek) 
+def mk_init(weekStart, initProb, numNests, config):
+    initWeek = config.rng.choice(a=weekStart, size=numNests, p=initProb)  # random starting weeks; len(a) must equal len(p)
+    initiation = initWeek + config.rng.integers(7)                    # add a random number from 1 to 6 (?) 
+    if config.debug: print(">> initiation week start days:\n", initWeek) 
     return(initiation)
 # -----------------------------------------------------------------------------
-def mk_surv(numNests, hatchTime, pSurv):
+def mk_surv(numNests, hatchTime, pSurv, config):
     # 4. Decide how long each nest is active
     # >> use a negative binomial distribution - distribution of number of 
     #    failures until success 
@@ -347,7 +347,7 @@ def mk_surv(numNests, hatchTime, pSurv):
     # >> then use survival to calculate end dates for each nest 
     #    (end = initiation + survival)
 
-    survival = rng.negative_binomial(n=1, p=(1-pSurv), size=numNests) 
+    survival = config.rng.negative_binomial(n=1, p=(1-pSurv), size=numNests) 
     survival = survival - 1 # but since the last trial is when nest fails, need to subtract 1
     # if debug: print(">> survival in days:\n", survival, len(survival)) 
     
@@ -357,36 +357,36 @@ def mk_surv(numNests, hatchTime, pSurv):
     #           and becomes inactive
 
     survival[survival > hatchTime] = hatchTime # add some amt of error?
-    if debug: print(">> survival in days:\n", survival, len(survival)) 
+    if config.debugHatch: print(">> survival in days:\n", survival, len(survival)) 
     hatched = survival >= hatchTime # the hatched nests survived for >= hatchTime days 
-    if debug: print("hatched (no storms):", hatched, hatched.sum())
+    if config.debugHatch: print("hatched (no storms):", hatched, hatched.sum())
     ## NOTE THIS IS NOT THE TRUE HATCHED NUMBER; DOESN'T TAKE STORMS INTO ACCOUNT
     # if debug: print("real hatch proportion:", hatched.sum()/numNests)
     return(survival)
 # -----------------------------------------------------------------------------
-def mk_per(start, end):
+def mk_per(start, end, config):
 
     # nestPeriod = np.stack((nestData[:,1], (nestData[:,1]+nestData[:,2]))) # create array of tuples
     # need the double parentheses so it knows output is tuples
     nestPeriod = np.stack((start, end)) # create array of tuples
     nestPeriod = np.transpose(nestPeriod) # an array of start,end pairs 
-    if debug: print(
+    if config.debugHatch: print(
         ">> start and end of nesting period:\n", 
         nestPeriod, 
         nestPeriod.shape
         )
     return(nestPeriod)
 # -----------------------------------------------------------------------------
-def storm_nest(nestPeriod, stormDays):
+def storm_nest(nestPeriod, stormDays, config):
     # >> stormNestIndex searches for storm days w/in active period of each nest
     #     >> returns index where storm day would be within the active interval: 
     #             0 = before init; 2 = after end; 1 = within interval
     #     >> fate cues should become harder to interpret after storms
     stormNestIndex = searchSorted2(nestPeriod, stormDays)
-    if debug: print("where were storms in active period?", stormNestIndex)
+    if config.debugNest: print("where were storms in active period?", stormNestIndex)
     # if index == 1, then storm Day is within the period interval: 
     stormNest = np.any(stormNestIndex == 1, axis=1) 
-    if debug: print(
+    if config.debugNest: print(
         "which nests were active during a storm? How many?", 
         stormNest, 
         stormNest.sum()
@@ -394,7 +394,7 @@ def storm_nest(nestPeriod, stormDays):
     numStorms = np.sum(stormNestIndex==1, axis=1) # axis=1 means summing over rows?
     # NOTE I *think* this is actually number of storm intervals, which is what 
     # we want for the likelihood function. so that would be good...
-    if debug: print(">> number of storm intervals during nesting period:\n", numStorms)
+    if config.debugNest: print(">> number of storm intervals during nesting period:\n", numStorms)
     return(numStorms)
 # -----------------------------------------------------------------------------
 def mk_nests(params, init, weekStart, nestData): 
@@ -428,7 +428,7 @@ def mk_nests(params, init, weekStart, nestData):
     return(nestData)
 # ---- FAILED NESTS --------------------------------------------------------
 
-def mk_flood(params, numStorms,numNests):
+def mk_flood(params, numStorms,numNests, config):
     """
     Decide which nests fail from flooding:
         1. Create a vector of random probabilities drawn from a uniform dist
@@ -445,27 +445,27 @@ def mk_flood(params, numStorms,numNests):
     """
     pfMort = params[2]       # prob of surviving (not flooding) during storm
     print("prob of failure due to flooding:", pfMort)
-    pflood = rng.uniform(low=0, high=1, size=numNests) 
+    pflood = config.rng.uniform(low=0, high=1, size=numNests) 
     # need to check whether this is the correct distribution 
     # NOTE: still needs to be conditional on nest having failed already...  
     # NOTE np.concatenate joins existing axes, while np.stack creates new ones
     
     flooded = np.where(pflood>pfMort, 1, 0) # if pflood>pfMort, flooded=1, else flooded=0 
-    if debug: print("flooded:", flooded)
+    if config.debugNest: print("flooded:", flooded)
     # and/or/not don't work bc it's a vector; since it's 1 and 0, can use arithmetic: 
     stormNest = numStorms >= 1
-    if debug: print("storm nests:", stormNest)
+    if config.debugNest: print("storm nests:", stormNest)
     floodFail = stormNest + flooded > 1 # both need to be true 
-    if debug: print("flooded and during storm:", floodFail, floodFail.sum())
+    if config.debugNest: print("flooded and during storm:", floodFail, floodFail.sum())
     # nestData[:,4] = floodFail.astype(int) 
     return(floodFail)
 # -----------------------------------------------------------------------------
-def mk_fates(numNests, hatched, flooded):
+def mk_fates(numNests, hatched, flooded, config):
     """
     Returns: list of true fates for each nest
     """
     trueFate = np.empty(numNests) 
-    if debug: print(">> hatched:", hatched)
+    if config.debugNest: print(">> hatched:", hatched)
     #print("length where flooded = True", len(trueFate[floodedAll==True]))
     trueFate.fill(1) # nests that didn't flood or hatch were depredated 
     #trueFate[flooded==True] = 2 
@@ -476,7 +476,7 @@ def mk_fates(numNests, hatched, flooded):
     # hatched fate is assigned last, so hatched is taking precedence over flooded
     # so maybe that's why the true DSR is always higher than 0.93, but what about true DSR of discovered?
     # fates = [np.sum(trueFate==x) for x in range(3)]
-    if debug: print(">>>>> true final nest fates:\n", trueFate, sum(trueFate))
+    if config.debugNest: print(">>>>> true final nest fates:\n", trueFate, sum(trueFate))
     return(trueFate)
 
     # # ---- TRUE DSR ------------------------------------------------------------
@@ -498,7 +498,7 @@ def mk_fates(numNests, hatched, flooded):
 # def observer(discProb, numNests, fateCues, obsFreq, fates, surveyDays, nData, out):
 # -----------------------------------------------------------------------------
 # How does the observer assign nest fates? 
-def assign_fate(fateCuesPresent, trueFate, numNests, stormIntFinal, stormFate):
+def assign_fate(fateCuesPresent, trueFate, numNests, stormIntFinal, stormFate, config):
     """
     The observer assigns the correct fate based on a comparison of a set 
     probability to random draws from a uniform distribution. If observer is 
@@ -516,20 +516,20 @@ def assign_fate(fateCuesPresent, trueFate, numNests, stormIntFinal, stormFate):
     assignedFate = np.zeros(numNests) # if there was no storm in the final interval, correct fate is assigned 
     assignedFate.fill(7) # default is unknown; fill with known fates if field cues allow
 
-    fateCuesProb = rng.uniform(low=0, high=1, size=numNests)
+    fateCuesProb = config.rng.uniform(low=0, high=1, size=numNests)
     fateCuesPres = np.zeros(numNests)
     fateCuesPres.fill(fateCuesPresent)
     fateCuesPres[stormIntFinal==True] = 0.1
-    if debug: 
+    if config.debugLL: 
         print(">> compare random probs to fateCuesPresent:\n", 
               [fateCuesProb,fateCuesPres], 
               fateCuesProb.shape)
         
     assignedFate[fateCuesProb < fateCuesPres] = trueFate[fateCuesProb < fateCuesPres] 
-    if debug: print(">> assigned fates:", assignedFate, sum(assignedFate))
+    if config.debugLL: print(">> assigned fates:", assignedFate, sum(assignedFate))
     if stormFate: assignedFate[stormIntFinal] = 2
-    if debug: print(">> nests with storm in final interval:", stormIntFinal)
-    if debug: print(">> assigned fates after storm fates assigned:", assignedFate, sum(assignedFate))
+    if config.debugLL: print(">> nests with storm in final interval:", stormIntFinal)
+    if config.debugLL: print(">> assigned fates after storm fates assigned:", assignedFate, sum(assignedFate))
     # fate cues prob should be affecting all nest fates equally, not just failures.
     # if debug: print(">> proportion of nests assigned hatch fate:", np.sum((assignedFate==0)[discovered==True])/(sum(discovered==True)),"vs period survival:", pSurv**hatchTime)
     # print(">> assigned fate array & its shape:\n", assignedFate, assignedFate.shape)
@@ -547,7 +547,7 @@ def svy_position(initiation, nestEnd, surveyDays):
     # position2
 # -----------------------------------------------------------------------------
 # def observer(par, fateCues, fates, surveyDays, nData, out):
-def observer(nData, par, cues, fate, surveys, out):
+def observer(nData, par, cues, fate, surveys, out, config):
     """
     The observer searches for nests on survey days. Surveys til discovery (success)
     are calculated as random draws from a negative binomial distribution with
@@ -565,7 +565,7 @@ def observer(nData, par, cues, fate, surveys, out):
     # svy_til_disc = discover_time(discProb, numNests)
     pos              = svy_position(initiation, end, surveys)
     num_svy          = pos[1] - pos[0]   
-    svysTilDiscovery = rng.negative_binomial(n=1, p=discProb, size=numNests) # see above for explanation of p 
+    svysTilDiscovery = config.rng.negative_binomial(n=1, p=discProb, size=numNests) # see above for explanation of p 
     discovered       = svysTilDiscovery < num_svy
     num_svy[discovered] = 0
     stormIntFinal    = surveyInts[pos[1]] > obsFreq  # was obs interval longer than usual? (== there was a storm)
@@ -1422,7 +1422,7 @@ def ansTransform(ans):
     return(ansTransformed)
 
 # -----------------------------------------------------------------------------
-def randArgs():
+def randArgs(config):
     """
     Choose random initial values for the optimizer
     These will be log-transformed before going through the likelihood function
@@ -1430,6 +1430,7 @@ def randArgs():
     Returns:
     array of s, mp, ss, mps (for like_smd) and srand (for mark_wrapper)
     """
+    rng=config.rng
     s     = rng.uniform(-10.0, 10.0)       
     mp    = rng.uniform(-10.0, 10.0)
     ss    = rng.uniform(-10.0, 10.0)
@@ -1534,21 +1535,21 @@ def rep_loop(par, nData, vals, storm, survey, config):
         like_val
     """
     # ---- empty arrays to store data for this replicate: ---------
-    likeVal  = np.zeros(shape=(config.numOut), dtype=np.longdouble)
+    like_val  = np.zeros(shape=(config.numOut), dtype=np.longdouble)
     trueDSR_an   = calc_dsr(nData=nData, nestType="analysis") 
     perfectInfo = 0
     # ex = np.longdouble("0.0")
     stMat = state_vect(nNest=len(nData), fl=(nData[:,3]==2), ha=(nData[:,3]==0))
     dat = nData[:,4:10] # doesn't include column index 10
 
-    llArgs = randArgs()
+    llArgs = randArgs(config)
     testLL  = like_smd(x=llArgs, obsData=dat, obsFreq=par.obsFreq, 
                        stateMat=stMat, useSM=par.useSMat, whichRet=1)
     ans      = run_optim(fun=like_smd, z=randArgs(), 
                          arg=(dat, par.obsFreq, stMat, par.useSMat, 1))
                                 # args=( dat, obsFr, stMat, useSM, 1),
     res = ansTransform(ans)
-    srand = rng.uniform(-10.00, 10.00)
+    srand = config.rng.uniform(-10.00, 10.00)
     markProb = mark_probs(s=srand, ndata=nData)
     # nocc     = 
     # markAns  = run_optim(fun=mark_wrapper, z=randArgs()[4], arg=(nData))
