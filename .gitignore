@@ -1,3 +1,4 @@
 # output files, text files:
 *.out
 *.txt
+/py_output
