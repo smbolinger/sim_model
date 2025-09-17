@@ -2,3 +2,6 @@
 *.out
 *.txt
 /py_output
+
+# other files:
+/references
