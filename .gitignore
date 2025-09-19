@@ -1,7 +1,9 @@
 # output files, text files:
 *.out
 *.txt
-/py_output
+*.json
 
-# other files:
+# directories:
 /references
+/py_output
+/other
