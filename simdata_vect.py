@@ -207,26 +207,30 @@ staticPar = {'brDays': 160,
              'pMortFl': 0.1,
              'discProb': 0.7,
              'whichLike': 1,
-             'stormFate': True,
+            #  'stormFate': True,
              'useSMat': False
              }
 
-parLists = {'numNests' : [500,1000],
+# parLists = {'numNests' : [500,1000],
+parLists = {'numNests' : [100, 500],
             'probSurv' : [0.96, 0.97],
             'stormDur' : [1, 2, 3],
             'stormFrq' : [1, 3, 5],
             'obsFreq'  : [3, 5, 7],
+           'stormFate': [False,True],
             'hatchTime': [16, 20, 28] }
 
-# plTest  = {'numNests'  : [100],
-plTest  = {'numNests'  : [30],
+plTest  = {'numNests'  : [100],
+# plTest  = {'numNests'  : [30],
            'probSurv'  : [0.96],
-           'stormDur'  : [1],
-           'stormFrq'  : [0],
+           'stormDur'  : [1,2],
+           'stormFrq'  : [1,2],
         #    'obsFreq'   : [3, 5],
-           'obsFreq'   : [3],
-        #    'hatchTime' : [20, 28] }
-           'hatchTime' : [20] }
+           'obsFreq'   : [3,5],
+           'stormFate': [False,True],
+           'hatchTime' : [20, 28] }
+
+        #    'hatchTime' : [20] }
 
 def mk_param_list(parList: Dict[str, list]) -> list:
     """
@@ -728,6 +732,7 @@ def observer(nData, par, cues, fate, surveys, out, cn=config):
     num_svy          = pos[1] - pos[0]   
     svysTilDiscovery = rng.negative_binomial(n=1, p=discProb, size=numNests) # see above for explanation of p 
     discovered       = svysTilDiscovery < num_svy
+    print("surveys til discovery; discovered T/F:", svysTilDiscovery, discovered)
     num_svy[~discovered] = 0
     # stormIntFinal    = surveyInts[pos[1]] > obsFreq  # was obs interval longer than usual? (== there was a storm)
     intFinal    = surveyInts[pos[1]] # actual length of final interval for each nest
@@ -1678,7 +1683,7 @@ def like_smd(
     ss0  = x[2]
     mps0 = x[3]
     sM   = x[4]
-    #if debug: print("initial values:", s0, mp0, ss0, mps0, sM)
+    if debug: print("initial values:", s0, mp0, ss0, mps0, sM)
 
     # transform the initial values so all are between 0 and 1:
     s1   = logistic(s0)
@@ -1860,11 +1865,17 @@ def make_obs(par, init, dfs, stormDays, surveyDays, config=config):
 
     Returns:
         numpy ndarray containing nest & observation data (column indices above)
+        
+        Can also uncomment lines to save nest data to .npy file
     """
     # fateCues directly correlates to obsFreq, so doesn't need to be param
     fateCues   = 0.65 if par.obsFreq > 5 else 0.71 if par.obsFreq == 5 else 0.75
     # ---- make the nests: ---------------------------------------------------
     # nData          = mk_nests(par=par, init=init[0], 
+    # nestfile = Path(uniquify(Path.home()/
+    #                         'C://Users/sarah/Dropbox/Models/sim_model/other'/
+    #                         # dirName/
+    #                         ('nest_data.npy')))
     nData          = mk_nests(par=par, nestData=dfs[0])
     # nestPeriod     = mk_per(nData[:,1], (nData[:,1]+nData[:,2]))
     nestPeriod     = mk_per(nData[:,1], (nData[:,2])) # changed output of mk_nests 
@@ -1875,6 +1886,7 @@ def make_obs(par, init, dfs, stormDays, surveyDays, config=config):
     # inclFlood        = mk_flood(nData, par.pMortFl, stormsPerNest, numNests=par.numNests)
     flooded        = 0
     hatched        = (nData[:,2]-nData[:,1]) >= par.hatchTime
+    print("hatched=", hatched)
     # nestFate       = mk_fates(nData, par.numNests, hatched, flooded)
     nestFate       = mk_fates(nData, par.numNests, hatched, whichStorm, stormDays)
     # ---- observer: ---------------------------------------------------------
@@ -1883,12 +1895,35 @@ def make_obs(par, init, dfs, stormDays, surveyDays, config=config):
                          surveys=surveyDays, out=dfs[1])
     # ---- concatenate to make data for the nest models: ---------------------
     # fl, ha, ff, la, lc, nInt, sTrue = obsDat
+    # disc = "True  True  True  True  True  True False  True  True  True  True False True  True False  True False  True  True  True  True  True  True  True False  True  True  True  True False"
+    # stildisc = "1 1 3 0 0 1 1 0 1 0 2 2 1 0 0 1 1 0 1 0 0 0 0 0 3 0 1 0 0 0"
+    # sTilDisc = ','.join(stildisc)
+    # disc1 = np.fromstring(disc, dtype=bool, sep=' ')
+    # disc = disc.replace(" ", ",")
+    # disc = disc.split()
+    # disc1 = np.fromstring(disc, dtype=bool, sep=',')
+    # disc1 = np.array(disc)
+    # disc1 = (disc1 == "True")
+    # sTilDisc = np.fromstring(stildisc, dtype=int, sep=' ')
     nestData = np.concatenate((nData, 
                                nestFate[:,None], 
+                            #    np.zeros((par.numNests,4)),
                                obs,
-                               stormOut[0][:,None] # storms per nest
+                               stormOut[0][:,None], # storms per nest
+                            #    np.zeros((par.numNests,2))
                                ), axis=1)
-    if config.debug: print("nestData:\n", nestData)
+    # nestData[:,3] = (nestFate==0)
+    # nestData[:,4] = (nestFate==2)
+    # nestData[:,5] = sTilDisc
+    # nestData[:,6] = disc1
+    # nestData[:,12] = nestData[:,12] > 3
+    # nestData[:,14] = 416 # exposure dayso
+    # nestData[:,15] = nestData[:,2] - nestData[:,1]
+    
+    # if config.debug: print("nestData:\n", nestData)
+    if debug: print("\nnestData:\n", nestData)
+    # np.save("nest_data.npy", nestData)
+    # np.save(nestfile, nestData)
     return(nestData)
     
 # def rep_loop(par, repID, nData, vals, storm, survey, config):
@@ -1910,12 +1945,13 @@ def rep_loop(par, nData, storm, survey, config):
     # ex = np.longdouble("0.0")
     stMat = state_vect(nNest=len(nData), fl=(nData[:,3]==2), ha=(nData[:,3]==0))
     dat = nData[:,4:10] # doesn't include column index 10
-    ans      = run_optim(fun=like_smd, z=randArgs(), 
+    # ans      = run_optim(fun=like_smd, z=randArgs(), 
+    res      = run_optim(fun=like_smd, z=randArgs(), 
                         #  arg=(dat, par.obsFreq, stMat, par.useSMat, storm, survey, 2))
                         #  arg=(dat, par.obsFreq, stMat, par.useSMat, storm, survey, 1))
                          arg=(dat, par.obsFreq, stMat, par.useSMat, storm, survey, par.whichLike))
                                 # args=( dat, obsFr, stMat, useSM, 1),
-    res = ansTransform(ans)
+    # res = ansTransform(ans)
     srand = rng.uniform(-10.00, 10.00)
     # markProb = mark_probs(s=srand, ndata=nData)
     # mark_s = run_optim(fun=mark_wrapper, z=srand, arg=(nData, markProb, par.brDays))
@@ -1956,7 +1992,9 @@ def param_loop(par, parID, storm, survey, config, nruns=1 ):
     print(">>>>>>>>> params in this set: >>>>>>>>>>>>>>>>>>>>>>>>>>>>", par)
     repID      = 0  # keep trackof replicates
     numMC      = 0 # number of nests misclassified
+    likeVal    = np.zeros(shape=(config.nreps,config.numOut))
     # nrows   = len(par)*config.nreps*nruns
+    # nrows   = len(par)*config.nreps
     for r in range(config.nreps): 
         if debug: print("\n>>>>>>>>>>>> replicate ID: >>>>>>>>>>>>>>>>>>>>>>>>>>", repID)
         nd       = np.zeros(shape=(par.numNests, 3), dtype=int)
@@ -1967,7 +2005,6 @@ def param_loop(par, parID, storm, survey, config, nruns=1 ):
         # disc = sum(np.where(nestData[:,6]!=0))
         discover = nestData[:,6]!=0
         disc = sum(nestData[:,6]!=0)
-        # exclude  = ((nestData[:,7] == 7) | (nestData[:,4]==nestData[:,5]) | (nestData[:,6]!=0))                         
         if debug:
             print("nests not discovered:", nestData[:,0][~discover], par.numNests-disc)
         # this one is mostly for debugging purposes, to make sure nothing
@@ -1992,7 +2029,14 @@ def param_loop(par, parID, storm, survey, config, nruns=1 ):
         pars = np.array([par.probSurv, par.stormDur, par.stormFrq, par.numNests, 
                          par.hatchTime,par.obsFreq]) 
         nVal = np.array([trueDSR, trueDSR_an, disc, excl, repID])  
-        likeVal = np.concatenate((lVal, pars, nVal))
+        likeVal[r] = np.concatenate((lVal, pars, nVal))
+        # if parID == 0 and like_val[17] == 0: # only the first line gets the header
+            # np.savetxt(f, [like_val], delimiter=",", header=colnames)
+        #     if debug: print(">> ** saving likelihood values with header **")
+        # else:
+        #     np.savetxt(f, [like_val], delimiter=",")
+        #     if debug: print(">> ** saving likelihood values **")
+        # need to save it in the function where f was opened?
         repID = repID + 1
 
         return(likeVal)
@@ -2056,6 +2100,8 @@ def main(fnUnique, testing=True, deb="none", debN="none", config=config, pStatic
     # with open(likeFile, "ab") as f: # changing this to append didn't help...
         # append shouldn't matter if the file is just open the whole time
         paramsArray = mk_param_list(parList=pList)
+    
+        print(f">>>> there will be {len(paramsArray)*config.nreps} total rows")
         # par_merge   = {paramsArray, pStatic} # merge the dictionaries
         # params      = Params(par_merge)
         parID       = 0
@@ -2067,26 +2113,32 @@ def main(fnUnique, testing=True, deb="none", debN="none", config=config, pStatic
             stormDays  = stormGen(frq=par.stormFrq, dur=par.stormDur)
             survey     = mk_surveys(stormDays, par.obsFreq, par.brDays)
             # surveyInts = survey_int(surveyDays)
-            like_val = param_loop(par=par, parID=parID, storm=stormDays, 
-                                  survey=survey, config=config)
+            print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+            print(">>>>>>>>> param set number:", parID, "and params in set:", par)
+            repID      =  numMC = 0 # number of nests misclassified
+            likeVal    = np.zeros(shape=(config.nreps,config.numOut))
+            for r in range(config.nreps): 
+                if debug: print("\n>>>>>>>>>>>> replicate ID: >>>>>>>>>>>>>>>>>>>>>>>>>>", repID)
+            # like_val = param_loop(par=par, parID=parID, storm=stormDays, 
+            #                       survey=survey, config=config)
             colnames=config.colNames
             # if parID == 0 and repID == 0: # only the first line gets the header
-            if parID == 0 and like_val[17] == 0: # only the first line gets the header
-            # if firstLine == True: # only the first line gets the header
-            # if parID == 0 : # only the first line gets the header
-                np.savetxt(f, [like_val], delimiter=",", header=colnames)
-                #np.savetxt(f, like_val, delimiter=",", header=colnames)
-                if debug: print(">> ** saving likelihood values with header **")
-            else:
-                np.savetxt(f, [like_val], delimiter=",")
-                if debug: print(">> ** saving likelihood values **")
+            # if parID == 0 and like_val[0,17] == 0: # only the first line gets the header
+            # # if firstLine == True: # only the first line gets the header
+            # # if parID == 0 : # only the first line gets the header
+            #     np.savetxt(f, [like_val], delimiter=",", header=colnames)
+            #     #np.savetxt(f, like_val, delimiter=",", header=colnames)
+            #     if debug: print(">> ** saving likelihood values with header **")
+            # else:
+            #     np.savetxt(f, [like_val], delimiter=",")
+            #     if debug: print(">> ** saving likelihood values **")
                   
                   #    nreps=settings.nreps)
                 
             parID = parID + 1
 
     
-rng = config.rng
+# rng = config.rng
 debug=config.debug
 # debug_nest=config.debugNests
 # debugM=config.debugLL
@@ -2094,7 +2146,8 @@ debug=config.debug
 args   = config.args
 
 # NOTE need to decide if it's worth saving line-by-line
-main(fnUnique=False, testing=True, deb='like', debN="all")
+main(fnUnique=False, testing=True,deb='none', debN="all")
+# main(fnUnique=False, testing=False, deb='none', debN="all")
 # if len(args) > 1:
 #     # debug = args[1] == "debugTrue"
 #     # enumerate() give sboth index and value
