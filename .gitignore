@@ -2,8 +2,10 @@
 *.out
 *.txt
 *.json
+*.lprof
 
 # directories:
 /references
 /py_output
 /other
+/analysis
