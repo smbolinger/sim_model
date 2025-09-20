@@ -1,5 +1,9 @@
 # sudo vim -o file1 file2 [open 2 files] 
 # BLAH
+# :/^[^#]/ search for uncommented lines
+# /^[^#]*\s*print  or /^\s*print 
+# > kernprof -l simdata_vect.py > 20sepprofile.out
+# > python -m line_profiler .\simdata_vect.py.lprof
 # NOTE 5/16/25 - The percent bias responds more like I would expect when I use
 #                the actual calculated DSR, not the assigned DSR (0.93 or 0.95)
 #                BUT I still don't know why the calculated DSR is consistently low.
@@ -51,6 +55,7 @@ class Config:
     debug:       bool
     debugLL:     bool
     debugNests:  bool
+    debugFlood:  bool
     debugObs:    bool
     debugM:      bool
     likeFile:    str
@@ -142,6 +147,7 @@ config = Config(args        = sys.argv,
                 debugNests  = False, 
                 debugM      = False,
                 debugObs    = False,
+                debugFlood  = False,
                 # likeFile    = fname[0], 
                 likeFile    = " ",
                 colNames    = " ",
@@ -213,7 +219,7 @@ staticPar = {'brDays': 160,
 
 # parLists = {'numNests' : [500,1000],
 parLists = {'numNests' : [100, 500],
-            'probSurv' : [0.96, 0.97],
+            'probSurv' : [0.96],
             'stormDur' : [1, 2, 3],
             'stormFrq' : [1, 3, 5],
             'obsFreq'  : [3, 5, 7],
@@ -223,13 +229,12 @@ parLists = {'numNests' : [100, 500],
 plTest  = {'numNests'  : [100],
 # plTest  = {'numNests'  : [30],
            'probSurv'  : [0.96],
-           'stormDur'  : [1,2],
-           'stormFrq'  : [1,2],
-        #    'obsFreq'   : [3, 5],
-           'obsFreq'   : [3,5],
+           'stormDur'  : [1, 3],
+           'stormFrq'  : [1, 3],
+           'obsFreq'   : [3, 5],
+        #    'obsFreq'   : [3],
            'stormFate': [False,True],
            'hatchTime' : [20, 28] }
-
         #    'hatchTime' : [20] }
 
 def mk_param_list(parList: Dict[str, list]) -> list:
@@ -543,7 +548,7 @@ def mk_flood( stormDays, pMortFl, stormOut, numNests, con=config):
     """
     # pfMort = params[2]       # prob of surviving (not flooding) during storm
     # print("prob of failure due to flooding:", pfMort)
-    print("prob of failure due to flooding:", pMortFl)
+    if config.debugFlood: print("prob of failure due to flooding:", pMortFl)
     # pflood = rng.uniform(low=0, high=1, size=numNests) 
     numStorms, stormIndex= stormOut
     stormIndex = stormIndex.astype(int)
@@ -555,21 +560,21 @@ def mk_flood( stormDays, pMortFl, stormOut, numNests, con=config):
         # for s in range(numStorms[n]):
         if numStorms[n] > 0:
             flood = np.zeros(len(stormIndex[n]), dtype=np.int32)
-            print(f"nest {n} experienced >1 storm")
+            if config.debugFlood: print(f"nest {n} experienced >1 storm")
             # flood = list(range(len(stormIndex[n])))
             for s in range(len(flood)):
-                print("s=", s)
+                if config.debugFlood: print("s=", s)
                 if stormIndex[n,s] == 1:
                     flP = rng.uniform(low=0, high=1, size=1)
                     flood[s] = flP > pMortFl
-                    print("nest flooded?", flood[s])
+                    if config.debugFlood: print("nest flooded?", flood[s])
             if any(flood):
                 flooded[n] = 1
                 whichstorm =  np.where(flood==1)[0] # first index where val==True
                 whichStorm[n] = whichstorm[0]
             
-            print("first storm occurred while nest was active on:",stormDays[whichStorm[n]])
-            print("--------------------------------------------------------")
+            if config.debugFlood: print("first storm occurred while nest was active on:",stormDays[whichStorm[n]])
+            if config.debugFlood: print("--------------------------------------------------------")
     stormInfo = np.zeros((numNests, 4))
     stormInfo[:,0] = np.arange(numNests)
     stormInfo[:,1] = numStorms
@@ -1532,6 +1537,7 @@ def printLL(numNests, logLik, logLikFin, numInt, logL):
            )
 # -----------------------------------------------------------------------------
 # def logL(numNests, normalInt, finalInt, numInt, ha, config=config):
+@profile
 def logL(numNests, intervals, numInt, ha, fl, config=config):
     """
     Purpose
@@ -1605,6 +1611,7 @@ def logL(numNests, intervals, numInt, ha, fl, config=config):
 # This one uses a matrix multiplication equation created from building blocks
 #   > so you create these blocks:
 #   > a normal interval, a final interval, and a final interval with storm
+@profile
 def like(argL, numN, obsFr, obsDat, stMat, useSM, con=config):
     """
     perfectInfo == 0 or 1 to tell you whether you know all nest fates or not
@@ -1624,9 +1631,9 @@ def like(argL, numN, obsFr, obsDat, stMat, useSM, con=config):
     ff, la, lc, fate, nInt, sFinal = obsDat.T
     fl = fate==2 # are these necessary for more than print statements?
     ha = fate==0
-    if debug: print("number of nests and observation interval:", numN, obsFr)
-    if debug: print("nest observation data - ff, la, lc, fate, nInt, sFinal\n", obsDat)
-    if debug: print("did nest hatch?\n", ha, "\ndid nest flood?\n", fl)
+    if con.debugLL: print("number of nests and observation interval:", numN, obsFr)
+    if con.debugLL: print("nest observation data - ff, la, lc, fate, nInt, sFinal\n", obsDat)
+    if con.debugLL: print("did nest hatch?\n", ha, "\ndid nest flood?\n", fl)
     # NOTE NOTE should this be the assigned fate or true fate?
     if con.debugLL:
         print(
@@ -1683,7 +1690,7 @@ def like_smd(
     ss0  = x[2]
     mps0 = x[3]
     sM   = x[4]
-    if debug: print("initial values:", s0, mp0, ss0, mps0, sM)
+    if config.debugLL: print("initial values:", s0, mp0, ss0, mps0, sM)
 
     # transform the initial values so all are between 0 and 1:
     s1   = logistic(s0)
@@ -1699,7 +1706,7 @@ def like_smd(
     mp2  = tri1[1]
     ss2  = tri2[0]
     mps2 = tri2[1]
-    if debug: print("log- & triangle-transformed initial values:", s2, mp2, ss2, mps2)
+    if config.debugLL: print("log- & triangle-transformed initial values:", s2, mp2, ss2, mps2)
 
     # compute the conditional probability of mortality due to flooding:
     mf2  = 1.0 - s2 - mp2
@@ -1815,6 +1822,7 @@ if False:
 # NOTE need to create storms after params are chosen
 # NOTE is there even a reason to have this in a function?
 # NOTE NOTE do I have to pass every object to each function explicitly?
+@profile
 def run_optim(fun, z, arg, met='Nelder-Mead'):
     """
     Run scipy.optimize.minimize on 'fun'. Will return value of -1 or -2 if exceptions occur.
@@ -1854,9 +1862,11 @@ def run_optim(fun, z, arg, met='Nelder-Mead'):
         res = logistic(out.x[0])
     return(res)
     
-def make_obs(par, init, dfs, stormDays, surveyDays, config=config):
+# def make_obs(par, init, dfs, stormDays, surveyDays, config=config):
+@profile
+def make_obs(par, storm, survey, config=config):
     """
-    1. Run functions mk_nests, mk_per, storm_nest, mk_flood, mk_fates, & observer
+    1. Call functions mk_nests, mk_per, storm_nest, mk_flood, mk_fates, & observer
     2. Combine the output into an array: 
           [0]:nest ID...................[1]:initiation...........[2]:survival(w/o storm)..
           [4]:first found............[5]:last active.........[6]:last checked........
@@ -1867,7 +1877,11 @@ def make_obs(par, init, dfs, stormDays, surveyDays, config=config):
         numpy ndarray containing nest & observation data (column indices above)
         
         Can also uncomment lines to save nest data to .npy file
+        
+        And other lines to make nest data that's compatible with the old script.
     """
+    nd       = np.zeros(shape=(par.numNests, 3), dtype=int)
+    nd2      = np.zeros(shape=(par.numNests, 6), dtype=int)
     # fateCues directly correlates to obsFreq, so doesn't need to be param
     fateCues   = 0.65 if par.obsFreq > 5 else 0.71 if par.obsFreq == 5 else 0.75
     # ---- make the nests: ---------------------------------------------------
@@ -1876,23 +1890,25 @@ def make_obs(par, init, dfs, stormDays, surveyDays, config=config):
     #                         'C://Users/sarah/Dropbox/Models/sim_model/other'/
     #                         # dirName/
     #                         ('nest_data.npy')))
-    nData          = mk_nests(par=par, nestData=dfs[0])
+    # nData          = mk_nests(par=par, nestData=dfs[0])
+    nData          = mk_nests(par=par, nestData=nd)
     # nestPeriod     = mk_per(nData[:,1], (nData[:,1]+nData[:,2]))
     nestPeriod     = mk_per(nData[:,1], (nData[:,2])) # changed output of mk_nests 
-    stormOut  = storm_nest(par.stormFrq, nestPeriod, stormDays)
+    stormOut  = storm_nest(par.stormFrq, nestPeriod, storm)
     # flooded        = mk_flood(par, stormsPerNest, numNests=par[par.numNests])
     # flooded        = mk_flood(stormDays, par.pMortFl, stormOut, numNests=par.numNests)
-    whichStorm = mk_flood(stormDays, par.pMortFl, stormOut, numNests=par.numNests)
+    whichStorm = mk_flood(storm, par.pMortFl, stormOut, numNests=par.numNests)
     # inclFlood        = mk_flood(nData, par.pMortFl, stormsPerNest, numNests=par.numNests)
     flooded        = 0
     hatched        = (nData[:,2]-nData[:,1]) >= par.hatchTime
-    print("hatched=", hatched)
+    # print("hatched=", hatched)
     # nestFate       = mk_fates(nData, par.numNests, hatched, flooded)
-    nestFate       = mk_fates(nData, par.numNests, hatched, whichStorm, stormDays)
+    nestFate       = mk_fates(nData, par.numNests, hatched, whichStorm, storm)
     # ---- observer: ---------------------------------------------------------
     par2      = [par.numNests, par.obsFreq, par.discProb, par.stormFate]
     obs       = observer(nData, par=par2, cues=fateCues, fate=nestFate, 
-                         surveys=surveyDays, out=dfs[1])
+                        #  surveys=surveyDays, out=dfs[1])
+                         surveys=survey, out=nd2)
     # ---- concatenate to make data for the nest models: ---------------------
     # fl, ha, ff, la, lc, nInt, sTrue = obsDat
     # disc = "True  True  True  True  True  True False  True  True  True  True False True  True False  True False  True  True  True  True  True  True  True False  True  True  True  True False"
@@ -1928,6 +1944,7 @@ def make_obs(par, init, dfs, stormDays, surveyDays, config=config):
     
 # def rep_loop(par, repID, nData, vals, storm, survey, config):
 # def rep_loop(par, nData, vals, storm, survey, config):
+@profile
 def rep_loop(par, nData, storm, survey, config):
     """
     For each data replicate, call this function, which:
@@ -1963,7 +1980,8 @@ def rep_loop(par, nData, storm, survey, config):
     s2,mp2,mf2,ss2,mps2,mfs2 = res # unpack like() function output
     # s2,mp2,mf2,ss2,mps2,mfs2 = res2 # unpack like_old() function output
     like_val = [ mark_s,s2,mp2,mf2,ss2,mps2,mfs2]
-    if config.debug: print(">> like_val:\n", like_val)
+    # if config.debug: print(">> like_val:\n", like_val)
+    if config.debugLL: print(">> like_val:\n", like_val)
     like_val = np.array(like_val, dtype=np.longdouble)
     return(like_val)
     
@@ -1986,10 +2004,10 @@ def param_loop(par, parID, storm, survey, config, nruns=1 ):
         [13:16] = trueDSR, trueDSR (analysis), num discovered, hum excluded
         [17] = repID
     """
-    print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-    print(">>>>>>>>> param set number: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>", parID)
+    if debug: print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+    if debug: print(">>>>>>>>> param set number: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>", parID)
     # print(">>>>>>>>> params in this set:", list(*par))
-    print(">>>>>>>>> params in this set: >>>>>>>>>>>>>>>>>>>>>>>>>>>>", par)
+    if debug: print(">>>>>>>>> params in this set: >>>>>>>>>>>>>>>>>>>>>>>>>>>>", par)
     repID      = 0  # keep trackof replicates
     numMC      = 0 # number of nests misclassified
     likeVal    = np.zeros(shape=(config.nreps,config.numOut))
@@ -2005,8 +2023,7 @@ def param_loop(par, parID, storm, survey, config, nruns=1 ):
         # disc = sum(np.where(nestData[:,6]!=0))
         discover = nestData[:,6]!=0
         disc = sum(nestData[:,6]!=0)
-        if debug:
-            print("nests not discovered:", nestData[:,0][~discover], par.numNests-disc)
+        if debug: print("nests not discovered:", nestData[:,0][~discover], par.numNests-disc)
         # this one is mostly for debugging purposes, to make sure nothing
         # weird is happening with the discovery process:
         nestData = nestData[(discover),:] # remove undiscovered nests
@@ -2017,8 +2034,7 @@ def param_loop(par, parID, storm, survey, config, nruns=1 ):
         exclude  = ((nestData[:,7] == 7) | (nestData[:,4]==nestData[:,5]))                         
         # if there's only one observation, firstFound will == lastActive
         excl = sum(exclude) # exclude = boolean array; sum = num True
-        if debug: 
-            print("nests to exclude from analysis:", nestData[:,0][exclude], excl)
+        if debug: print("nests to exclude from analysis:", nestData[:,0][exclude], excl)
         nestData    = nestData[~(exclude),:]    # remove excluded nests 
         if debug: print("nest data, analysis nests only:\n",
                         "ID, init, survival, true fate, i, j, k, assigned fate, num normal obs, intFinal, num storms:\n",
@@ -2056,9 +2072,17 @@ def mk_colnames(colnames):
     
 # def main(testing=False, fname=mk_fnames(), pStatic=staticPar):
 # def main(testing=False, config=config, pStatic=staticPar):
-def set_debug(deb, debN, config=config):
+def set_debug(deb, debN, debS, config=config):
     """
     called from within main() to set the debug config
+
+    arguments to main():
+
+        debN = nests & observer (options: "all", "nests", "obs", "none"[default])
+
+        deb = MLE & program mark (options: "all", "like", "mark", "none"[default])
+
+        debS = flooding (options: "all", "none"[default])
     """
     if debN == "all":
         config.debugNests = config.debugObs = True
@@ -2074,12 +2098,16 @@ def set_debug(deb, debN, config=config):
     elif deb == "like":
         config.debugLL = True
     
-
-def main(fnUnique, testing=True, deb="none", debN="none", config=config, pStatic=staticPar):
+    if debS =="all":
+        config.debugFlood = True
+    
+@profile
+def main(fnUnique, testing=True, deb="none", debN="none", debS="none", config=config, pStatic=staticPar):
     """
     Debug options:
         'deb' is for the likelihood/program MARK. options: 'all', 'mark', 'like'
         'debN' is for the nest-making & observer. options: 'all', 'nest', 'obs'
+        'debS' = storms/flooding (options: "all", "none"[default])
     If 'fnUnique'==True, filename is "uniquified" and includes H:M:S
         Otherwise, just the date.
     """
@@ -2092,36 +2120,58 @@ def main(fnUnique, testing=True, deb="none", debN="none", config=config, pStatic
         print("debug = ", debug)
     else:
         pList = parLists # don't need to update any settings if not testing?
-    set_debug(deb=deb, debN=debN)
-    fname = mk_fnames() if fnUnique  else mk_fnames(unique=False)
+    set_debug(deb=deb, debN=debN, debS=debS)
+    fname = mk_fnames() if fnUnique else mk_fnames(unique=False)
     config.likeFile = fname[0]
     config.colNames = fname[1]
-    with open(config.likeFile, "wb") as f:
-    # with open(likeFile, "ab") as f: # changing this to append didn't help...
-        # append shouldn't matter if the file is just open the whole time
+    with open(config.likeFile, "wb") as f: # doesn't need to be 'a' bc file is open
         paramsArray = mk_param_list(parList=pList)
-    
         print(f">>>> there will be {len(paramsArray)*config.nreps} total rows")
-        # par_merge   = {paramsArray, pStatic} # merge the dictionaries
-        # params      = Params(par_merge)
         parID       = 0
         for i in range(0, len(paramsArray)): # for each set of params
             par        = paramsArray[i] 
             par_merge  = {**par, **pStatic}
             par        = Params(**par_merge)
-            # par.fateCues   = 0.65 if par.obsFreq > 5 else 0.71 if par.obsFreq == 5 else 0.75
             stormDays  = stormGen(frq=par.stormFrq, dur=par.stormDur)
             survey     = mk_surveys(stormDays, par.obsFreq, par.brDays)
-            # surveyInts = survey_int(surveyDays)
-            print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-            print(">>>>>>>>> param set number:", parID, "and params in set:", par)
-            repID      =  numMC = 0 # number of nests misclassified
-            likeVal    = np.zeros(shape=(config.nreps,config.numOut))
+            # surveyDays, surveyInts = survey
+            if debug: print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+            if debug: print(">>>>>>>>> param set number:", parID, "and params in set:", par)
+            repID = numMC = 0 # number of nests misclassified
+            # likeVal    = np.zeros(shape=(config.nreps,config.numOut))
             for r in range(config.nreps): 
                 if debug: print("\n>>>>>>>>>>>> replicate ID: >>>>>>>>>>>>>>>>>>>>>>>>>>", repID)
+                nestData = make_obs(par=par, storm=stormDays, survey=survey) 
+                trueDSR  = calc_dsr(nData=nestData, nestType="all")
+                discover = nestData[:,6]!=0
+                if debug: print("nests not discovered:", nestData[:,0][~discover])
+                nestData = nestData[(discover),:] # remove undiscovered nests
+                exclude  = ((nestData[:,7] == 7) | (nestData[:,4]==nestData[:,5]))                         
+                if debug: print("nests to exclude from analysis:", nestData[:,0][exclude])
+                nestData    = nestData[~(exclude),:]    # remove excluded nests 
+                if debug: print("nest data, analysis nests only:\n",
+                                "ID, init, survival, true fate, i, j, k, assigned fate, num normal obs, intFinal, num storms:\n",
+                                 nestData)
+                trueDSR_an   = calc_dsr(nData=nestData, nestType="analysis") 
+                lVal = rep_loop(par=par, nData=nestData, storm=stormDays,
+                                   survey=survey,config=config)
+                pars = np.array([par.probSurv, par.stormDur, par.stormFrq, par.numNests, 
+                                 par.hatchTime,par.obsFreq]) 
+                nVal = np.array([trueDSR, trueDSR_an, sum(discover), sum(exclude), repID])  
+                like_val = np.concatenate((lVal, pars, nVal))
+                colnames=config.colNames
+                if parID == 0 and like_val[17] == 0: # only the first line gets the header
+                    np.savetxt(f, [like_val], delimiter=",", header=colnames)
+                    if debug: print(">> ** saving likelihood values with header **")
+                else:
+                    np.savetxt(f, [like_val], delimiter=",")
+                    if debug: print(">> ** saving likelihood values **")
+                # need to save it in the function where f was opened?
+                # likeVal[r] = like_val
+                repID = repID + 1
             # like_val = param_loop(par=par, parID=parID, storm=stormDays, 
             #                       survey=survey, config=config)
-            colnames=config.colNames
+            # colnames=config.colNames
             # if parID == 0 and repID == 0: # only the first line gets the header
             # if parID == 0 and like_val[0,17] == 0: # only the first line gets the header
             # # if firstLine == True: # only the first line gets the header
@@ -2139,14 +2189,14 @@ def main(fnUnique, testing=True, deb="none", debN="none", config=config, pStatic
 
     
 # rng = config.rng
-debug=config.debug
+debug = config.debug
 # debug_nest=config.debugNests
 # debugM=config.debugLL
 # debugLL=config.debugLL
-args   = config.args
+args = config.args
 
 # NOTE need to decide if it's worth saving line-by-line
-main(fnUnique=False, testing=True,deb='none', debN="all")
+main(fnUnique=False, testing=True,deb='none', debN="all", debS="none")
 # main(fnUnique=False, testing=False, deb='none', debN="all")
 # if len(args) > 1:
 #     # debug = args[1] == "debugTrue"
