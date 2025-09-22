@@ -3,6 +3,7 @@
 *.txt
 *.json
 *.lprof
+*.docx
 
 # directories:
 /references
