@@ -16,6 +16,7 @@ from decimal import Decimal
 # from itertools import product
 import getopt
 import itertools
+import line_profiler
 # import numexpr as ne
 import numpy as np 
 # from os.path import exists
@@ -66,7 +67,8 @@ class Config:
     debugObs:    bool
     debugM:      bool
     useWSL:      bool
-    testing:     bool
+    # testing:     bool
+    testing:     str
     fnUnique:    bool
     likeFile:    str
     # likeDir:     str
@@ -97,7 +99,8 @@ config = Config(nreps       = 500,
                 debugObs    = False,
                 debugFlood  = False,
                 useWSL      = False,
-                testing     = False,
+                # testing     = False,
+                testing     = "no",
                 fnUnique    = False,
                 # likeFile    = fname[0], 
                 likeFile    = " ",
@@ -117,7 +120,7 @@ try:
     # arguments, values = getopt.getopt(args, options, optVal)
     # 'o' takes an argument, so has ':'
     # opts,args = getopt.getopt(sys.argv[1:],"htdwo:v",["Help", "Test", "Debug", "WSL-true","Out-file="])
-    opts,args = getopt.gnu_getopt(sys.argv[1:],"htdo:w",["Help", "Test", "Debug", "WSL-true"])
+    opts,args = getopt.gnu_getopt(sys.argv[1:],"ht:do:w",["Help", "Test", "Debug", "WSL-true"])
     # for n in range(len(opts)): print(f"{opts[n]}: {args[n]}")
     # opts,args = getopt.gnu_getopt(sys.argv[1:],"htdw",["Help", "Test", "Debug", "WSL-true"])
 except getopt.error as err:
@@ -131,7 +134,9 @@ for arg, val in opts:
     if arg in ("-h", "--Help"):
         print("\n-------------------------------------------------------------------------------------------------------",
                "\nsimdata_vect.py usage:\n\n",
-              "[-t --Test] Run in testing mode w/ smaller # of nests and reduced # of params? (Default:False)\n\n",
+            #   "[-t --Test] Run in testing mode w/ smaller # of nests and reduced # of params? (Default:False)\n\n",
+              "[-t --Test] Choose testing mode w/ smaller # of nests and reduced # of params:\n",
+              "\t\t1. 'norm' - moderate values; 2. 'storm' - extremes of storm values; 3. 'no' (default)\n\n"
               "[-d --Debug-general] Turn on simple/broad debugging statements? (Default:False)\n\n",
               "[-o --Options-debug] More specific print statements.\n",
                 "\t\t\tOptions: 'like','nest','mark','flood','obs'.\n",
@@ -142,7 +147,9 @@ for arg, val in opts:
         sys.exit()
     # if arg == "-v": verbose = True
     elif arg in ("-t", "--Test"):
-        config.testing = True
+        # config.testing = True
+        config.testing = val
+        # print("Config - test mode:", config.testing)
         print("Config - test mode:", config.testing)
     elif arg in ("-d", "--Debug-general"):
         config.debug = True
@@ -203,7 +210,7 @@ def mk_fnames(suf, unique=True ):
             
         likeF = Path(uniquify(Path.home() / like_f_dir / fname ))
                                     #    'C://Users/Sarah/Dropbox/Models/sim_model/py_output' / 
-                                        # fname))
+                                   # fname))
         likeF.parent.mkdir(parents=True, exist_ok=True)
     else:
         now = datetime.today().strftime("%Y%m%d")
@@ -352,40 +359,57 @@ staticPar = {'brDays': 180,
              'discProb': 0.7,
              'whichLike': 1,
             #  'stormFate': True,
-            #  'useSMat': False
+             'useSMat': False
              }
 
 # parLists = {'numNests' : [500,1000],
 # parLists = {'numNests' : [150, 300],
 parLists = {'numNests' : [250, 500],
 # parLists = {'numNests' : [300],
-            'probSurv' : [0.95, 0.97],
+            # 'probSurv' : [0.95, 0.97],
+            'probSurv' : [0.96],
             'pMortFl'  : [0.9, 0.75, 0.6], # flood/storm severity
             # 'stormDur' : [3],
-            'stormDur' : [1, 2, 3],
+            'stormDur' : [1, 2],
             # 'stormFrq' : [5],
             # 'stormFrq' : [1, 3, 5],
-            'stormFrq' : [1, 2, 3, 4],
+            'stormFrq' : [1, 2, 3],
             'obsFreq'  : [3, 5, 7],
             # 'obsFreq'  : [7],
            'stormFate': [False,True],
             # 'hatchTime': [28] }
             'hatchTime': [16, 20, 28] }
 
-plTest  = {'numNests'  : [100],
-# plTest  = {'numNests'  : [30],
+# plTest  = {'numNests'  : [100],
+plTest  = {'numNests'  : [50],
            'probSurv'  : [0.96],
-           'pMortFl'   : [0.9],
+           'pMortFl'   : [0.75],
+        #    'stormDur'  : [1],
+           'stormDur'  : [2,3],
+        #    'stormFrq'  : [2],
+           'stormFrq'  : [1,2],
+        #    'obsFreq'   : [3],
+           'obsFreq'   : [3, 7],
+           'stormFate': [False,True],
+           'hatchTime' : [20, 28] }
+        #    'hatchTime' : [20],
+            # 'useSMat'  : [True, False]
+            # }
+
+plTestFlood  = {'numNests'  : [100],
+# plTest  = {'numNests'  : [30],
+               'probSurv'  : [0.96],
+           'pMortFl'   : [0.9, 0.6],
         #    'stormDur'  : [1, 3],
-           'stormDur'  : [3],
+           'stormDur'  : [2],
         #    'stormFrq'  : [1, 3],
-           'stormFrq'  : [3],
+           'stormFrq'  : [1, 4],
         #    'obsFreq'   : [3, 5],
            'obsFreq'   : [3, 7],
            'stormFate': [False,True],
         #    'hatchTime' : [20, 28] }
-           'hatchTime' : [20, 28],
-            'useSMat'  : [True, False]
+           'hatchTime' : [16, 28],
+            # 'useSMat'  : [True, False]
             }
 
 def mk_param_list(parList: Dict[str, list]) -> list:
@@ -406,7 +430,7 @@ def mk_param_list(parList: Dict[str, list]) -> list:
     listVal = [parList[key] for key in parList]
     p_List = list(itertools.product(*listVal))
     # print(p_List)
-    with open("param-lists-3.csv", 'w', newline='') as f:
+    with open("param-lists-4.csv", 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerows(p_List)
     # p_List = list(product(parList)) # doesn't work either; just gets keys
@@ -472,6 +496,7 @@ def logistic(x)->np.longdouble:
     #return 1.0/( 1.0 + math.exp(-x) )
     return 1.0/( 1.0 + np.exp(-x) )
 # -----------------------------------------------------------------------------
+# Generate survey days & interval between each pair of survey days
 def mk_surveys(stormDays, obsFreq, breedingDays):
     """
     This function creates the list of survey days by taking a random start date 
@@ -504,6 +529,7 @@ def mk_surveys(stormDays, obsFreq, breedingDays):
 # ------ NEST DATA HELPER FUNCTIONS -------------------------------------------
 # -----------------------------------------------------------------------------
 # def mk_init(weekStart, initProb, numNests):
+# @profile
 def mk_init(numNests):
         # file="/mnt/c/Users/Sarah/Dropbox/Models/sim_model/storm_init3.csv"
         # )): 
@@ -556,56 +582,6 @@ def mk_per(start, end, con=config):
     #     )
     return(nestPeriod)
 # -----------------------------------------------------------------------------
-# def storm_nest(nestPeriod, surveysDays, stormDays, con=config):
-def storm_nest(stormFreq, nestPeriod, stormDays, con=config):
-    """
-    Returns:
-    -------
-    a list containing numStorms & stormNestIndex
-    """
-    # >> stormNestIndex searches for storm days w/in active period of each nest
-    #     >> returns index where storm day would be within the active interval: 
-    #             0 = before init; 2 = after end; 1 = within interval
-    #     >> fate cues should become harder to interpret after storms
-    stormNestIndex = np.zeros((len(nestPeriod), stormFreq))
-    stormNestIndex = searchSorted2(nestPeriod, stormDays)
-    # stormNest = np.any(stormNestIndex == 1, axis=1) 
-    # numStorms = np.sum(stormNestIndex==1, axis=1) # axis=1 means summing over rows?
-
-    # if con.debugNests: print("where were storms in active period?", stormNestIndex)
-    # if index == 1, then storm Day is within the period interval: 
-    # whichStorm = np.zeros((len(nestPeriod), stormFreq))
-    # whichStorm = []
-    
-    # if stormNestIndex.shape[1] > 1:
-    #     # whichStorm = np.where(stormNestIndex == 1, )
-    #     for n in range(len(nestPeriod)):
-    #         # whichStorm[n] = np.zeros(stormFreq)
-    #         # whichStorm[n] = np.array([i for i,val in enumerate(stormNestIndex[n]) if val==1 else -1] )
-    #         if stormNest[n]:
-    #             whichStorm[n] = [i for i,val in enumerate(stormNestIndex[n]) if val==1]
-    #         else:
-    #             whichStorm[n] = [-4]
-    #     # try:
-    #         # whichStorm = stormNestIndex.index(1)
-    # stormNestDays = 
-    # stormNestInd2 = np.zeros(len(nestPeriod))
-    # for n in range(sum(stormNest)):
-    #     stormNestInd2[n]  = searchSorted2(stormDays, nestPeriod[n])
-    # NOTE I *think* this is actually number of storm intervals, which is what 
-    # we want for the likelihood function. so that would be good...
-    # if con.debugNests: 
-    #     print( "which nests were active during a storm? How many?", 
-    #     stormNest, 
-    #     stormNest.sum()
-    #     # "\n and which days?",
-    #     # stormNestInd2
-    #     )
-    #     print(">> number of storm intervals during nesting period:\n", numStorms)
-    # return([numStorms, stormNestIndex])
-    # return(numStorms)
-    return(stormNestIndex)
-# -----------------------------------------------------------------------------
 # def mk_nests(par, init, weekStart, nestData): 
 def mk_nests(par, nestData): 
     """
@@ -645,8 +621,50 @@ def mk_nests(par, nestData):
     # NOTE Remember that int() only works for single values 
     # if debug: print(nestData[1:6,:])
     return(nestData)
-# ---- FAILED NESTS --------------------------------------------------------
 
+# ---- FLOODING & SUCH -------------------------------------------------------
+# def storm_nest(nestPeriod, surveysDays, stormDays, con=config):
+def storm_nest(stormFreq, nestPeriod, stormDays, con=config):
+    """
+    Returns:
+    -------
+    a list containing numStorms & stormNestIndex
+    """
+    # >> stormNestIndex searches for storm days w/in active period of each nest
+    #     >> returns index where storm day would be within the active interval: 
+    #             0 = before init; 2 = after end; 1 = within interval
+    #     >> fate cues should become harder to interpret after storms
+    stormNestIndex = np.zeros((len(nestPeriod), stormFreq))
+    stormNestIndex = searchSorted2(nestPeriod, stormDays)
+    # stormNest = np.any(stormNestIndex == 1, axis=1) 
+    # numStorms = np.sum(stormNestIndex==1, axis=1) # axis=1 means summing over rows?
+
+    # if con.debugNests: print("where were storms in active period?", stormNestIndex)
+    # if index == 1, then storm Day is within the period interval: 
+    # whichStorm = np.zeros((len(nestPeriod), stormFreq))
+    # whichStorm = []
+    
+    # if stormNestIndex.shape[1] > 1:
+    #     # whichStorm = np.where(stormNestIndex == 1, )
+    #     for n in range(len(nestPeriod)):
+    #         # whichStorm[n] = np.zeros(stormFreq)
+    #         # whichStorm[n] = np.array([i for i,val in enumerate(stormNestIndex[n]) if val==1 else -1] )
+    #         if stormNest[n]:
+    #             whichStorm[n] = [i for i,val in enumerate(stormNestIndex[n]) if val==1]
+    #         else:
+    #             whichStorm[n] = [-4]
+    #     # try:
+    #         # whichStorm = stormNestIndex.index(1)
+    # stormNestDays = 
+    # stormNestInd2 = np.zeros(len(nestPeriod))
+    # for n in range(sum(stormNest)):
+    #     stormNestInd2[n]  = searchSorted2(stormDays, nestPeriod[n])
+    # NOTE I *think* this is actually number of storm intervals, which is what 
+    # we want for the likelihood function. so that would be good...
+    # return([numStorms, stormNestIndex])
+    # return(numStorms)
+    return(stormNestIndex)
+# -----------------------------------------------------------------------------
 def mk_flood( stormDays, pMortFl, stormIndex, numNests, con=config):
     """
     NEED TO KNOW WHICH STORM SO CAN CHANGE END DATE
@@ -668,19 +686,22 @@ def mk_flood( stormDays, pMortFl, stormIndex, numNests, con=config):
     # numStorms, stormIndex= stormOut
     # stormIndex = stormIndex.astype(int)
     numStorms = np.sum(stormIndex==1, axis=1) # axis=1 means summing over rows?
-    stormNest = numStorms >= 1
-    snCount   = sum(stormNest)
+    # stormNest = numStorms >= 1
+    # snCount   = sum(stormNest)
     flooded = np.zeros(numNests, dtype=np.int32) # maybe don't need
     #can be zeros, but need to remember 0 is also an index
     whichStorm = np.zeros(numNests, dtype=np.int32)
-    flP = rng.uniform(low=0, high=1, size=sum(numStorms>0))
+    # totStormDays = 
+    # flP = rng.uniform(low=0, high=1, size=sum(numStorms>0)) # not quite right because prob of flooding stays the same or each nest in different storms
+    flP = rng.uniform(low=0, high=1, size=sum(numStorms)) 
     x=0
+    # np.savetxt("storm_index.csv",stormIndex, delimiter=",")
     for n in range(numNests):
-
         # storms = np.zeros(len(stormDays))
         # for s in range(numStorms[n]):
         if numStorms[n] > 0:
-            flood = np.zeros(len(stormIndex[n]), dtype=np.int32)
+            # flood = np.zeros(len(stormIndex[n]), dtype=np.int32)
+            flood = np.zeros(len(stormDays), dtype=np.int32)
             # if config.debugFlood: print(f"nest {n} experienced >1 storm")
             # flood = list(range(len(stormIndex[n])))
             for s in range(len(flood)):
@@ -688,16 +709,19 @@ def mk_flood( stormDays, pMortFl, stormIndex, numNests, con=config):
                 # print("s=",s)
                 if stormIndex[n,s] == 1:
                     # flP = rng.uniform(low=0, high=1, size=1)
-                    flood[s] = flP[x] > pMortFl
+                    # flood[s] = flP[x] > pMortFl
+                    flood[s] = flP[x] < pMortFl # I changed how pMortFL was defined.
+                    x=x+1
                     # if config.debugFlood: print("nest flooded?", flood[s])
                     # print(f"nest {n}: flooded?", flood[s])
             if any(flood.astype(bool)):
                 flooded[n] = 1
-                whichstorm =  np.where(flood==1)[0] # first index where val==True
-                whichStorm[n] = whichstorm[0]
+                # but if default val is 0, could be confused for index 0...
+                whichstorm = np.where(flood==1)[0] # first index where val==True
+                whichStorm[n] = stormDays[whichstorm[0]]
             # if any(~flood.astype(bool)):
 
-            x=x+1
+            # x=x+1
             
             # if config.debugFlood: print("first storm occurred while nest was active on:",stormDays[whichStorm[n]])
             # if config.debugFlood: print("--------------------------------------------------------")
@@ -706,21 +730,27 @@ def mk_flood( stormDays, pMortFl, stormIndex, numNests, con=config):
     # need to check whether this is the correct distribution 
     # NOTE: still needs to be conditional on nest having failed already...  
     # NOTE np.concatenate joins existing axes, while np.stack creates new ones
-    
+    # np.savetxt("storm_out.csv", np.concatenate(stormInfo, stormIndex))
     # flooded = np.where(pflood>pMortFl, 1, 0) # if pflood>pfMort, flooded=1, else flooded=0 
     # and/or/not don't work bc it's a vector; since it's 1 and 0, can use arithmetic: 
-    # stormNest = numStorms >= 1
+    stormNest = numStorms >= 1
     # snCount   = sum(stormNest)
-    floodFail = stormNest + flooded > 1 # both need to be true 
+    # now nests only flood during storms, so not necessary:
+    # both give same output, anyway...
+    # floodFail = stormNest + flooded > 1 # both need to be true 
     stormInfo = np.zeros((numNests, 3))
     stormInfo[:,0] = numStorms
+    # stormInfo[:,1] = stormDays[whichStorm]
     stormInfo[:,1] = whichStorm
-    stormInfo[:,2] = floodFail # true number flooded
+    # stormInfo[:,2] = floodFail # true number flooded
+    stormInfo[:,2] = flooded # true number flooded
+    # print(sum(flooded))
     if config.debugFlood: 
         print("prob of failure due to flooding:", pMortFl)
         print("flooded:", flooded)
         print("storm nests:", stormNest)
-        print("flooded and during storm:", floodFail, floodFail.sum())
+        # print("flooded and during storm:", floodFail, floodFail.sum())
+        print("flooded and during storm:", flooded, flooded.sum())
         # print(f"ID, #storms, which, fl, stormIndex 1-5:\n", stormInfo)
         print(f"ID, #storms, which, fl, stormIndex 1-5:\n")
         for i, row in enumerate(np.concatenate((stormInfo, stormIndex), axis=1)): 
@@ -734,8 +764,12 @@ def mk_flood( stormDays, pMortFl, stormIndex, numNests, con=config):
 # def mk_fates(nestDat, numNests, hatched, whichS, stormDays, con=config):
 def mk_fates(nestDat, numNests, hatched,stormInfo, stormDays, con=config):
     """
+    Want number flooded to derive organically from the storm activity, instead of being a preset value
+
     Runs mk_flood() to update end dates to account for storms 
-    Returns: list of true fates for each nest
+    Then adds a column for true fate to nest data.
+
+    Returns: nest data with true fate added and end dates for storm nests updated.
     """
     
     trueFate = np.empty(numNests) 
@@ -746,14 +780,28 @@ def mk_fates(nestDat, numNests, hatched,stormInfo, stormDays, con=config):
     # flooded = numStorm > 0
     # can't just do num storms >0 bc didn't necessarilydie; or which strm > 0 bc 0 is an index
     flooded = stormInfo[:,2].astype(int)
-    whichStorm = stormInfo[:,1].astype(int)
+    whichStorm = stormInfo[:,1].astype(int) # now this is the actual storm DAY, not the index
+    # np.savetxt("stormInfo.csv", stormInfo, delimiter=",")
+    # np.savetxt("nestdata_beforeflood.csv", nestDat, delimiter=",")
     #trueFate[flooded==True] = 2 
     #trueFate[floodedAll==True] = 2 
     trueFate[hatched == True] = 0 # was nest discovered?  
-    trueFate[flooded == True] = 2 
-    # if con.debugNests: print(">> end date before storms accounted for:", nestDat[:,2])
+    trueFate[flooded == True] = 2  # should override the nests that "hatched" that were actually during storm
+    if con.debugNests: print(">> end date before storms accounted for:", nestDat[:,2])
     # nestDat[:,2][flooded] = stormDays[whichS[flooded]]
-    nestDat[:,2][flooded] = stormDays[whichStorm[flooded]]
+    # nestDat[:,2][flooded] = stormDays[whichStorm[flooded]]
+    # had to add the ==True for some reason
+    nestDat[:,2][flooded==True] = whichStorm[flooded==True]
+    if con.debugNests: print("did nest hatch?\n", hatched, sum(hatched), "\ndid nest flood?\n", flooded, sum(flooded))
+    
+    nestDat = np.concatenate((nestDat, trueFate[:,None]), axis=1)
+    #OH, but I don't ever return nestDat anyway. so maybe this should be a function that ADDS true fate to nestDat.
+
+    # now it's the day, not the index, so nests that didn't flood will still be zero but w/o the cost of the mask
+    # plus that one didn't seem to be working anyhow..``
+    # except we don't want the end date to be zero for everything else  either :/
+    # nestDat[:,2] = whichStorm
+    # np.savetxt("nestdata_afterflood.csv", nestDat, delimiter=",")
     # if con.debugNests: print(">> end date after:", nestDat[:,2])
     
     # if flooded:
@@ -763,7 +811,8 @@ def mk_fates(nestDat, numNests, hatched,stormInfo, stormDays, con=config):
     # so maybe that's why the true DSR is always higher than 0.93, but what about true DSR of discovered?
     # fates = [np.sum(trueFate==x) for x in range(3)]
     # if con.debugNests: print(">>>>> true final nest fates:\n", trueFate, len(trueFate))
-    return(trueFate)
+    # return(trueFate)
+    return(nestDat)
 
     # # ---- TRUE DSR ------------------------------------------------------------
 
@@ -811,13 +860,13 @@ def assign_fate(fateCuesPresent, trueFate, numNests, obsFr, intFinal, stormFate,
         
     assignedFate[fateCuesProb < fateCuesPres] = trueFate[fateCuesProb < fateCuesPres] 
     if stormFate: assignedFate[intFinal > obsFr] = 2
-    # if cn.debugObs: 
-    #     print(">> compare random probs to fateCuesPresent:\n", 
-    #           [fateCuesProb,fateCuesPres], 
-    #           fateCuesProb.shape)
-    #     print(">> assigned fates:", assignedFate, sum(assignedFate))
-    #     print(">> nests with storm in final interval:", np.where(intFinal>obsFr))
-    #     print(">> assigned fates after storm fates assigned:", assignedFate, sum(assignedFate))
+    if cn.debugObs: 
+        print(">> compare random probs to fateCuesPresent:\n", 
+              [fateCuesProb,fateCuesPres], 
+              fateCuesProb.shape)
+        print(">> assigned fates:", assignedFate, sum(assignedFate))
+        print(">> nests with storm in final interval:", np.where(intFinal>obsFr))
+        print(">> assigned fates after storm fates assigned:", assignedFate, sum(assignedFate))
     # fate cues prob should be affecting all nest fates equally, not just failures.
     # if debug: print(">> proportion of nests assigned hatch fate:", np.sum((assignedFate==0)[discovered==True])/(sum(discovered==True)),"vs period survival:", pSurv**hatchTime)
     # print(">> assigned fate array & its shape:\n", assignedFate, assignedFate.shape)
@@ -839,8 +888,9 @@ def svy_position(initiation, nestEnd, surveyDays, cn=config):
     # position2
 # -----------------------------------------------------------------------------
 # def observer(par, fateCues, fates, surveyDays, nData, out):
+# def observer(nData, par, cues, fate, surveys, out, cn=config):
 # @profile
-def observer(nData, par, cues, fate, surveys, out, cn=config):
+def observer(nData, par, cues, surveys, out, cn=config):
     """
     The observer searches for nests on survey days. Surveys til discovery (success)
     are calculated as random draws from a negative binomial distribution with
@@ -854,7 +904,7 @@ def observer(nData, par, cues, fate, surveys, out, cn=config):
     output: ndarray w/ nrows=numNests. 
     cols= i, j, k, assigned fate, num *normal* obs ints, intFinal
     """
-    initiation, end = nData[:,1], nData[:,2]
+    initiation, end, fate = nData[:,1], nData[:,2], nData[:,3]
     # end        = nData[:,1] + nData[:,2]
     # end        = nData[:,2] # changed output of mk_nests so this is end date
     numNests, obsFreq, discProb, stormFate = par # unpack par
@@ -912,10 +962,12 @@ def observer(nData, par, cues, fate, surveys, out, cn=config):
     # n = nData[:,0][discovered]
     if cn.debugObs: 
         # print("surveys til discovery; discovered T/F:", svysTilDiscovery, discovered)
-        print("assigned fate, true fate, surveys til discovery; discovered T/F, total obs days, total active days:")
+        # print("assigned fate, true fate, surveys til discovery; discovered T/F, total obs days, total active days:")
+        print("surveys til discovery; discovered T/F, total obs days, total active days:")
         # for i, val in enumerate(out):
         for i in range(len(out)):
-            print(f"{i:02}: {out[:,3][i]} | {fate[i]} | {svysTilDiscovery[i]} | {discovered[i]} | {(out[:,2]-out[:,0])[i]} | {(nData[:,2]-nData[:,1])[i]}")
+            # print(f"{i:02}: {out[:,3][i]} | {fate[i]} | {svysTilDiscovery[i]} | {discovered[i]} | {(out[:,2]-out[:,0])[i]} | {(nData[:,2]-nData[:,1])[i]}")
+            print(f"{i:02}: {svysTilDiscovery[i]} | {discovered[i]} | {(out[:,2]-out[:,0])[i]} | {(nData[:,2]-nData[:,1])[i]}")
         # print("total observed days:\n", out[:,2]-out[:,0], 
             #   "& total days nest was active:\n", nData[:,2] - nData[:,1])
         # print( ">> assigned fate (hatched, depredated, flooded, unknown):") 
@@ -932,6 +984,96 @@ def observer(nData, par, cues, fate, surveys, out, cn=config):
                 # np.sum(discovered==True)- np.sum(tFates)
                 # )
     return(out)
+
+# -----------------------------------------------------------------------------
+# @profile
+def make_obs(par, storm, survey, config=config):
+    """
+    1. Call functions mk_nests, mk_per, storm_nest, mk_flood, mk_fates, & observer
+    2. Combine the output into an array: 
+          [0]:nest ID....................[1]:initiation............[2]:survival(w/o storm)..
+          [4]:first found.............[5]:last active..........[6]:last checked........
+          [7]:assigned fate.......[8]:num obs int......[9]:days in final interval..............
+
+    Returns:
+        numpy ndarray containing nest & observation data (column indices above)
+        
+        Can also uncomment lines to save nest data to .npy file
+        
+        And other lines to make nest data that's compatible with the old script.
+    """
+    nd       = np.zeros(shape=(par.numNests, 3), dtype=int)
+    nd2      = np.zeros(shape=(par.numNests, 6), dtype=int)
+    # fateCues directly correlates to obsFreq, so doesn't need to be param
+    fateCues   = 0.65 if par.obsFreq > 5 else 0.71 if par.obsFreq == 5 else 0.75
+    # NOTE should I make sure all nests live for at least a day?
+    # ---- make the nests: ---------------------------------------------------
+    # nData          = mk_nests(par=par, init=init[0], 
+    # nestfile = Path(uniquify(Path.home()/
+    #                         'C://Users/sarah/Dropbox/Models/sim_model/other'/
+    #                         # dirName/
+    #                         ('nest_data.npy')))
+    # nData          = mk_nests(par=par, nestData=dfs[0])
+    nData          = mk_nests(par=par, nestData=nd)
+
+    # nestPeriod     = mk_per(nData[:,1], (nData[:,1]+nData[:,2]))
+    nestPeriod     = mk_per(nData[:,1], (nData[:,2])) # changed output of mk_nests 
+    stormOut  = storm_nest(par.stormFrq, nestPeriod, storm)
+    # stormNest = np.any(stormOut[] == 1, axis=1) 
+    # flooded        = mk_flood(par, stormsPerNest, numNests=par[par.numNests])
+    # flooded        = mk_flood(stormDays, par.pMortFl, stormOut, numNests=par.numNests)
+    # output from mk_flood has 3 cols
+    # whichStorm = mk_flood(storm, par.pMortFl, stormOut, numNests=par.numNests)
+    stormDat = mk_flood(storm, par.pMortFl, stormOut, numNests=par.numNests)
+    # inclFlood        = mk_flood(nData, par.pMortFl, stormsPerNest, numNests=par.numNests)
+    # flooded        = stormDat[:,2] # need more than just whether nest flooded; need date
+    hatched        = (nData[:,2]-nData[:,1]) >= par.hatchTime # hatched before storms accounted for
+    if config.debugNests: print("hatched (before storms)=", hatched, sum(hatched))
+    # nestFate       = mk_fates(nData, par.numNests, hatched, flooded)
+    # nestFate       = mk_fates(nData, par.numNests, hatched, whichStorm, storm)
+    # nestFate       = mk_fates(nData, par.numNests, hatched, stormDat, storm)
+    nData      = mk_fates(nData, par.numNests, hatched, stormDat, storm)
+    # hatched        = (nData[:,2]-nData[:,1]) >= par.hatchTime
+    # ---- observer: ---------------------------------------------------------
+    par2      = [par.numNests, par.obsFreq, par.discProb, par.stormFate]
+    # obs       = observer(nData, par=par2, cues=fateCues, fate=nestFate, 
+    obs       = observer(nData, par=par2, cues=fateCues, surveys=survey, out=nd2)
+                        #  surveys=surveyDays, out=dfs[1])
+    # ---- concatenate to make data for the nest models: ---------------------
+    # fl, ha, ff, la, lc, nInt, sTrue = obsDat
+    # disc = "True  True  True  True  True  True False  True  True  True  True False True  True False  True False  True  True  True  True  True  True  True False  True  True  True  True False"
+    # stildisc = "1 1 3 0 0 1 1 0 1 0 2 2 1 0 0 1 1 0 1 0 0 0 0 0 3 0 1 0 0 0"
+    # sTilDisc = ','.join(stildisc)
+    # disc1 = np.fromstring(disc, dtype=bool, sep=' ')
+    # disc = disc.replace(" ", ",")
+    # disc = disc.split()
+    # disc1 = np.fromstring(disc, dtype=bool, sep=',')
+    # disc1 = np.array(disc)
+    # disc1 = (disc1 == "True")
+    # sTilDisc = np.fromstring(stildisc, dtype=int, sep=' ')
+    nestData = np.concatenate((nData, 
+                            #    nestFate[:,None], 
+                            #    np.zeros((par.numNests,4)),
+                               obs
+                            #    stormOut[0][:,None] # storms per nest
+                            #    stormOut # is this need here?? also, supposed to be stormDat??
+                            #    stormDat # on't think these are ever used
+                            #    np.zeros((par.numNests,2))
+                               ), axis=1)
+    # nestData[:,3] = (nestFate==0)
+    # nestData[:,4] = (nestFate==2)
+    # nestData[:,5] = sTilDisc
+    # nestData[:,6] = disc1
+    # nestData[:,12] = nestData[:,12] > 3
+    # nestData[:,14] = 416 # exposure dayso
+    # nestData[:,15] = nestData[:,2] - nestData[:,1]
+    
+    # if config.debug: print("nestData:\n", nestData)
+    if config.debugNests: print("\nnestData:\n", nestData)
+    # np.savetxt("nestdata_afterflood.csv", nestData, delimiter=",")
+    # np.save("nest_data.npy", nestData)
+    # np.save(nestfile, nestData)
+    return(nestData)
 # -----------------------------------------------------------------------------
 #   MAYFIELD & JOHNSON
 # -----------------------------------------------------------------------------
@@ -1102,7 +1244,10 @@ def print_observer(svysTilDiscovery, discovered):
     #                       "& total days nest was active:\n", nData[:,2] - nData[:,1])
     
 # -----------------------------------------------------------------------------
-def print_prop(assignedFate, trueFate, discovered):  
+# def print_prop(assignedFate, trueFate, discovered):  
+def print_prop(nData):  
+    assignedFate, trueFate = nData[:,7], nData[:,3]
+    discovered = nData[:,4] != 0
     aFates = [np.sum((assignedFate == x)[discovered==True]) for x in range(4)]
     # this proportion needs to be out of nests discovered AND assigned
     aFatesProp = [np.sum((assignedFate == x)[discovered==True])/(np.sum(discovered==True)) for x in range(4)]
@@ -1222,78 +1367,79 @@ def print_mayf(expo):
 # -----------------------------------------------------------------------------
 # def mark_probs(s, expo, ndata):
 # @profile
-def mark_probs(s, ndata):
-    """
-    creates probabilities for nest observation histories for use with prog_mark().
+# def mark_probs(s, ndata):
+#     """
+#     creates probabilities for nest observation histories for use with prog_mark().
 
-        > uses prob surv (s), so needs to be inside the optimizer
+#         > uses prob surv (s), so needs to be inside the optimizer
 
-    Probabilities for Program MARK:
-    -------------------------------
+#     Probabilities for Program MARK:
+#     -------------------------------
     
-    1. create vectors to store:
-        a) the probability values for each nest;
-        b) the degrees of freedom for each value
+#     1. create vectors to store:
+#         a) the probability values for each nest;
+#         b) the degrees of freedom for each value
 
-    2. calculate the exposure, observed alive days, & final interval days,
-    then fill the vectors
+#     2. calculate the exposure, observed alive days, & final interval days,
+#     then fill the vectors
       
-    Input data should not be missing fate or have <2 observations
+#     Input data should not be missing fate or have <2 observations
       
-    Returns
-    -------
-      list with the allp and alldof arrays inside
+#     Returns
+#     -------
+#       list with the allp and alldof arrays inside
     
-    More Info
-    ---------
-    Note that failed nests have final_int>0 while hatched nests have final_int=0
+#     More Info
+#     ---------
+#     Note that failed nests have final_int>0 while hatched nests have final_int=0
 
-    Probability equation: 
+#     Probability equation: 
 
-      > daily probability of survival (DSR) raised to the power of intervals 
-        nest was known to be alive
-      > for hatched nests, that's it
-      > for failed nests, exact failure date allowed to be unknown
-          > but we know nest wasn't alive for the entire final interval
-          > so add in probability of NOT surviving one interval (1-DSR)
-      > EX: if probability of surviving from day 1-3 is s1*s2*s3, then
-      >     probability of failure sometime during days 4-6 is 1-s4*s5*s6
-      > hatched nests also have one extra degree of freedom (dof)
+#       > daily probability of survival (DSR) raised to the power of intervals 
+#         nest was known to be alive
+#       > for hatched nests, that's it
+#       > for failed nests, exact failure date allowed to be unknown
+#           > but we know nest wasn't alive for the entire final interval
+#           > so add in probability of NOT surviving one interval (1-DSR)
+#       > EX: if probability of surviving from day 1-3 is s1*s2*s3, then
+#       >     probability of failure sometime during days 4-6 is 1-s4*s5*s6
+#       > hatched nests also have one extra degree of freedom (dof)
 
-    technically, raise prob to power of frequency;
-    we are assuming each occurs only once
+#     technically, raise prob to power of frequency;
+#     we are assuming each occurs only once
 
-    Exposure is factored in to the equation bc only calculating prob for 
-    days nest was observed
-    """
-    # exp[hatched==True] = nDays[hatched==True] # do I need the ==True?
-    allp   = np.array(range(1,len(ndata)), dtype=np.longdouble) # all nest probabilities 
-    # alldof = np.array(range(1,len(ndata)), dtype=np.double) # all degrees of freedom
-    # expo = calc_exp(inp=ndata[:,6:9], expPercent=0.4)
-    expo = calc_exp(inp=ndata[:,4:7], expPercent=0.4)
-    for n in range(len(ndata)-1): # want n to be the row NUMBER
-        alive_days = expo[n,0] - 1
-        final_int  = expo[n,1] - 1
-        # exposure   = expo[n,2] # does exposure ever get used in MARK?
-        if final_int > 0: # final int for hatched nests == 0
-            # if final_int==0 (hatched), s^final_int = 1, so prob=0?
-            p   = (s**alive_days)*(1-(s**final_int)) 
-            # p   = ne.evaluate('(s**alive_days)*(1-(s**final_int))') 
-            # dof = alive_days
-            #print(">> nest", inp[n,0], "failed. likelihood=", p)
-        else:
-            p   = s**alive_days
-            # p   = ne.evaluate('s**alive_days')
-            # dof = alive_days + 1
-            #print(">> nest", inp[n,0], "hatched. likelihood=", p)
-            # NOTE is it likelihood or probability??
-        allp[n]   = p # NOTE this line is throwing the Deprecation Warning
-        # apparently warning means that n is a 2d array, so need to index it
-        # never mind, apparently it's one dimensional 
-        # alldof[n] = dof
+#     Exposure is factored in to the equation bc only calculating prob for 
+#     days nest was observed
+#     """
+#     # exp[hatched==True] = nDays[hatched==True] # do I need the ==True?
+
+    # allp   = np.array(range(1,len(ndata)), dtype=np.longdouble) # all nest probabilities 
+    # # alldof = np.array(range(1,len(ndata)), dtype=np.double) # all degrees of freedom
+    # # expo = calc_exp(inp=ndata[:,6:9], expPercent=0.4)
+    # expo = calc_exp(inp=ndata[:,4:7], expPercent=0.4)
+    # for n in range(len(ndata)-1): # want n to be the row NUMBER
+    #     alive_days = expo[n,0] - 1
+    #     final_int  = expo[n,1] - 1
+    #     # exposure   = expo[n,2] # does exposure ever get used in MARK?
+    #     if final_int > 0: # final int for hatched nests == 0
+    #         # if final_int==0 (hatched), s^final_int = 1, so prob=0?
+    #         p   = (s**alive_days)*(1-(s**final_int)) 
+    #         # p   = ne.evaluate('(s**alive_days)*(1-(s**final_int))') 
+    #         # dof = alive_days
+    #         #print(">> nest", inp[n,0], "failed. likelihood=", p)
+    #     else:
+    #         p   = s**alive_days
+    #         # p   = ne.evaluate('s**alive_days')
+    #         # dof = alive_days + 1
+    #         #print(">> nest", inp[n,0], "hatched. likelihood=", p)
+    #         # NOTE is it likelihood or probability??
+    #     allp[n]   = p # NOTE this line is throwing the Deprecation Warning
+    #     # apparently warning means that n is a 2d array, so need to index it
+    #     # never mind, apparently it's one dimensional 
+    #     # alldof[n] = dof
 
     # return([allp, alldof])
-    return(allp)
+    # return(allp)
 # -----------------------------------------------------------------------------
 # def prog_mark(s, ndata, probs, nocc, con=config):
 # @profile
@@ -1312,7 +1458,23 @@ def prog_mark(s, ndata, nocc, con=config):
     """
     # prob, dof = probs
     # allp, alldof = mark_probs(s=s, ndata=ndata)
-    allp = mark_probs(s=s, ndata=ndata)
+    # ALL IN ONE FUNCTION:
+    allp   = np.array(range(1,len(ndata)), dtype=np.longdouble) # all nest probabilities 
+    expo = calc_exp(inp=ndata[:,4:7], expPercent=0.4)
+    for n in range(len(ndata)-1): # want n to be the row NUMBER
+        alive_days = expo[n,0] - 1
+        final_int  = expo[n,1] - 1
+    
+        if final_int > 0: # final int for hatched nests == 0
+            p   = (s**alive_days)*(1-(s**final_int)) 
+        else:
+            p   = s**alive_days
+        allp[n]   = p # NOTE this line is throwing the Deprecation Warning
+    nll = sum(-np.log(allp))
+    # SEPARATE FUNCTION:
+    # allp = mark_probs(s=s, ndata=ndata)
+    # nll = sum(-np.log(allp))
+    
     # print("all nests:", len(ndata)) 
     # disc = ndata[np.where(ndata[:,6]!=0)] # i != 0 # should already have filtered out unobserved nests
     # inp = disc[:,np.r_[0,7:11]] # doesn't include index 11
@@ -1340,7 +1502,6 @@ def prog_mark(s, ndata, nocc, con=config):
     #lnSum = lnp.sum()
     #NLL = -1*lnp.sum() # all caps are some kind of Python constant? in the style guide
     # nll = Decimal(0.0)
-    nll = sum(-np.log(allp))
     # nll = ne.evaluate('sum(-log(allp))')
     # NLL = Decimal(0.0)
     # NLL = lnp.sum()
@@ -1356,8 +1517,9 @@ def mark_wrapper(srn, ndata, nocc):
         > Create vector to store the log-transformed values, then fill
 
     """
-    numNests = len(ndata)
-    s = np.ones(numNests, dtype=np.longdouble) # why is s an array?
+    # numNests = len(ndata)
+    # s = np.ones(numNests, dtype=np.longdouble) # why is s an array?
+    # s = np.ones(numNests, dtype=np.longdouble) # why is s an array?
     s = logistic(srn)
     # NOTE is this multiple random starting values (for each nest) or one random starting value?
     #@#print("logistic of random starting value for program MARK:", s, s.dtype)
@@ -1600,6 +1762,7 @@ def state_vect(nNest, fl, ha):# can maybe calculate these only once
 # def interval(pwr, stateEnd, stateLC ): 
 # ---------------------------------------------------------------------------------------------------
 # @profile
+# def nest_mat(argL, obsFreq, stormFin, useStormMat, config=config):
 def nest_mat(argL, obsFreq, stormFin, useStormMat, config=config):
     """
     Purpose
@@ -1622,7 +1785,7 @@ def nest_mat(argL, obsFreq, stormFin, useStormMat, config=config):
     a_s, a_mp, a_mf, a_ss, a_mps, a_mfs, sM = argL
     # if debug: print("observation interval, storm in final interval?, use storm matrix?\n",obsFreq, stormFin, useStormMat)
     trMatrix = np.array([[a_s,0,0], [a_mf,1,0], [a_mp,0,1]]) 
-    trMatStm = np.array([[a_ss,0,0], [a_mfs,1,0], [a_mps,0,1]]) 
+    # trMatStm = np.array([[a_ss,0,0], [a_mfs,1,0], [a_mps,0,1]]) 
     pwr = np.linalg.matrix_power(trMatrix, obsFreq) # raise the matrix to the power of the number of days in obs int
 
     # NOTE NOTE should it be the regular matrix or the storm matrix??
@@ -1630,12 +1793,13 @@ def nest_mat(argL, obsFreq, stormFin, useStormMat, config=config):
     # pwr is a 3x3 matrix; can't index with stormFin
     # it isn't a list of 3x3 matrices to use for multiplication
     # but the output is ultimately a 1x3 matrix, so just need to do all the multiplication at once?
-    if useStormMat:
-    #     # pwr[stormFin] = np.linalg.matrix_power(trMatStm, obsFreq*2) 
-        pwrStm = np.linalg.matrix_power(trMatStm, obsFreq*2) 
-        print("use storm matrix")
-    else:
-        pwrStm = np.linalg.matrix_power(trMatrix, obsFreq*2) 
+    # if useStormMat:
+    # #     # pwr[stormFin] = np.linalg.matrix_power(trMatStm, obsFreq*2) 
+    #     pwrStm = np.linalg.matrix_power(trMatStm, obsFreq*2) 
+    #     print("use storm matrix")
+    # else:
+    # storm matrix just has a longer observation interval
+    pwrStm = np.linalg.matrix_power(trMatrix, obsFreq*2) 
         # print("use normal matrix for storm int")
     # if config.debugLL: 
     #     print("observation interval, final interval length, use storm matrix?\n",obsFreq, stormFin, useStormMat)
@@ -1674,25 +1838,27 @@ def interval(pwr,numNests, fl, ha ,cn=config):
     [normalInt, stormInt, finalInt, stormFinal]
 
     """
-    # stateEnd, stateLC = stateMat
-    # if cn.debugLL: print(">> end state of normal / final interval:\n", stateEnd, "/", stateLC)
-    # if cn.debugLL: print(">> end state of normal / final interval:\n",np.column_stack(((stateEnd), (stateLC))))
     stillAlive = np.array([1,0,0]) 
     mortFlood  = np.array([0,1,0])
     mortPred   = np.array([0,0,1])
-    normalInt  = np.zeros((numNests))
-    finalInt   = np.zeros((numNests))
+    
     # nests always start alive, or they wouldn't be checked
     TstateI = np.transpose(stillAlive)  # this is just one, not a vector? yes
     pwrN, pwrS = pwr
-    # normalInt = stateEnd@pwrN@TstateI
+    
+    # --------------------------------------------------------------------------
+    # DO MATRIX MULTIPLICATION ONCE AND BROADCAST TO ARRAY:
+    normalInt  = np.zeros((numNests))
+    finalInt   = np.zeros((numNests))
     # matrix multiplication resolves to a single value:
     oneNormInt = stillAlive@pwrN@TstateI
-    # oneStormInt= stillAlive@pwrS@TstateI
+    # oneStormInt= stillAlive@pwrS@TstateI # these should already be accounted for bc i'm taking obs intervals from the list of all
     oneFinalPr = mortPred@pwrN@TstateI
     oneFinalSt = mortFlood@pwrS@TstateI
     
     normalInt.fill(oneNormInt)
+    # nests that were active during a storm but survived >1 obs interval:
+    # (if that's even worth modeling...)
     # normalInt[sNest] = oneStormInt
     # finalInt = normalInt
     finalInt.fill(oneFinalPr)
@@ -1700,11 +1866,20 @@ def interval(pwr,numNests, fl, ha ,cn=config):
     # finalInt[ha] = oneNormInt
     finalInt[ha] = oneNormInt
     # normalInt[:] 
+    # --------------------------------------------------------------------------
+    # DO MATRIX MULTIPLICATION ON THE ARRAYS:
+    # stateEnd, stateLC = stateMat
+    # # if cn.debugLL: print(">> end state of normal / final interval:\n", stateEnd, "/", stateLC)
+    # # if cn.debugLL: print(">> end state of normal / final interval:\n",np.column_stack(((stateEnd), (stateLC))))
+    # normalInt = stateEnd@pwrN@TstateI
     # stormInt = stateEnd@pwrS@TstateI
-    # oneStInt   = 
-    # The final interval is one of these two (ends in final state):
-    # normalFinal = stateLC@pwr@TstateI
+    # # oneStInt   = 
+    # # The final interval is one of these two (ends in final state):
+    # # normalFinal = stateLC@pwr@TstateI
     # finalInt = stateLC@pwrN@TstateI
+    # # stormFinal  = stateLC@pwrS@TstateI
+    # # finalInt[stormTrue] = stormFinal
+    # --------------------------------------------------------------------------
     # if cn.debugLL: 
     #     print(">>>> ")
     #     print(">> end state of normal interval:\n", stateEnd)
@@ -1719,8 +1894,6 @@ def interval(pwr,numNests, fl, ha ,cn=config):
     #     finalInt.dtype)
     # NOTE now pwr has storms incorporated
     # print("final interval:", normalFinal, "and -log likelihood:", -np.log(normalFinal))
-    # stormFinal  = stateLC@pwrS@TstateI
-    # finalInt[stormTrue] = stormFinal
 
     # return([normalInt, stormInt, finalInt, stormFinal])
     return([normalInt, finalInt])
@@ -1854,6 +2027,7 @@ def like(argL, numN, obsFr, obsDat, useSM, con=config):
     #         "\n>> ijk:\n", np.column_stack((ff, la, lc))
     #         )
     # stEnd, stFin = stMat 
+    # pwrOut = nest_mat(argL=argL, obsFreq=obsFr, stormFin=sFinal, useStormMat=useSM)
     pwrOut = nest_mat(argL=argL, obsFreq=obsFr, stormFin=sFinal, useStormMat=useSM)
     # pwr, pwrStm = pwrOut
     # inter  = interval(pwr=pwr, stateEnd=stEnd, stateLC=stFin)   
@@ -1937,6 +2111,7 @@ def like_smd(
     
     # if whichRet == 1:
     ret = like(argL, numN=numNests, obsFr=obsFreq, obsDat=obsData, 
+    # ret = like(argL, numN=numNests, obsFr=obsFreq, obsDat=obsData, stMat=stateMat,
                useSM=useSM)
         # if config.debugLL: print('like_smd(): Msg : ret = ', ret)
     
@@ -2077,85 +2252,6 @@ def run_optim(fun, z, arg, met='Nelder-Mead'):
     
 # def make_obs(par, init, dfs, stormDays, surveyDays, config=config):
 # @profile
-def make_obs(par, storm, survey, config=config):
-    """
-    1. Call functions mk_nests, mk_per, storm_nest, mk_flood, mk_fates, & observer
-    2. Combine the output into an array: 
-          [0]:nest ID...................[1]:initiation...........[2]:survival(w/o storm)..
-          [4]:first found............[5]:last active.........[6]:last checked........
-          [7]:assigned fate...........................[8]:num obs int...
-          [9]:days in final interval..............[10]:num storms while active
-
-    Returns:
-        numpy ndarray containing nest & observation data (column indices above)
-        
-        Can also uncomment lines to save nest data to .npy file
-        
-        And other lines to make nest data that's compatible with the old script.
-    """
-    nd       = np.zeros(shape=(par.numNests, 3), dtype=int)
-    nd2      = np.zeros(shape=(par.numNests, 6), dtype=int)
-    # fateCues directly correlates to obsFreq, so doesn't need to be param
-    fateCues   = 0.65 if par.obsFreq > 5 else 0.71 if par.obsFreq == 5 else 0.75
-    # ---- make the nests: ---------------------------------------------------
-    # nData          = mk_nests(par=par, init=init[0], 
-    # nestfile = Path(uniquify(Path.home()/
-    #                         'C://Users/sarah/Dropbox/Models/sim_model/other'/
-    #                         # dirName/
-    #                         ('nest_data.npy')))
-    # nData          = mk_nests(par=par, nestData=dfs[0])
-    nData          = mk_nests(par=par, nestData=nd)
-    # nestPeriod     = mk_per(nData[:,1], (nData[:,1]+nData[:,2]))
-    nestPeriod     = mk_per(nData[:,1], (nData[:,2])) # changed output of mk_nests 
-    stormOut  = storm_nest(par.stormFrq, nestPeriod, storm)
-    # stormNest = np.any(stormOut[] == 1, axis=1) 
-    # flooded        = mk_flood(par, stormsPerNest, numNests=par[par.numNests])
-    # flooded        = mk_flood(stormDays, par.pMortFl, stormOut, numNests=par.numNests)
-    whichStorm = mk_flood(storm, par.pMortFl, stormOut, numNests=par.numNests)
-    # inclFlood        = mk_flood(nData, par.pMortFl, stormsPerNest, numNests=par.numNests)
-    flooded        = 0
-    hatched        = (nData[:,2]-nData[:,1]) >= par.hatchTime
-    # print("hatched=", hatched)
-    # nestFate       = mk_fates(nData, par.numNests, hatched, flooded)
-    nestFate       = mk_fates(nData, par.numNests, hatched, whichStorm, storm)
-    # ---- observer: ---------------------------------------------------------
-    par2      = [par.numNests, par.obsFreq, par.discProb, par.stormFate]
-    obs       = observer(nData, par=par2, cues=fateCues, fate=nestFate, 
-                        #  surveys=surveyDays, out=dfs[1])
-                         surveys=survey, out=nd2)
-    # ---- concatenate to make data for the nest models: ---------------------
-    # fl, ha, ff, la, lc, nInt, sTrue = obsDat
-    # disc = "True  True  True  True  True  True False  True  True  True  True False True  True False  True False  True  True  True  True  True  True  True False  True  True  True  True False"
-    # stildisc = "1 1 3 0 0 1 1 0 1 0 2 2 1 0 0 1 1 0 1 0 0 0 0 0 3 0 1 0 0 0"
-    # sTilDisc = ','.join(stildisc)
-    # disc1 = np.fromstring(disc, dtype=bool, sep=' ')
-    # disc = disc.replace(" ", ",")
-    # disc = disc.split()
-    # disc1 = np.fromstring(disc, dtype=bool, sep=',')
-    # disc1 = np.array(disc)
-    # disc1 = (disc1 == "True")
-    # sTilDisc = np.fromstring(stildisc, dtype=int, sep=' ')
-    nestData = np.concatenate((nData, 
-                               nestFate[:,None], 
-                            #    np.zeros((par.numNests,4)),
-                               obs,
-                            #    stormOut[0][:,None] # storms per nest
-                               stormOut
-                            #    np.zeros((par.numNests,2))
-                               ), axis=1)
-    # nestData[:,3] = (nestFate==0)
-    # nestData[:,4] = (nestFate==2)
-    # nestData[:,5] = sTilDisc
-    # nestData[:,6] = disc1
-    # nestData[:,12] = nestData[:,12] > 3
-    # nestData[:,14] = 416 # exposure dayso
-    # nestData[:,15] = nestData[:,2] - nestData[:,1]
-    
-    # if config.debug: print("nestData:\n", nestData)
-    if config.debugNests: print("\nnestData:\n", nestData)
-    # np.save("nest_data.npy", nestData)
-    # np.save(nestfile, nestData)
-    return(nestData)
     
 # def rep_loop(par, repID, nData, vals, storm, survey, config):
 # def rep_loop(par, nData, vals, storm, survey, config):
@@ -2195,6 +2291,8 @@ def rep_loop(par, nData, storm, survey, config):
     # mark_s = logistic(ans2.x[0]) # answer.x is a list itself - need to index
     # print("> logistic of MARK answer:", mark_s)
     # s2,mp2,mf2,ss2,mps2,mfs2 = res # unpack like() function output
+    # NOTE scott was probably right - mps doesn't make sense. and DSR includes storms already
+    # so check whether mort flood probability goes up with more intense storms?
     s2, mp2 = res[0], res[1]
     # mp2 = res[1]
 
@@ -2292,14 +2390,23 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
         Otherwise, just the date.
     """
     lf_suffix=""
-    if testing:
+    if testing == "norm":
         config.nreps=5
         # print("changed config values:",config.debug, config.nreps)
         pList = plTest
-        global debug 
+        # global debug 
         debug = True
         lf_suffix = "-test"
         print("using test values. global debug = ", debug)
+    elif testing=="storm":
+        config.nreps=10
+        config.debugFlood=True
+        config.debugObs=True
+        pList = plTestFlood
+        # global debug
+        debug = True
+        lf_suffix = "-flood"
+        print("using storm test values. global debug = ", debug)
     else:
         pList = parLists # don't need to update any settings if not testing?
     # set_debug(deb=deb, debN=debN, debS=debS)
@@ -2316,7 +2423,7 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
     with open(config.likeFile, "wb") as f: # doesn't need to be 'a' bc file is open
         paramsArray = mk_param_list(parList=pList)
         # if debug: print(f">>>> there will be {len(paramsArray)*config.nreps} total rows")
-        print(f">>>> there will be {len(paramsArray)*config.nreps} total rows")
+        print(f">>>> there will be {len(paramsArray)} param sets & {len(paramsArray)*config.nreps} total rows")
         parID       = 0
         for i in range(0, len(paramsArray)): # for each set of params
             # if debug: print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
@@ -2345,6 +2452,7 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
                     continue
 
                 trueDSR  = calc_dsr(nData=nestData, nestType="all")
+                # print_prop(nestData[:,7], nestData[:,3], )
                 discover = nestData[:,6]!=0
                 nestData = nestData[(discover),:] # remove undiscovered nests
                 exclude  = ((nestData[:,7] == 7) | (nestData[:,4]==nestData[:,5]))                         
@@ -2366,7 +2474,7 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
                     # if debug: print(">> ** saving likelihood values with header **")
                 else:
                     np.savetxt(f, [like_val], delimiter=",")
-                    if debug: print(">> ** saving likelihood values **")
+                    # if debug: print(">> ** saving likelihood values **")
                 # need to save it in the function where f was opened?
                 # likeVal[r] = like_val
                 repID = repID + 1
@@ -2422,7 +2530,7 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
 # config.useWSL = args.wsl
 
 
-debug = config.debug
+# debug = config.debug
 # NOTE need to decide if it's worth saving line-by-line
 # main(fnUnique=False, testing=True,deb='none', debN="all", debS="none")
 # main(fnUnique=False, useWSL=False, testing=True, deb='none', debN="none", debS="none")
