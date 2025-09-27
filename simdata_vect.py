@@ -180,8 +180,10 @@ if config.useWSL:
     # storm_init = "~/projects/sim_data/storm_init3.csv"
     # like_f_dir = "~/proojects/sim_data/out"
     # tilde means nothing within a string
-    storm_init = "/home/wodehouse/projects/sim_data/storm_init3.csv"
-    like_f_dir = "/home/wodehouse/projects/sim_data/out"
+    #storm_init = "/home/wodehouse/projects/sim_data/storm_init3.csv"
+    storm_init = "/home/wodehouse/projects/sim_model/storm_init3.csv"
+    #like_f_dir = "/home/wodehouse/projects/sim_data/out"
+    like_f_dir = "/home/wodehouse/projects/sim_model/out"
     fnUnique   = True
 # -----------------------------------------------------------------------------
 #  HELPER FUNCTIONS
@@ -2391,7 +2393,7 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
     lf_suffix=""
     # these if-else statements only run once:
     if testing == "norm":
-        config.nreps=100
+        config.nreps=400
         # print("changed config values:",config.debug, config.nreps)
         pList = plTest
         # global debug 
@@ -2476,8 +2478,8 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
                 if (trueDSR_an - lVal[1]) / trueDSR_an > 40:
 
                     np.save(f"{fdir}/nestdata_{parID:02}_{repID:02}_bias.npy", nestData1)
-                else:
-                    np.save(f"{fdir}/nestdata_{parID:02}_{repID:02}.npy", nestData1)
+                #else:
+                    #np.save(f"{fdir}/nestdata_{parID:02}_{repID:02}.npy", nestData1)
 
                 # if parID == 0 and like_val[17] == 0: # only the first line gets the header
                 if parID == 0 and like_val[12] == 0: # only the first line gets the header
