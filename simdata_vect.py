@@ -1,3 +1,6 @@
+#!/usr/local/bin/python
+
+
 # sudo vim -o file1 file2 [open 2 files] 
 # BLAH
 # :/^[^#]/ search for uncommented lines
@@ -16,7 +19,7 @@ from decimal import Decimal
 # from itertools import product
 import getopt
 import itertools
-import line_profiler
+# import line_profiler
 # import numexpr as ne
 import numpy as np 
 # from os.path import exists
@@ -167,12 +170,18 @@ print("debug options:", debugTypes)
 debug = config.debug
 print(debug)
 # v = debugList.values() #test
+# now        = datetime.today().strftime('%m%d%Y_%H%M%S')
 like_f_dir = "C:/Users/Sarah/Dropbox/Models/sim_model/py_output"
 storm_init = "C:/Users/Sarah/Dropbox/Models/sim_model/storm_init3.csv" 
 fnUnique   = False
 if config.useWSL:
-    storm_init = "/mnt/c/Users/Sarah/Dropbox/Models/sim_model/storm_init3.csv"
-    like_f_dir = "/mnt/c/Users/Sarah/Dropbox/Models/sim_model/py_output"
+    # storm_init = "/mnt/c/Users/Sarah/Dropbox/Models/sim_model/storm_init3.csv"
+    # like_f_dir = "/mnt/c/Users/Sarah/Dropbox/Models/sim_model/py_output"
+    # storm_init = "~/projects/sim_data/storm_init3.csv"
+    # like_f_dir = "~/proojects/sim_data/out"
+    # tilde means nothing within a string
+    storm_init = "/home/wodehouse/projects/sim_data/storm_init3.csv"
+    like_f_dir = "/home/wodehouse/projects/sim_data/out"
     fnUnique   = True
 # -----------------------------------------------------------------------------
 #  HELPER FUNCTIONS
@@ -193,9 +202,10 @@ def uniquify(path):
 
     return path
 # -----------------------------------------------------------------------------
-     
+# def mk_dname(suf, unique=True):
+
 # def mk_fnames(like_f_dir, unique=True ):
-def mk_fnames(suf, unique=True ):
+def mk_fnames(suf:str, unique=True ):
     """
     1. Create a directory w/ a unique name using datetime.today() & uniquify().
     2. Create likelihood filepath (& parent dir, if necessary)
@@ -206,18 +216,24 @@ def mk_fnames(suf, unique=True ):
     """
     if unique:
         now    = datetime.today().strftime('%m%d%Y_%H%M%S')
+        fdir   = Path(uniquify(Path.home()/ like_f_dir / (now + suf)))
         fname  = "ml_val_" + now + suf + ".csv"
+        likeF  = Path(fdir / fname)
             
-        likeF = Path(uniquify(Path.home() / like_f_dir / fname ))
+        # likeF = Path(uniquify(Path.home() / like_f_dir / now + suf / fname ))
                                     #    'C://Users/Sarah/Dropbox/Models/sim_model/py_output' / 
                                    # fname))
         likeF.parent.mkdir(parents=True, exist_ok=True)
     else:
         now = datetime.today().strftime("%Y%m%d")
         # fname  = f"ml_val_{now}.csv"
+        fdir = Path(Path.home() / like_f_dir / (now + suf)) # need the parens or get an error about concatenating string and Path?
         fname  = "ml_val_" + now + suf +".csv"
-        likeF = Path(Path.home() / like_f_dir / fname )
+        likeF = Path(fdir / fname )
+        # print(likeF)
+        # likeF = Path(Path.home() / like_f_dir / now + suf / fname )
         likeF.parent.mkdir(parents=True, exist_ok=True)
+        
         # likeF = Path(Path.home()/'Dropbox/Models/sim_model/py_output/'/fname)
     with open('likeFile-name.txt', 'w' ) as f:
         f.write(str(likeF))
@@ -225,7 +241,8 @@ def mk_fnames(suf, unique=True ):
         # 'mark_s', 'psurv_est', 'ppred_est', 'pfl_est', 'ss_est', 'mps_est', 'mfs_est',
         'mark_s', 'psurv_est', 'ppred_est',
         # 'ps_given', 'dur', 'freq', 'n_nest', 'h_time', 'obs_fr',
-        'trueDSR', 'trueDSR_analysis', 'discovered', 'excluded', 'unknown', 'misclass', 'nExc', 'repID', 'parID'
+        'trueDSR', 'trueDSR_analysis', 'discovered', 'excluded', 'unknown', 'misclass','flooded','hatched',
+        'nExc', 'repID', 'parID'
         # 'rep_ID', 'mark_s', 'psurv_est', 'ppred_est', 'pflood_est', 
         # 'stormsurv_est', 'stormpred_est', 'stormflood_est', 'storm_dur', 
         # 'storm_freq', 'psurv_real', 'psurv_found', 'psurv_given',
@@ -248,6 +265,7 @@ def mk_fnames(suf, unique=True ):
     print(">> likelihood file path:", likeF)
     # return(saveNames)
     return(likeF, colnames)
+    # return(fdir, likeF, colnames)
 # -----------------------------------------------------------------------------
 def searchSorted2(a, b):
     """Get the index of where b would be located in a
@@ -380,12 +398,12 @@ parLists = {'numNests' : [250, 500],
             # 'hatchTime': [28] }
             'hatchTime': [16, 20, 28] }
 
-# plTest  = {'numNests'  : [100],
-plTest  = {'numNests'  : [50],
+plTest  = {'numNests'  : [100],
+# plTest  = {'numNests'  : [50],
            'probSurv'  : [0.96],
            'pMortFl'   : [0.75],
         #    'stormDur'  : [1],
-           'stormDur'  : [2,3],
+           'stormDur'  : [2],
         #    'stormFrq'  : [2],
            'stormFrq'  : [1,2],
         #    'obsFreq'   : [3],
@@ -1015,7 +1033,6 @@ def make_obs(par, storm, survey, config=config):
     #                         ('nest_data.npy')))
     # nData          = mk_nests(par=par, nestData=dfs[0])
     nData          = mk_nests(par=par, nestData=nd)
-
     # nestPeriod     = mk_per(nData[:,1], (nData[:,1]+nData[:,2]))
     nestPeriod     = mk_per(nData[:,1], (nData[:,2])) # changed output of mk_nests 
     stormOut  = storm_nest(par.stormFrq, nestPeriod, storm)
@@ -1761,8 +1778,8 @@ def state_vect(nNest, fl, ha):# can maybe calculate these only once
 # def nest_mat(a_s, a_mf, a_mp, obsFreq, stormTrue):
 # def interval(pwr, stateEnd, stateLC ): 
 # ---------------------------------------------------------------------------------------------------
-# @profile
 # def nest_mat(argL, obsFreq, stormFin, useStormMat, config=config):
+# @profile
 def nest_mat(argL, obsFreq, stormFin, useStormMat, config=config):
     """
     Purpose
@@ -1770,6 +1787,7 @@ def nest_mat(argL, obsFreq, stormFin, useStormMat, config=config):
     1. Create transition matrix for normal intervals & storm intervals
     2. Raise transition matrix to the power of interval length
     - intervals with storms are longer (obs_int x 2)
+    - there is no separate storm matrix anymore (see notes)
     
     Inputs
     ------
@@ -1782,41 +1800,21 @@ def nest_mat(argL, obsFreq, stormFin, useStormMat, config=config):
 
     """
     
-    a_s, a_mp, a_mf, a_ss, a_mps, a_mfs, sM = argL
+    # a_s, a_mp, a_mf, a_ss, a_mps, a_mfs, sM = argL
+    a_s, a_mp, a_mf = argL
     # if debug: print("observation interval, storm in final interval?, use storm matrix?\n",obsFreq, stormFin, useStormMat)
     trMatrix = np.array([[a_s,0,0], [a_mf,1,0], [a_mp,0,1]]) 
-    # trMatStm = np.array([[a_ss,0,0], [a_mfs,1,0], [a_mps,0,1]]) 
     pwr = np.linalg.matrix_power(trMatrix, obsFreq) # raise the matrix to the power of the number of days in obs int
-
-    # NOTE NOTE should it be the regular matrix or the storm matrix??
-    ###### power equation for storm intervals (longer obs int): ###############
-    # pwr is a 3x3 matrix; can't index with stormFin
-    # it isn't a list of 3x3 matrices to use for multiplication
-    # but the output is ultimately a 1x3 matrix, so just need to do all the multiplication at once?
-    # if useStormMat:
-    # #     # pwr[stormFin] = np.linalg.matrix_power(trMatStm, obsFreq*2) 
-    #     pwrStm = np.linalg.matrix_power(trMatStm, obsFreq*2) 
-    #     print("use storm matrix")
-    # else:
     # storm matrix just has a longer observation interval
     pwrStm = np.linalg.matrix_power(trMatrix, obsFreq*2) 
-        # print("use normal matrix for storm int")
-    # if config.debugLL: 
-    #     print("observation interval, final interval length, use storm matrix?\n",obsFreq, stormFin, useStormMat)
-    #     print(">> transition matrix\n:", trMatrix, trMatrix.shape)
-    #     print(">> storm transition matrix\n:", trMatStm, trMatStm.shape)
-    #     print(">> transition matrix to the obs int power:\n", pwr, pwr.shape)
-    #     print(">> transition matrix to the obs int power (w/storms):\n", pwrStm, pwr.shape)
-    # # if stormTrue:
-    #     return(pwrStm)
-    # else:                                
-    #     return(pwr)
+
     return([pwr, pwrStm])
 # def logL(normalInt, normalFinal, stormFinal, numInt):
 # ---------------------------------------------------------------------------------------------------
-# @profile
 # def interval(pwr, stateMat, cn=config): 
-def interval(pwr,numNests, fl, ha ,cn=config): 
+# def interval(pwr,numNests, fl, ha ,cn=config): 
+# @profile
+def interval(pwr, numNests, fl, pr, cn=config): 
 # def interval(pwr,numNests,sNest, fl, ha ,cn=config): 
     """
     Purpose
@@ -1826,6 +1824,7 @@ def interval(pwr,numNests, fl, ha ,cn=config):
     - regular (alive-->alive), storm(alive-->alive during storm -- rare),
       final (alive-->failed), storm final (alive-->flooded)
     - final interval for hatched nests = 0
+    - longer obs int for nests that survived storms should already be accounted for? 
 
     Arguments
     ---------
@@ -1848,24 +1847,17 @@ def interval(pwr,numNests, fl, ha ,cn=config):
     
     # --------------------------------------------------------------------------
     # DO MATRIX MULTIPLICATION ONCE AND BROADCAST TO ARRAY:
-    normalInt  = np.zeros((numNests))
-    finalInt   = np.zeros((numNests))
     # matrix multiplication resolves to a single value:
     oneNormInt = stillAlive@pwrN@TstateI
-    # oneStormInt= stillAlive@pwrS@TstateI # these should already be accounted for bc i'm taking obs intervals from the list of all
     oneFinalPr = mortPred@pwrN@TstateI
     oneFinalSt = mortFlood@pwrS@TstateI
     
+    normalInt  = np.empty((numNests))
+    finalInt   = np.ones((numNests))
     normalInt.fill(oneNormInt)
-    # nests that were active during a storm but survived >1 obs interval:
-    # (if that's even worth modeling...)
-    # normalInt[sNest] = oneStormInt
-    # finalInt = normalInt
-    finalInt.fill(oneFinalPr)
+    finalInt[pr] = oneFinalPr
     finalInt[fl] = oneFinalSt
-    # finalInt[ha] = oneNormInt
-    finalInt[ha] = oneNormInt
-    # normalInt[:] 
+    # there is no final interval for hatched. log(1) will become zero beforee summing
     # --------------------------------------------------------------------------
     # DO MATRIX MULTIPLICATION ON THE ARRAYS:
     # stateEnd, stateLC = stateMat
@@ -1914,8 +1906,9 @@ def printLL(numNests, logLik, logLikFin, numInt, logL):
            )
 # -----------------------------------------------------------------------------
 # def logL(numNests, normalInt, finalInt, numInt, ha, config=config):
+# def logL(numNests, intervals, numInt, ha, fl, config=config):
 # @profile
-def logL(numNests, intervals, numInt, ha, fl, config=config):
+def logL(numNests, intervals, numInt, config=config):
     """
     Purpose
     -------
@@ -1951,7 +1944,7 @@ def logL(numNests, intervals, numInt, ha, fl, config=config):
     # multiplying the matrices together?
     # numInt[~ha] = numInt[~ha]+1
     # if config.debugLL: print("numInt after adding final interval:", numInt)
-    logLike = logLikelihood = Decimal(0.0)         
+    # logLike = logLikelihood = Decimal(0.0)    # maybe switching types is also slowing things down?     
     logLik  = np.empty(numNests, dtype=np.longdouble) # this should give it enough precision & avoid errors
     logLikFin = np.empty(numNests, dtype=np.longdouble)
     # logLik  = logLik * np.log(normalInt) * -1 # dtype changes to float64 unless you multiply it by itself
@@ -1963,14 +1956,14 @@ def logL(numNests, intervals, numInt, ha, fl, config=config):
     # logLikFin= -np.log(normalFinal)
     logLikFin= -np.log(finalInt)
     # logLikFin[hatched == True] = 0
-    logLikFin[ha==True] = 0 
+    # logLikFin[ha==True] = 0 
     # now stormFinal should be part of normalFinal (finalInt)
     # logLikFin[fl==True] = -np.log(stormFinal[fl==True])
     # logLikFin[]    = logLikFin * (-np.log(normalFinal))
     # logLikFinStm = logLikFinStm * (-np.log(stormFinal))
 
     # stormDuringFin = nestData[:,12] # was there a storm during the final interval?
-    logLikelihood  = (logLik*numInt) + (logLikFin)
+    logLikelihood  = (logLik*numInt) + (logLikFin) # elementwise multiplication, then add final interval NLL
     # logLikelihood  = ne.evaluate('(logLik*numInt) + (logLikFin)')
 
     logLike        = np.sum(logLikelihood)
@@ -1992,8 +1985,8 @@ def logL(numNests, intervals, numInt, ha, fl, config=config):
 # This one uses a matrix multiplication equation created from building blocks
 #   > so you create these blocks:
 #   > a normal interval, a final interval, and a final interval with storm
-# @profile
 # def like(argL, numN, obsFr, obsDat, stMat, useSM, con=config):
+# @profile
 def like(argL, numN, obsFr, obsDat, useSM, con=config):
     """
     perfectInfo == 0 or 1 to tell you whether you know all nest fates or not
@@ -2012,7 +2005,8 @@ def like(argL, numN, obsFr, obsDat, useSM, con=config):
     # if con.debugLL: print("-------------------------------------------------------------------------------------")
     ff, la, lc, fate, nInt, sFinal = obsDat.T
     fl = fate==2 # are these necessary for more than print statements?
-    ha = fate==0
+    # ha = fate==0
+    pr = fate==1
     # NOTE NOTE should this be the assigned fate or true fate?
     # NOTE these if .. print statements, esp inside the optimizer, take lots of time:
     # if con.debugLL:
@@ -2032,10 +2026,12 @@ def like(argL, numN, obsFr, obsDat, useSM, con=config):
     # pwr, pwrStm = pwrOut
     # inter  = interval(pwr=pwr, stateEnd=stEnd, stateLC=stFin)   
     # inter = interval(pwr=pwrOut, stateMat=stMat)   
-    inter = interval(pwr=pwrOut,ha=ha, fl=fl, numNests=numN)   
+    # inter = interval(pwr=pwrOut,ha=ha, fl=fl, numNests=numN)   
+    inter = interval(pwr=pwrOut, fl=fl, pr=pr, numNests=numN)   
     # norm, fin, sfin = inter
     # llVal = logL(normalInt=norm, normalFinal=fin, stormFinal=sfin, numInt=nInt)
-    llVal = logL(numNests=numN, intervals=inter, numInt=nInt, ha=ha, fl=fl)
+    # llVal = logL(numNests=numN, intervals=inter, numInt=nInt, ha=ha, fl=fl)
+    llVal = logL(numNests=numN, intervals=inter, numInt=nInt)
     # make sure numN is the number of analyzed nests, not the param value (total number)
     
     return(llVal)
@@ -2074,36 +2070,37 @@ def like_smd(
     # unpack the initial values:
     s0   = x[0]
     mp0  = x[1]
-    ss0  = x[2]
-    mps0 = x[3]
-    sM   = x[4]
+    # ss0  = x[2]
+    # mps0 = x[3]
+    # sM   = x[4]
     # if config.debugLL: print("initial values:", s0, mp0, ss0, mps0, sM)
 
     # transform the initial values so all are between 0 and 1:
     s1   = logistic(s0)
     mp1  = logistic(mp0)
-    ss1  = logistic(ss0)
-    mps1 = logistic(mps0)
+    # ss1  = logistic(ss0)
+    # mps1 = logistic(mps0)
     #@#print("logistic-transformed initial values:", s1, mp1, ss1, mps1)
 
     # further transform so they remain in lower left triangle:
     tri1 = triangle(s1, mp1)
-    tri2 = triangle(ss1, mps1)
+    # tri2 = triangle(ss1, mps1)
     s2   = tri1[0]
     mp2  = tri1[1]
-    ss2  = tri2[0]
-    mps2 = tri2[1]
+    # ss2  = tri2[0]
+    # mps2 = tri2[1]
     # if config.debugLL: print("log- & triangle-transformed initial values:", s2, mp2, ss2, mps2)
 
     # compute the conditional probability of mortality due to flooding:
     mf2  = 1.0 - s2 - mp2
-    mfs2 = 1.0 - ss2 - mps2
+    # mfs2 = 1.0 - ss2 - mps2
 
     numNests = obsData.shape[0]
     #@#print(">> number of nests:", numNests)
 
     # call the likelihood function:
-    argL = np.array([s2,mp2,mf2,ss2,mps2,mfs2, sM])
+    # argL = np.array([s2,mp2,mf2,ss2,mps2,mfs2, sM])
+    argL = np.array([s2,mp2,mf2])
     #ret = like(argL, ndata, obs, storm, survey)
     #ret = like(argL, nestData, obsFreq, stormDays, surveyDays)
     # def like(argL, numN, obsFr, obsDat, stMat, useSM):
@@ -2143,26 +2140,27 @@ def ansTransform(ans):
     # s0   = ans.x[0]         # Series of transformations of optimizer output.
     s0   = ans[0]         # Series of transformations of optimizer output.
     mp0  = ans[1]         # These make sure the output is between 0 and 1, 
-    ss0  = ans[2]         # and that the three fate probabilities sum to 1.
-    mps0 = ans[3]
+    # ss0  = ans[2]         # and that the three fate probabilities sum to 1.
+    # mps0 = ans[3]
 
     s1   = logistic(s0)
     mp1  = logistic(mp0)
-    ss1  = logistic(ss0)
-    mps1 = logistic(mps0)
+    # ss1  = logistic(ss0)
+    # mps1 = logistic(mps0)
 
     ret2 = triangle(s1, mp1)
     s2   = ret2[0]
     mp2  = ret2[1]
     mf2  = 1.0 - s2 - mp2
 
-    ret3 = triangle(ss1, mps1)
-    ss2  = ret3[0]
-    mps2 = ret3[1]
-    mfs2 = 1.0 - ss2 - mps2
+    # ret3 = triangle(ss1, mps1)
+    # ss2  = ret3[0]
+    # mps2 = ret3[1]
+    # mfs2 = 1.0 - ss2 - mps2
     
     #ansTransformed = np.array([s2, mp2, mf2, ss2, mps2, mfs2], dtype=np.float128)
-    ansTransformed = np.array([s2, mp2, mf2, ss2, mps2, mfs2], dtype=np.longdouble)
+    # ansTransformed = np.array([s2, mp2, mf2, ss2, mps2, mfs2], dtype=np.longdouble)
+    ansTransformed = np.array([s2, mp2, mf2], dtype=np.longdouble)
     # print(">> results as an array:\n", ansTransformed)
     # if debug: print(">> results (s, mp, mf, ss, mps, mfs, ex):\n", s2, mp2, mf2, ss2, mps2, mfs2, ex)
     return(ansTransformed)
@@ -2178,10 +2176,11 @@ def randArgs():
     """
     s     = rng.uniform(-10.0, 10.0)       
     mp    = rng.uniform(-10.0, 10.0)
-    ss    = rng.uniform(-10.0, 10.0)
-    mps   = rng.uniform(-10.0, 10.0)
+    # ss    = rng.uniform(-10.0, 10.0)
+    # mps   = rng.uniform(-10.0, 10.0)
     srand = rng.uniform(-10.0, 10.0) # should the MARK and matrix MLE start @ same value?
-    z = np.array([s, mp, ss, mps, srand])
+    # z = np.array([s, mp, ss, mps, srand])
+    z = np.array([s, mp])
 
     return(z)
 # -----------------------------------------------------------------------------
@@ -2390,8 +2389,9 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
         Otherwise, just the date.
     """
     lf_suffix=""
+    # these if-else statements only run once:
     if testing == "norm":
-        config.nreps=5
+        config.nreps=100
         # print("changed config values:",config.debug, config.nreps)
         pList = plTest
         # global debug 
@@ -2417,6 +2417,9 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
         set_debug(debugOpt)
     # fname = mk_fnames(like_f_dir=like_f_dir) if fnUnique else mk_fnames(unique=False)
     fname = mk_fnames(suf = lf_suffix) if fnUnique else mk_fnames(suf =lf_suffix, unique=False)
+    fdir  = fname[0].parent
+    # fdir  = os.path.split(fname[0])[0]
+    # print(fdir)
     config.likeFile = fname[0]
     config.colNames = fname[1]
     print(config)
@@ -2439,7 +2442,7 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
             for r in range(config.nreps): 
                 # if debug: print("\n>>>>>>>>>>>> replicate ID: >>>>>>>>>>>>>>>>>>>>>>>>>>", repID)
                 try:
-                    nestData = make_obs(par=par, storm=stormDays, survey=survey) 
+                    nestData1 = make_obs(par=par, storm=stormDays, survey=survey) 
                 # except:
                 except IndexError as error:
                     print(
@@ -2451,10 +2454,12 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
                     # return(nestData)
                     continue
 
-                trueDSR  = calc_dsr(nData=nestData, nestType="all")
+                trueDSR  = calc_dsr(nData=nestData1, nestType="all")
+                flooded  = sum(nestData1[:,3]==2)
+                hatched  = sum(nestData1[:,3]==0)
                 # print_prop(nestData[:,7], nestData[:,3], )
-                discover = nestData[:,6]!=0
-                nestData = nestData[(discover),:] # remove undiscovered nests
+                discover = nestData1[:,6]!=0
+                nestData = nestData1[(discover),:] # remove undiscovered nests
                 exclude  = ((nestData[:,7] == 7) | (nestData[:,4]==nestData[:,5]))                         
                 unknown  = (nestData[:,7]==7)
                 misclass = (nestData[:,7]!=nestData[:,3])
@@ -2465,11 +2470,17 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
                 # pars = np.array([par.probSurv, par.stormDur, par.stormFrq, par.numNests, 
                 #                  par.hatchTime,par.obsFreq]) 
                 # nVal = np.array([trueDSR, trueDSR_an, sum(discover), sum(exclude), repID])  
-                nVal = np.array([trueDSR, trueDSR_an, sum(discover), sum(exclude), sum(unknown), sum(misclass), nEx, repID, parID])  
+                nVal = np.array([trueDSR, trueDSR_an, sum(discover), sum(exclude), sum(unknown), sum(misclass), flooded, hatched, nEx, repID, parID])  
                 like_val = np.concatenate((lVal, nVal))
                 colnames=config.colNames
+                if (trueDSR_an - lVal[1]) / trueDSR_an > 40:
+
+                    np.save(f"{fdir}/nestdata_{parID:02}_{repID:02}_bias.npy", nestData1)
+                else:
+                    np.save(f"{fdir}/nestdata_{parID:02}_{repID:02}.npy", nestData1)
+
                 # if parID == 0 and like_val[17] == 0: # only the first line gets the header
-                if parID == 0 and like_val[10] == 0: # only the first line gets the header
+                if parID == 0 and like_val[12] == 0: # only the first line gets the header
                     np.savetxt(f, [like_val], delimiter=",", header=colnames)
                     # if debug: print(">> ** saving likelihood values with header **")
                 else:
