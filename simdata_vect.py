@@ -810,22 +810,12 @@ def mk_fates(nestDat, numNests, hatched,stormInfo, stormDays, con=config):
     
     trueFate = np.empty(numNests) 
     # if con.debugNests: print(">> hatched:", hatched, sum(hatched))
-    #print("length where flooded = True", len(trueFate[floodedAll==True]))
     trueFate.fill(1) # nests that didn't flood or hatch were depredated 
-    # flooded, endDate = flooded
-    # flooded = numStorm > 0
-    # can't just do num storms >0 bc didn't necessarilydie; or which strm > 0 bc 0 is an index
     flooded = stormInfo[:,2].astype(int)
     whichStorm = stormInfo[:,1].astype(int) # now this is the actual storm DAY, not the index
-    # np.savetxt("stormInfo.csv", stormInfo, delimiter=",")
-    # np.savetxt("nestdata_beforeflood.csv", nestDat, delimiter=",")
-    #trueFate[flooded==True] = 2 
-    #trueFate[floodedAll==True] = 2 
     trueFate[hatched == True] = 0 # was nest discovered?  
     trueFate[flooded == True] = 2  # should override the nests that "hatched" that were actually during storm
     if con.debugNests: print(">> end date before storms accounted for:", nestDat[:,2])
-    # nestDat[:,2][flooded] = stormDays[whichS[flooded]]
-    # nestDat[:,2][flooded] = stormDays[whichStorm[flooded]]
     # had to add the ==True for some reason
     nestDat[:,2][flooded==True] = whichStorm[flooded==True]
     if con.debugNests: print("did nest hatch?\n", hatched, sum(hatched), "\ndid nest flood?\n", flooded, sum(flooded))
@@ -833,19 +823,6 @@ def mk_fates(nestDat, numNests, hatched,stormInfo, stormDays, con=config):
     nestDat = np.concatenate((nestDat, trueFate[:,None]), axis=1)
     #OH, but I don't ever return nestDat anyway. so maybe this should be a function that ADDS true fate to nestDat.
 
-    # now it's the day, not the index, so nests that didn't flood will still be zero but w/o the cost of the mask
-    # plus that one didn't seem to be working anyhow..``
-    # except we don't want the end date to be zero for everything else  either :/
-    # nestDat[:,2] = whichStorm
-    # np.savetxt("nestdata_afterflood.csv", nestDat, delimiter=",")
-    # if con.debugNests: print(">> end date after:", nestDat[:,2])
-    
-    # if flooded:
-        # nestDat[:,2] = stormDays[whichS]
-    # trueFate[floodedAll ] = 2 
-    # hatched fate is assigned last, so hatched is taking precedence over flooded
-    # so maybe that's why the true DSR is always higher than 0.93, but what about true DSR of discovered?
-    # fates = [np.sum(trueFate==x) for x in range(3)]
     # if con.debugNests: print(">>>>> true final nest fates:\n", trueFate, len(trueFate))
     # return(trueFate)
     return(nestDat)
@@ -916,7 +893,6 @@ def svy_position(initiation, nestEnd, surveyDays, cn=config):
     # if cn.debugObs: print(">> end dates:\n", nestEnd)
     position2 = np.searchsorted(surveyDays, nestEnd)
     # if cn.debugObs: print(">>>> position of end date in survey day list:\n", position2, len(position2)) 
-    
     surveyDays = dict(zip(np.arange(len(surveyDays)), surveyDays))
     # if cn.debugObs: print(">> survey days with index number:\n", surveyDays)
     
