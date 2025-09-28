@@ -244,6 +244,7 @@ def mk_fnames(suf:str, unique=True ):
         'mark_s', 'psurv_est', 'ppred_est',
         # 'ps_given', 'dur', 'freq', 'n_nest', 'h_time', 'obs_fr',
         'trueDSR', 'trueDSR_analysis', 'discovered', 'excluded', 'unknown', 'misclass','flooded','hatched',
+        # 'nExc', 'repID', 'parID','psurv_est2', 'ppred_est2'
         'nExc', 'repID', 'parID'
         # 'rep_ID', 'mark_s', 'psurv_est', 'ppred_est', 'pflood_est', 
         # 'stormsurv_est', 'stormpred_est', 'stormflood_est', 'storm_dur', 
@@ -870,16 +871,17 @@ def assign_fate(fateCuesPresent, trueFate, numNests, obsFr, intFinal, stormFate,
     fateCuesPres.fill(fateCuesPresent)
     # fateCuesPres[intFinal==True] = 0.1
     fateCuesPres[intFinal > obsFr] = 0.1 # nests with longer final interval have lower chance of cues
-    # if cn.debugObs: 
+    # if cn.debugObs: print("compare fateCuesPres with a random probability:", fateCuesPres, fateCuesProb)
         
     assignedFate[fateCuesProb < fateCuesPres] = trueFate[fateCuesProb < fateCuesPres] 
+    if cn.debugObs: print(">> assigned fates:", assignedFate, sum(assignedFate))
     if stormFate: assignedFate[intFinal > obsFr] = 2
     if cn.debugObs: 
         print(">> compare random probs to fateCuesPresent:\n", 
               [fateCuesProb,fateCuesPres], 
               fateCuesProb.shape)
-        print(">> assigned fates:", assignedFate, sum(assignedFate))
         print(">> nests with storm in final interval:", np.where(intFinal>obsFr))
+        print(">> storm fate == True?", stormFate)
         print(">> assigned fates after storm fates assigned:", assignedFate, sum(assignedFate))
     # fate cues prob should be affecting all nest fates equally, not just failures.
     # if debug: print(">> proportion of nests assigned hatch fate:", np.sum((assignedFate==0)[discovered==True])/(sum(discovered==True)),"vs period survival:", pSurv**hatchTime)
@@ -1123,7 +1125,7 @@ def johnson(ndata, srn):
     jEst = (1/srn) * sum()
 # -----------------------------------------------------------------------------
 # @profile
-def calc_dsr(nData, nestType):
+def calc_dsr(nData, nestType, calcType):
     """ 
     Calculate exposure and DSR for a given set of nests. 
 
@@ -1137,7 +1139,8 @@ def calc_dsr(nData, nestType):
     
     # expDays = exposure(nestData[:,6:9], numNests=numN, expPercent=0.4)
     # expDays = calc_exp(nData[:,6:9], expPercent=0.4)
-    if nestType=="all":
+    # if nestType=="all":
+    if calcType=="true":
         expDays = sum((nData[:,2]-nData[:,1]))
         hatched = sum(nData[:,3] == 0)
     else:
@@ -2039,7 +2042,7 @@ if False:
 # NOTE is there even a reason to have this in a function?
 # NOTE NOTE do I have to pass every object to each function explicitly?
 # @profile
-def run_optim(fun, z, arg, met='Nelder-Mead'):
+def run_optim(minimizer, fun, z, arg, met='Nelder-Mead'):
     """
     Run scipy.optimize.minimize on 'fun'. Will return value of -1 or -2 if exceptions occur.
 
@@ -2049,8 +2052,12 @@ def run_optim(fun, z, arg, met='Nelder-Mead'):
     Returns:
     the transformed output.
     """
+    
     try:
-        out = optimize.minimize(fun, z, args=arg, method=met)
+        # out = optimize.minimize(fun, z, args=arg, method=met)
+        # out = minimizer(fun, z, args=arg, method=met)
+        out = choose_alg(minimizer, fun, z, arg, met)
+
         ex = 0.0
     except decimal.InvalidOperation as error2:
         # ex=100.0
@@ -2069,15 +2076,29 @@ def run_optim(fun, z, arg, met='Nelder-Mead'):
         return(ex)
         # continue
     #
+    # print("Success?", out.success, out.message, "answer=", out.x)
     if fun==like_smd: 
         # print("Success?", out.success, out.message, "answer=", out.x)
         res = ansTransform(ans=out.x)
+        # if res[1] < 0.6:
+        #     print("run optimizer again with basinhopping")
+        #     arg=
+        #     try:
+        #         out = optimize.minimize(fun, z, args=)
     else:
         # res=ansTransform(ans, unpack=False)
         # res=ansTransform(ans=out)
         res = logistic(out.x[0])
     return(res)
-    
+
+def choose_alg(minim, fun, z, arg, met):
+    if minim=="norm":
+        minimizer = optimize.minimize(fun, z, args=arg, method=met) 
+    elif minim=="bh":
+        min_kwargs={"args": arg}
+        minimizer = optimize.basinhopping(fun, z, minimizer_kwargs=min_kwargs)
+        
+    return(minimizer)
 # def make_obs(par, init, dfs, stormDays, surveyDays, config=config):
 # @profile
     
@@ -2103,17 +2124,23 @@ def rep_loop(par, nData, storm, survey, config):
     # stMat = state_vect(nNest=len(nData), fl=(nData[:,3]==2), ha=(nData[:,3]==0))
     dat = nData[:,4:10] # doesn't include column index 10
     # ans      = run_optim(fun=like_smd, z=randArgs(), 
-    res      = run_optim(fun=like_smd, z=randArgs(), 
+    arg=(dat, par.obsFreq, par.useSMat, storm, survey, par.whichLike)
+    res      = run_optim(minimizer="norm", fun=like_smd, z=randArgs(), arg=arg)
+    # res      = run_optim(minimizer = optimize.minimize, fun=like_smd, z=randArgs(), 
                         #  arg=(dat, par.obsFreq, stMat, par.useSMat, storm, survey, 2))
                         #  arg=(dat, par.obsFreq, stMat, par.useSMat, storm, survey, 1))
                         #  arg=(dat, par.obsFreq, stMat, par.useSMat, storm, survey, par.whichLike))
-                         arg=(dat, par.obsFreq, par.useSMat, storm, survey, par.whichLike))
+                        #  )
                                 # args=( dat, obsFr, stMat, useSM, 1),
+    if res[0] < 0.6:
+        print("run optimizer again with basinhopping")
+        # run_optim(fun=like_smd, z=randArgs(), arg=(dat,par.obsFreq,par.useSMat,storm,survey,par.whichLike),met=))
+        res = run_optim(minimizer="bh", fun=like_smd, z=randArgs(), arg=arg)
     # res = ansTransform(ans)
     srand = rng.uniform(-10.00, 10.00)
     # markProb = mark_probs(s=srand, ndata=nData)
     # mark_s = run_optim(fun=mark_wrapper, z=srand, arg=(nData, markProb, par.brDays))
-    mark_s = run_optim(fun=mark_wrapper, z=srand, arg=(nData, par.brDays))
+    mark_s = run_optim(minimizer="norm", fun=mark_wrapper, z=srand, arg=(nData, par.brDays))
     #NOTE ans2 is an "OptimizeResult" object; need to extract "x"
     # Transform the MARK optimizer output so that it is between 0 and 1:
     # mark_s = logistic(ans2.x[0]) # answer.x is a list itself - need to index
@@ -2288,7 +2315,7 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
                     # return(nestData)
                     continue
 
-                trueDSR  = calc_dsr(nData=nestData1, nestType="all")
+                trueDSR  = calc_dsr(nData=nestData1, nestType="all", calcType="true")
                 flooded  = sum(nestData1[:,3]==2)
                 hatched  = sum(nestData1[:,3]==0)
                 # print_prop(nestData[:,7], nestData[:,3], )
@@ -2298,7 +2325,7 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
                 unknown  = (nestData[:,7]==7)
                 misclass = (nestData[:,7]!=nestData[:,3])
                 nestData    = nestData[~(exclude),:]    # remove excluded nests 
-                trueDSR_an   = calc_dsr(nData=nestData, nestType="analysis") 
+                trueDSR_an   = calc_dsr(nData=nestData, nestType="analysis", calcType="true") 
                 lVal = rep_loop(par=par, nData=nestData, storm=stormDays,
                                    survey=survey,config=config)
                 # pars = np.array([par.probSurv, par.stormDur, par.stormFrq, par.numNests, 
@@ -2309,13 +2336,26 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
                 colnames=config.colNames
                 # if (trueDSR_an - lVal[1]) / trueDSR_an > 40:
                 # print("bias:",(trueDSR-lVal[1])/trueDSR)
-                if (trueDSR - lVal[1]) / trueDSR > 0.40:
+                # newL = np.zeros((par.numNests, 2))
+                # newL = np.zeros(2)
+                # if (trueDSR - lVal[1]) / trueDSR > 0.40:
 
-                    print("high bias")
+                    # print("still high bias")
+                    
+                    # newLVal = rep_loop(par=par, nData=nestData, storm=stormDays, survey=survey, config=config)
+                    # print("new psurv val:", newLVal[1])
+                    # newL[0] = newLVal[1]
+                    # newL[1] = newLVal[2]
+                    # newL = newLVal[1:2]
+                    # if (trueDSR - newLVal[1]) / trueDSR > 0.40:
+                    #     print("high bias again, try new starting vals")
+                    #     newLVal2 = rep_loop(par=par, nData=nestData, storm=stormDays, survey=survey, config=config)
                 #     np.save(f"{fdir}/nestdata_{parID:02}_{repID:02}_bias.npy", nestData1)
                 # else:
                 #     print("low bias")
                 #     np.save(f"{fdir}/nestdata_{parID:02}_{repID:02}.npy", nestData1)
+                # like_val = np.concatenate((lVal, nVal, newL))
+                # colnames=config.colNames
 
                 # if parID == 0 and like_val[17] == 0: # only the first line gets the header
                 if parID == 0 and like_val[12] == 0: # only the first line gets the header
