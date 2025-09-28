@@ -432,6 +432,22 @@ plTestFlood  = {'numNests'  : [100],
             # 'useSMat'  : [True, False]
             }
 
+plDebug = {'numNests'  : [50],
+# plTest  = {'numNests'  : [30],
+               'probSurv'  : [0.96],
+           'pMortFl'   : [0.75],
+        #    'stormDur'  : [1, 3],
+           'stormDur'  : [2],
+        #    'stormFrq'  : [1, 3],
+           'stormFrq'  : [1, 4],
+        #    'obsFreq'   : [3, 5],
+           'obsFreq'   : [3, 7],
+           'stormFate': [False,True],
+           'hatchTime' : [20] }
+        #    'hatchTime' : [16, 28]}
+            # 'useSMat'  : [True, False]
+            
+
 def mk_param_list(parList: Dict[str, list]) -> list:
     """
     Take the dictionary of lists of param values, then unpack the lists to a 
@@ -1536,11 +1552,8 @@ def mark_wrapper(srn, ndata, nocc):
         > Create vector to store the log-transformed values, then fill
 
     """
-    # numNests = len(ndata)
-    # s = np.ones(numNests, dtype=np.longdouble) # why is s an array?
     # s = np.ones(numNests, dtype=np.longdouble) # why is s an array?
     s = logistic(srn)
-    # NOTE is this multiple random starting values (for each nest) or one random starting value?
     #@#print("logistic of random starting value for program MARK:", s, s.dtype)
     # the logistic function tends to overflow if it's a normal float; make it np.float128
     ret = prog_mark(s, ndata, nocc)
@@ -2409,6 +2422,11 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
         debug = True
         lf_suffix = "-flood"
         print("using storm test values. global debug = ", debug)
+    elif testing=="debug":
+        config.nreps=100
+        debug=True
+        pList=plDebug
+        lf_suffix="-debug"
     else:
         pList = parLists # don't need to update any settings if not testing?
     # set_debug(deb=deb, debN=debN, debS=debS)
@@ -2476,14 +2494,14 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
                 like_val = np.concatenate((lVal, nVal))
                 colnames=config.colNames
                 # if (trueDSR_an - lVal[1]) / trueDSR_an > 40:
-                print("bias:",(trueDSR-lVal[1])/trueDSR)
+                # print("bias:",(trueDSR-lVal[1])/trueDSR)
                 if (trueDSR - lVal[1]) / trueDSR > 0.40:
 
                     print("high bias")
-                    np.save(f"{fdir}/nestdata_{parID:02}_{repID:02}_bias.npy", nestData1)
-                else:
-                    print("low bias")
-                    np.save(f"{fdir}/nestdata_{parID:02}_{repID:02}.npy", nestData1)
+                #     np.save(f"{fdir}/nestdata_{parID:02}_{repID:02}_bias.npy", nestData1)
+                # else:
+                #     print("low bias")
+                #     np.save(f"{fdir}/nestdata_{parID:02}_{repID:02}.npy", nestData1)
 
                 # if parID == 0 and like_val[17] == 0: # only the first line gets the header
                 if parID == 0 and like_val[12] == 0: # only the first line gets the header
