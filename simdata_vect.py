@@ -577,26 +577,27 @@ def mk_init(numNests):
     return(initiation)
 # -----------------------------------------------------------------------------
 def mk_surv(numNests, hatchTime, pSurv, con=config):
-    # 4. Decide how long each nest is active
-    # >> use a negative binomial distribution - distribution of number of 
-    #    failures until success 
-    #     >> in this case, "success" is actually the nest failing, so use 
-    #        1-pSurv (the failure probability) 
-    #     >> gives you number of days until the nest fails (survival)
-    #     >> if survival > incubation time, then the nest hatches 
-    # >> then use survival to calculate end dates for each nest 
-    #    (end = initiation + survival)
+    """
+    Decide how long each nest is active
 
+    >> use a negative binomial distribution - distribution of number of failures until success 
+    
+        >> in this case, "success" is actually the nest failing, so use 1-pSurv (the failure probability) 
+        >> gives you number of days until the nest fails (survival)
+        >> if survival > incubation time, then the nest hatches 
+
+    >> then use survival to calculate end dates for each nest (end = initiation + survival)
+
+    >> set values > incubation time to = incubation time (nest hatched) (need to because you are summing the survival time)
+            
+           >> once nest reaches incubation time (+/- some error) it hatches and becomes inactive
+
+    """
     survival = np.zeros(shape=(numNests), dtype=np.int32)
     survival = rng.negative_binomial(n=1, p=(1-pSurv), size=numNests) 
     survival = survival - 1 # but since the last trial is when nest fails, need to subtract 1
     # if debug: print(">> survival in days:\n", survival, len(survival)) 
     
-    ## >> set values > incubation time to = incubation time (nest hatched): 
-    ##      (need to because you are summing the survival time)
-    #        >> once nest reaches incubation time (+/- some error) it hatches
-    #           and becomes inactive
-
     survival[survival > hatchTime] = hatchTime # add some amt of error?
     # if con.debugNests: print(">> survival in days:\n", survival, len(survival)) 
     # hatched = survival >= hatchTime # the hatched nests survived for >= hatchTime days 
@@ -965,55 +966,23 @@ def make_obs(par, storm, survey, config=config):
     fateCues   = 0.65 if par.obsFreq > 5 else 0.71 if par.obsFreq == 5 else 0.75
     # NOTE should I make sure all nests live for at least a day?
     # ---- make the nests: ---------------------------------------------------
-    # nData          = mk_nests(par=par, init=init[0], 
-    # nestfile = Path(uniquify(Path.home()/
-    #                         'C://Users/sarah/Dropbox/Models/sim_model/other'/
-    #                         # dirName/
-    #                         ('nest_data.npy')))
-    # nData          = mk_nests(par=par, nestData=dfs[0])
     nData          = mk_nests(par=par, nestData=nd)
-    # nestPeriod     = mk_per(nData[:,1], (nData[:,1]+nData[:,2]))
     nestPeriod     = mk_per(nData[:,1], (nData[:,2])) # changed output of mk_nests 
-    stormOut  = storm_nest(par.stormFrq, nestPeriod, storm)
-    # stormNest = np.any(stormOut[] == 1, axis=1) 
-    # flooded        = mk_flood(par, stormsPerNest, numNests=par[par.numNests])
-    # flooded        = mk_flood(stormDays, par.pMortFl, stormOut, numNests=par.numNests)
-    # output from mk_flood has 3 cols
-    # whichStorm = mk_flood(storm, par.pMortFl, stormOut, numNests=par.numNests)
-    stormDat = mk_flood(storm, par.pMortFl, stormOut, numNests=par.numNests)
+    stormOut       = storm_nest(par.stormFrq, nestPeriod, storm)
+    stormDat       = mk_flood(storm, par.pMortFl, stormOut, numNests=par.numNests)
     # inclFlood        = mk_flood(nData, par.pMortFl, stormsPerNest, numNests=par.numNests)
     # flooded        = stormDat[:,2] # need more than just whether nest flooded; need date
     hatched        = (nData[:,2]-nData[:,1]) >= par.hatchTime # hatched before storms accounted for
     if config.debugNests: print("hatched (before storms)=", hatched, sum(hatched))
-    # nestFate       = mk_fates(nData, par.numNests, hatched, flooded)
-    # nestFate       = mk_fates(nData, par.numNests, hatched, whichStorm, storm)
-    # nestFate       = mk_fates(nData, par.numNests, hatched, stormDat, storm)
     nData      = mk_fates(nData, par.numNests, hatched, stormDat, storm)
-    # hatched        = (nData[:,2]-nData[:,1]) >= par.hatchTime
     # ---- observer: ---------------------------------------------------------
     par2      = [par.numNests, par.obsFreq, par.discProb, par.stormFate]
-    # obs       = observer(nData, par=par2, cues=fateCues, fate=nestFate, 
     obs       = observer(nData, par=par2, cues=fateCues, surveys=survey, out=nd2)
-                        #  surveys=surveyDays, out=dfs[1])
     # ---- concatenate to make data for the nest models: ---------------------
-    # fl, ha, ff, la, lc, nInt, sTrue = obsDat
-    # disc = "True  True  True  True  True  True False  True  True  True  True False True  True False  True False  True  True  True  True  True  True  True False  True  True  True  True False"
-    # stildisc = "1 1 3 0 0 1 1 0 1 0 2 2 1 0 0 1 1 0 1 0 0 0 0 0 3 0 1 0 0 0"
-    # sTilDisc = ','.join(stildisc)
-    # disc1 = np.fromstring(disc, dtype=bool, sep=' ')
-    # disc = disc.replace(" ", ",")
-    # disc = disc.split()
-    # disc1 = np.fromstring(disc, dtype=bool, sep=',')
-    # disc1 = np.array(disc)
-    # disc1 = (disc1 == "True")
-    # sTilDisc = np.fromstring(stildisc, dtype=int, sep=' ')
     nestData = np.concatenate((nData, 
-                            #    nestFate[:,None], 
                             #    np.zeros((par.numNests,4)),
                                obs
                             #    stormOut[0][:,None] # storms per nest
-                            #    stormOut # is this need here?? also, supposed to be stormDat??
-                            #    stormDat # on't think these are ever used
                             #    np.zeros((par.numNests,2))
                                ), axis=1)
     # nestData[:,3] = (nestFate==0)
