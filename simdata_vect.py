@@ -941,22 +941,8 @@ def observer(nData, par, cues, surveys, out, cn=config):
     cols= i, j, k, assigned fate, num *normal* obs ints, intFinal
     """
     initiation, end, fate = nData[:,1], nData[:,2], nData[:,3]
-    # end        = nData[:,1] + nData[:,2]
-    # end        = nData[:,2] # changed output of mk_nests so this is end date
     numNests, obsFreq, discProb, stormFate = par # unpack par
     surveyDays, surveyInts = surveys
-
-    # svy_til_disc = discover_time(discProb, numNests)
-    # try:
-    #     pos = svy_position(initiation, end, surveys[0])
-    
-    # except IndexError as error:
-    #     print(
-    #         ">> IndexError in nest data:", 
-    #         error,
-    #         ". Go to next replicate")
-    #     out = np.array([555,0,0,0,0,0])
-    #     return()
 
     pos = svy_position(initiation, end, surveys[0])
     num_svy          = pos[1] - pos[0]   
@@ -965,60 +951,19 @@ def observer(nData, par, cues, surveys, out, cn=config):
     num_svy[~discovered] = 0
     # stormIntFinal    = surveyInts[pos[1]] > obsFreq  # was obs interval longer than usual? (== there was a storm)
     intFinal    = surveyInts[pos[1]] # actual length of final interval for each nest
-    # out is already a 2d array of zeros
-    # out = num observations, i, j, k, assigned fate
-    # out[:,0] = assign_fate(cues, fate, numNests, intFinal, stormFate)
-    # out[:,1] = num_svy - svysTilDiscovery  # number of observations for the nest
-    # NOTE would these be quicker w/o the mask??
-    # can get discovered/not from out[:,1], I think
-    # jVal = surveyDays[pos[1]]
-    # kVal = surveyDays[pos[1]+1]
     kVal = surveyDays[pos[1]]
     jVal = surveyDays[pos[1]-1]
-    # kVal[fate==0] = jVal[fate==0]
     jVal[fate==0] = kVal[fate==0]
-    # if config.debugNests: print(">> j & k values:", np.column_stack((jVal, kVal)))
-    # if config.debugNests: print(">> end date before storms accounted for:", nData[:,2])
-        
-    # extraDay = kVal - intFinal == end # was end date an entire obs interval befor last survey?
-    # if config.debugNests: print(">>>> did nest have an extra survey?", extraDay)
-    # kVal[]
-    # if config.debugNests: print("how much bigger is k than end?", kVal - end)
-    # out[:,0][discovered] = surveyDays[pos[0]+svysTilDiscovery][discovered] # i
     out[:,0] = surveyDays[pos[0]+svysTilDiscovery] # i
-    # out[:,1][discovered] = surveyDays[pos[1]][discovered] # j
     out[:,1][discovered] = jVal[discovered] 
     out[:,2][discovered] = kVal[discovered]
-    # out[:,5] = int(stormIntFinal) # transform to integer for the ndarray
     out[:,3] = assign_fate(cues, fate, numNests, obsFreq, intFinal, stormFate)
     out[:,4] = num_svy - svysTilDiscovery  # number of observations for the nest
-    # out[:,4][fate==0] = out[:,4][fate==0] - 1
-    # out[:,4] = out[:,2] - out[:,0] / obsFreq # doesn't take longer intervals into account
-    out[:,5] = intFinal.astype(int) # transform to integer for the ndarray
-    # n = nData[:,0][discovered]
+    out[:,5] = intFinal.astype(int) # length of final interval - transform to integer for the ndarray
     if cn.debugObs: 
-        # print("surveys til discovery; discovered T/F:", svysTilDiscovery, discovered)
-        # print("assigned fate, true fate, surveys til discovery; discovered T/F, total obs days, total active days:")
         print("surveys til discovery; discovered T/F, total obs days, total active days:")
-        # for i, val in enumerate(out):
         for i in range(len(out)):
-            # print(f"{i:02}: {out[:,3][i]} | {fate[i]} | {svysTilDiscovery[i]} | {discovered[i]} | {(out[:,2]-out[:,0])[i]} | {(nData[:,2]-nData[:,1])[i]}")
             print(f"{i:02}: {svysTilDiscovery[i]} | {discovered[i]} | {(out[:,2]-out[:,0])[i]} | {(nData[:,2]-nData[:,1])[i]}")
-        # print("total observed days:\n", out[:,2]-out[:,0], 
-            #   "& total days nest was active:\n", nData[:,2] - nData[:,1])
-        # print( ">> assigned fate (hatched, depredated, flooded, unknown):") 
-        # for i, val in enumerate(out):
-        #     print(f"{i}: {out[:,3]}")
-                # # ">> assigned fate proportions (hatched, depredated, flooded, unknown):", 
-                # aFatesProp[0:3], 
-                # (np.sum(discovered==True) - np.sum(aFates)) / (np.sum(discovered==True)),
-                # # (np.sum(aFates==7) )/ (np.sum(discovered==True)),
-                # "\n\n>> proportions of known (assigned) fates (H, D, F):",
-                # aFates[0:3]/np.sum(aFates),
-                # "\n>> vs. actual proportions for discovered only (H, D, F):",
-                # tFatesProp[0:3],
-                # np.sum(discovered==True)- np.sum(tFates)
-                # )
     return(out)
 
 # -----------------------------------------------------------------------------
@@ -1399,82 +1344,6 @@ def print_mayf(expo):
 # Lastly, it has a function to generate the probabilities before running the optimizer 
 # on the MARK function, so I can take the for loop out of the function that is optimized.
 
-# -----------------------------------------------------------------------------
-# def mark_probs(s, expo, ndata):
-# @profile
-# def mark_probs(s, ndata):
-#     """
-#     creates probabilities for nest observation histories for use with prog_mark().
-
-#         > uses prob surv (s), so needs to be inside the optimizer
-
-#     Probabilities for Program MARK:
-#     -------------------------------
-    
-#     1. create vectors to store:
-#         a) the probability values for each nest;
-#         b) the degrees of freedom for each value
-
-#     2. calculate the exposure, observed alive days, & final interval days,
-#     then fill the vectors
-      
-#     Input data should not be missing fate or have <2 observations
-      
-#     Returns
-#     -------
-#       list with the allp and alldof arrays inside
-    
-#     More Info
-#     ---------
-#     Note that failed nests have final_int>0 while hatched nests have final_int=0
-
-#     Probability equation: 
-
-#       > daily probability of survival (DSR) raised to the power of intervals 
-#         nest was known to be alive
-#       > for hatched nests, that's it
-#       > for failed nests, exact failure date allowed to be unknown
-#           > but we know nest wasn't alive for the entire final interval
-#           > so add in probability of NOT surviving one interval (1-DSR)
-#       > EX: if probability of surviving from day 1-3 is s1*s2*s3, then
-#       >     probability of failure sometime during days 4-6 is 1-s4*s5*s6
-#       > hatched nests also have one extra degree of freedom (dof)
-
-#     technically, raise prob to power of frequency;
-#     we are assuming each occurs only once
-
-#     Exposure is factored in to the equation bc only calculating prob for 
-#     days nest was observed
-#     """
-#     # exp[hatched==True] = nDays[hatched==True] # do I need the ==True?
-
-    # allp   = np.array(range(1,len(ndata)), dtype=np.longdouble) # all nest probabilities 
-    # # alldof = np.array(range(1,len(ndata)), dtype=np.double) # all degrees of freedom
-    # # expo = calc_exp(inp=ndata[:,6:9], expPercent=0.4)
-    # expo = calc_exp(inp=ndata[:,4:7], expPercent=0.4)
-    # for n in range(len(ndata)-1): # want n to be the row NUMBER
-    #     alive_days = expo[n,0] - 1
-    #     final_int  = expo[n,1] - 1
-    #     # exposure   = expo[n,2] # does exposure ever get used in MARK?
-    #     if final_int > 0: # final int for hatched nests == 0
-    #         # if final_int==0 (hatched), s^final_int = 1, so prob=0?
-    #         p   = (s**alive_days)*(1-(s**final_int)) 
-    #         # p   = ne.evaluate('(s**alive_days)*(1-(s**final_int))') 
-    #         # dof = alive_days
-    #         #print(">> nest", inp[n,0], "failed. likelihood=", p)
-    #     else:
-    #         p   = s**alive_days
-    #         # p   = ne.evaluate('s**alive_days')
-    #         # dof = alive_days + 1
-    #         #print(">> nest", inp[n,0], "hatched. likelihood=", p)
-    #         # NOTE is it likelihood or probability??
-    #     allp[n]   = p # NOTE this line is throwing the Deprecation Warning
-    #     # apparently warning means that n is a 2d array, so need to index it
-    #     # never mind, apparently it's one dimensional 
-    #     # alldof[n] = dof
-
-    # return([allp, alldof])
-    # return(allp)
 # -----------------------------------------------------------------------------
 # def prog_mark(s, ndata, probs, nocc, con=config):
 # @profile
