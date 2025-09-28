@@ -2475,11 +2475,15 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
                 nVal = np.array([trueDSR, trueDSR_an, sum(discover), sum(exclude), sum(unknown), sum(misclass), flooded, hatched, nEx, repID, parID])  
                 like_val = np.concatenate((lVal, nVal))
                 colnames=config.colNames
-                if (trueDSR_an - lVal[1]) / trueDSR_an > 40:
+                # if (trueDSR_an - lVal[1]) / trueDSR_an > 40:
+                print("bias:",(trueDSR-lVal[1])/trueDSR)
+                if (trueDSR - lVal[1]) / trueDSR > 0.40:
 
+                    print("high bias")
                     np.save(f"{fdir}/nestdata_{parID:02}_{repID:02}_bias.npy", nestData1)
-                #else:
-                    #np.save(f"{fdir}/nestdata_{parID:02}_{repID:02}.npy", nestData1)
+                else:
+                    print("low bias")
+                    np.save(f"{fdir}/nestdata_{parID:02}_{repID:02}.npy", nestData1)
 
                 # if parID == 0 and like_val[17] == 0: # only the first line gets the header
                 if parID == 0 and like_val[12] == 0: # only the first line gets the header
