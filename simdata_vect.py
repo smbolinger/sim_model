@@ -140,8 +140,9 @@ for arg, val in opts:
         print("\n-------------------------------------------------------------------------------------------------------",
                "\nsimdata_vect.py usage:\n\n",
             #   "[-t --Test] Run in testing mode w/ smaller # of nests and reduced # of params? (Default:False)\n\n",
-              "[-t --Test] Choose testing mode w/ smaller # of nests and reduced # of params:\n",
-              "\t\t1. 'norm' - moderate values; 2. 'storm' - extremes of storm values; 3. 'no' (default)\n\n"
+              "[-t --Test] Choose testing mode w/ smaller # of nests and reduced # of params OR used fixed probs:\n",
+              "\t\t1.'norm' - moderate values; 2.'storm' - extremes of storm values;\n",
+              "\t\t3.'fixed' - use fixed values; 4.'fixedtest' - test of fixed; 5.'no' (default)\n\n",
               "[-d --Debug-general] Turn on simple/broad debugging statements? (Default:False)\n\n",
               "[-o --Options-debug] More specific print statements.\n",
                 "\t\t\tOptions: 'like','nest','mark','flood','obs'.\n",
