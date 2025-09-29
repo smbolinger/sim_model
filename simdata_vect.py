@@ -948,6 +948,7 @@ def assign_fate(assignVal, pWrong, fateCuesPresent, trueFate, numNests, obsFr, i
         
     assignedFate[fateProb < fateCuesPres] = trueFate[fateProb < fateCuesPres] 
     assignedFate[fateProb < pWrong] = assignVal # if fixed percentages turned off, pWrong == 0
+    if cn.debugObs: print(">> true fates:", trueFate, sum(trueFate))
     if cn.debugObs: print(">> assigned fates:", assignedFate, sum(assignedFate))
     if stormFate: assignedFate[intFinal > obsFr] = 2
     if cn.debugObs: 
