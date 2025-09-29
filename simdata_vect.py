@@ -54,26 +54,8 @@ class Params: # most importantly, Pylance recognizes the attributes, unlike
     # fateCues: np.float32
     stormFate:bool
     useSMat:  bool
-
-@dataclass # type-secure (can't accidentally pass wrong type) & can be immutable
-class Params2: # most importantly, Pylance recognizes the attributes, unlike 
-              # dict keys
-    numNests: int
-    # stormDur: int
-    # stormFrq: int
-    obsFreq:  int
-    hatchTime:int
-    brDays:   int
-    whichLike:int
-    probSurv: np.float32
-    # SprobSurv:np.float32
-    # pMortFl  :np.float32
-    discProb: np.float32
-    # fateCues: np.float32
-    stormFate:bool
-    useSMat:  bool
-    pWrong:   np.float32
-    wrongType:int
+    pWrong:   np.float32 
+    wType:    int   # type of incorrect fate value: 0, 2, 7
 
 @dataclass # type-secure (can't accidentally pass wrong type) & can be immutable
 class Config: 
@@ -257,8 +239,10 @@ def mk_fnames(suf:str, unique=True ):
         likeF.parent.mkdir(parents=True, exist_ok=True)
         
         # likeF = Path(Path.home()/'Dropbox/Models/sim_model/py_output/'/fname)
-    f_dir = "C:/Users/Sarah/Dropbox/Models/sim_model/py_output"
-    fpath = Path(f_dir/fname)
+    f_dir = "C:/Users/Sarah/Dropbox/Models/sim_model/py_output/"
+    # fpath = Path(f_dir/ fname)
+    fpath = f_dir + fname
+    # print(fpath)
     # with open('likeFile-name.txt', 'w' ) as f:
     lfname = Path(fdir / 'likeFile-name.txt')
     with open(lfname, 'w' ) as f:
@@ -413,7 +397,7 @@ staticPar = {'brDays': 180,
 
 # parLists = {'numNests' : [500,1000],
 # parLists = {'numNests' : [150, 300],
-fixedProbs = [0.05, 0.1, 0.2, 0.3]
+# fixedProbs = [0.05, 0.1, 0.2, 0.3]
 parLists = {'numNests' : [250, 500],
 # parLists = {'numNests' : [300],
             # 'probSurv' : [0.95, 0.97],
@@ -428,25 +412,21 @@ parLists = {'numNests' : [250, 500],
             # 'obsFreq'  : [7],
            'stormFate': [False,True],
             # 'hatchTime': [28] }
-            'hatchTime': [16, 20, 28] }
+            'hatchTime': [16, 20, 28], 
+            'pWrong':    [0],
+            'wType':     [-1] }
 
 parLists2 = {'numNests' : [250, 500],
 # parLists = {'numNests' : [300],
-            # 'probSurv' : [0.95, 0.97],
             'probSurv' : [0.96],
-            # 'pMortFl'  : [0.9, 0.75, 0.6], # flood/storm severity
-            # 'stormDur' : [3],
-            # 'stormDur' : [1, 2],
-            # 'stormFrq' : [5],
-            # 'stormFrq' : [1, 3, 5],
-            # 'stormFrq' : [1, 2, 3],
+            'pMortFl'  : [0], # flood/storm severity
+            'stormDur' : [0],
+            'stormFrq' : [0],
             'obsFreq'  : [3],
-            # 'obsFreq'  : [7],
            'stormFate': [False],
-            # 'hatchTime': [28] }
             'hatchTime': [16, 20, 28],
             'pWrong':    [0.05, 0.1, 0.2, 0.3],
-            'wrongType': [2, 7] }
+            'wType': [2, 7] }
 
 plTest  = {'numNests'  : [100],
 # plTest  = {'numNests'  : [50],
@@ -464,23 +444,16 @@ plTest  = {'numNests'  : [100],
             # 'useSMat'  : [True, False]
             # }
 
-plTest2 = {'numNests' : [250, 500],
-# parLists = {'numNests' : [300],
-            # 'probSurv' : [0.95, 0.97],
+plTest2 = {'numNests'  : [100],
             'probSurv' : [0.96],
-            # 'pMortFl'  : [0.9, 0.75, 0.6], # flood/storm severity
-            # 'stormDur' : [3],
-            # 'stormDur' : [1, 2],
-            # 'stormFrq' : [5],
-            # 'stormFrq' : [1, 3, 5],
-            # 'stormFrq' : [1, 2, 3],
+            'pMortFl'  : [0], # flood/storm severity
+            'stormDur' : [0],
+            'stormFrq' : [0],
             'obsFreq'  : [3],
-            # 'obsFreq'  : [7],
-           'stormFate': [False],
-            # 'hatchTime': [28] }
+            'stormFate': [False],
             'hatchTime': [16, 20, 28],
             'pWrong':    [0.05, 0.1, 0.2, 0.3],
-            'wrongType': [2, 7] }
+            'wType': [2, 7] }
 
 plTestFlood  = {'numNests'  : [100],
 # plTest  = {'numNests'  : [30],
@@ -500,18 +473,17 @@ plTestFlood  = {'numNests'  : [100],
 
 plDebug = {'numNests'  : [50],
 # plTest  = {'numNests'  : [30],
-               'probSurv'  : [0.96],
-           'pMortFl'   : [0.75],
-        #    'stormDur'  : [1, 3],
-           'stormDur'  : [2],
+           'probSurv':  [0.96],
+           'pMortFl':   [0.75],
+           'stormDur':  [1],
         #    'stormFrq'  : [1, 3],
-           'stormFrq'  : [1, 4],
-        #    'obsFreq'   : [3, 5],
-           'obsFreq'   : [3, 7],
-           'stormFate': [False,True],
-           'hatchTime' : [20] }
-        #    'hatchTime' : [16, 28]}
-            # 'useSMat'  : [True, False]
+           'stormFrq':  [0],
+        #    'obsFreq'   : [3, 7],
+           'obsFreq':   [3],
+           'stormFate': [False],
+           'hatchTime': [16, 28],
+           'pWrong':    [0.2],
+           'wType':     [7] }
             
 
 def mk_param_list(parList: Dict[str, list], fdir: str) -> list:
@@ -935,7 +907,8 @@ def assign_fixed(pWrong, wrongVal, trueFate, numNests, cn=config):
     assignedFate = trueFate
     if cn.debugObs: print(">> assigned fate before adding wrong assignments:", assignedFate)
     if wrongVal==2:
-        assignedFate[assignedFate==0 and probMC > pWrong] = 2
+        # assignedFate[assignedFate==0 and probMC > pWrong] = 2
+        assignedFate[assignedFate==0 and probMC < pWrong] = 2 # supposed to be hatched fates reassigned as fail
     elif wrongVal==7:
         assignedFate[probMC > pWrong] = 7
     if cn.debugObs: print(">> assigned fate after adding wrong assignments:", assignedFate)
@@ -946,7 +919,7 @@ def assign_fixed(pWrong, wrongVal, trueFate, numNests, cn=config):
 # -----------------------------------------------------------------------------
 # How does the observer assign nest fates? 
 # def assign_fate(assignType, fateCuesPresent, trueFate, numNests, obsFr, intFinal, stormFate, cn=config):
-def assign_fate(assignType, fateCuesPresent, trueFate, numNests, obsFr, intFinal, stormFate, cn=config):
+def assign_fate(assignVal, pWrong, fateCuesPresent, trueFate, numNests, obsFr, intFinal, stormFate, cn=config):
     """
     The observer assigns the correct fate based on a comparison of a set 
     probability to random draws from a uniform distribution. If observer is 
@@ -957,38 +930,30 @@ def assign_fate(assignType, fateCuesPresent, trueFate, numNests, obsFr, intFinal
         fateCuesProb=random values to compare
         fateCuesPres=probability of fate cues being present
             has different value if there was a storm in final interval.
+        if fate percentages are fixed, fateCuesPres should be the same (=1) for all
     
     Returns: vector w/ assigned fate for each nest
     """
     
-    # if assignType=="cues":
-    #     if cn.debugObs: print(">> assigning fates based on field cues")
-    #     assignedFate = assign_cues(fateCuesPresent, obsFr, trueFate, numNests, intFinal, stormFate)
-    # elif assignType=="unk":
-    #     if cn.debugObs: print(">> assigning fates based on percentage unknown")
-    #     assignedFate = assign_unknown()
-    # elif assignType=="mis":
-    #     if cn.debugObs: print(">> assigning fates based on percentage wrong")
-    #     assignedFate = assign_wrong()
-    # else:
-    #     print(">> assign type invalid")
     assignedFate = np.zeros(numNests) # if there was no storm in the final interval, correct fate is assigned 
     assignedFate.fill(7) # default is unknown; fill with known fates if field cues allow
 
-    fateCuesProb = rng.uniform(low=0, high=1, size=numNests)
+    fateProb = rng.uniform(low=0, high=1, size=numNests)
     fateCuesPres = np.zeros(numNests)
     fateCuesPres.fill(fateCuesPresent)
     # fateCuesPres[intFinal==True] = 0.1
     fateCuesPres[intFinal > obsFr] = 0.1 # nests with longer final interval have lower chance of cues
     # if cn.debugObs: print("compare fateCuesPres with a random probability:", fateCuesPres, fateCuesProb)
         
-    assignedFate[fateCuesProb < fateCuesPres] = trueFate[fateCuesProb < fateCuesPres] 
+    assignedFate[fateProb < fateCuesPres] = trueFate[fateProb < fateCuesPres] 
+    assignedFate[fateProb < pWrong] = assignVal # if fixed percentages turned off, pWrong == 0
     if cn.debugObs: print(">> assigned fates:", assignedFate, sum(assignedFate))
     if stormFate: assignedFate[intFinal > obsFr] = 2
     if cn.debugObs: 
         print(">> compare random probs to fateCuesPresent:\n", 
-              [fateCuesProb,fateCuesPres], 
-              fateCuesProb.shape)
+              [fateProb,fateCuesPres], 
+              fateProb.shape)
+        print(f">> or to pWrong: {pWrong} with fill value: {assignVal}")
         print(">> nests with storm in final interval:", np.where(intFinal>obsFr))
         print(">> storm fate == True?", stormFate)
         print(">> assigned fates after storm fates assigned:", assignedFate, sum(assignedFate))
@@ -1029,12 +994,12 @@ def observer(nData, par, cues, surveys, out, cn=config):
     cols= i, j, k, assigned fate, num *normal* obs ints, intFinal
     """
     initiation, end, fate = nData[:,1], nData[:,2], nData[:,3]
-    numNests, obsFreq, discProb, stormFate = par # unpack par
+    # numNests, obsFreq, discProb, stormFate, wType, pWrong = par # unpack par
     surveyDays, surveyInts = surveys
 
     pos = svy_position(initiation, end, surveys[0])
     num_svy          = pos[1] - pos[0]   
-    svysTilDiscovery = rng.negative_binomial(n=1, p=discProb, size=numNests) # see above for explanation of p 
+    svysTilDiscovery = rng.negative_binomial(n=1, p=par.discProb, size=par.numNests) # see above for explanation of p 
     discovered       = svysTilDiscovery < num_svy
     num_svy[~discovered] = 0
     # stormIntFinal    = surveyInts[pos[1]] > obsFreq  # was obs interval longer than usual? (== there was a storm)
@@ -1045,10 +1010,10 @@ def observer(nData, par, cues, surveys, out, cn=config):
     out[:,0] = surveyDays[pos[0]+svysTilDiscovery] # i
     out[:,1][discovered] = jVal[discovered] 
     out[:,2][discovered] = kVal[discovered]
-    if config.fateType=="fixed":
-        out[:,3] = assign_fixed(pWrong=par.pWrong, wrongVal=par.wrongType, trueFate=fate, numNests=numNests)
-    else:
-        out[:,3] = assign_fate(cues, fate, numNests, obsFreq, intFinal, stormFate)
+    # if config.fateType=="fixed":
+        # out[:,3] = assign_fixed(pWrong=par.pWrong, wrongVal=par.wType, trueFate=fate, numNests=numNests)
+    # else:
+    out[:,3] = assign_fate(par.wType, par.pWrong, cues, fate, par.numNests, par.obsFreq, intFinal, par.stormFate)
     out[:,4] = num_svy - svysTilDiscovery  # number of observations for the nest
     out[:,5] = intFinal.astype(int) # length of final interval - transform to integer for the ndarray
     if cn.debugObs: 
@@ -1090,8 +1055,9 @@ def make_obs(par, storm, survey, config=config):
     if config.debugNests: print("hatched (before storms)=", hatched, sum(hatched))
     nData      = mk_fates(nData, par.numNests, hatched, stormDat, storm)
     # ---- observer: ---------------------------------------------------------
-    par2      = [par.numNests, par.obsFreq, par.discProb, par.stormFate]
-    obs       = observer(nData, par=par2, cues=fateCues, surveys=survey, out=nd2)
+    # par2      = [par.numNests, par.obsFreq, par.discProb, par.stormFate, par.wType, par.pWrong]
+    # obs       = observer(nData, par=par2, cues=fateCues, surveys=survey, out=nd2)
+    obs       = observer(nData, par=par, cues=fateCues, surveys=survey, out=nd2)
     # ---- concatenate to make data for the nest models: ---------------------
     nestData = np.concatenate((nData, 
                             #    np.zeros((par.numNests,4)),
@@ -2378,6 +2344,7 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
         lf_suffix = "-flood"
         print("using storm test values. global debug = ", debug)
     elif testing=="debug":
+        print("CHECK THE DEBUG VALUES!!")
         config.nreps=10
         debug=True
         pList=plDebug
