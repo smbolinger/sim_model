@@ -2352,6 +2352,11 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
         lf_suffix="-debug"
     elif testing=="fixed":
         pList=parLists2
+        lf_suffix="-fixed"
+    elif testing=="fixedtest":
+        config.nreps=50
+        pList=plTest2
+        lf_suffix="-fixed-test"
     else:
         # pList = parLists # don't need to update any settings if not testing?
         print("testing val invalid")
