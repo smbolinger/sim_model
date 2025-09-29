@@ -1045,6 +1045,8 @@ def make_obs(par, storm, survey, config=config):
     nd2      = np.zeros(shape=(par.numNests, 6), dtype=int)
     # fateCues directly correlates to obsFreq, so doesn't need to be param
     fateCues   = 0.65 if par.obsFreq > 5 else 0.71 if par.obsFreq == 5 else 0.75
+    if par.pWrong > 0: fateCues=1
+    if debug: print("probability that fate cues are present:", fateCues)
     # NOTE should I make sure all nests live for at least a day?
     # ---- make the nests: ---------------------------------------------------
     nData          = mk_nests(par=par, nestData=nd)
