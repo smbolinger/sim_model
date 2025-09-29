@@ -936,8 +936,11 @@ def assign_fate(assignVal, pWrong, fateCuesPresent, trueFate, numNests, obsFr, i
     Returns: vector w/ assigned fate for each nest
     """
     
-    assignedFate = np.zeros(numNests) # if there was no storm in the final interval, correct fate is assigned 
-    assignedFate.fill(7) # default is unknown; fill with known fates if field cues allow
+    # assignedFate = np.zeros(numNests) # if there was no storm in the final interval, correct fate is assigned 
+    # assignedFate = trueFate
+    # assignedFate.fill(7) # default is unknown; fill with known fates if field cues allow
+    assignedFate=np.empty(numNests)
+    assignedFate.fill(7)
 
     fateProb = rng.uniform(low=0, high=1, size=numNests)
     fateCuesPres = np.zeros(numNests)
@@ -958,7 +961,7 @@ def assign_fate(assignVal, pWrong, fateCuesPresent, trueFate, numNests, obsFr, i
         print(f">> or to pWrong: {pWrong} with fill value: {assignVal}")
         print(">> nests with storm in final interval:", np.where(intFinal>obsFr))
         print(">> storm fate == True?", stormFate)
-        print(">> assigned fates after storm fates assigned:", assignedFate, sum(assignedFate))
+        print(">> assigned fates after storm fates assigned:", assignedFate, len(assignedFate))
     # fate cues prob should be affecting all nest fates equally, not just failures.
     # if debug: print(">> proportion of nests assigned hatch fate:", np.sum((assignedFate==0)[discovered==True])/(sum(discovered==True)),"vs period survival:", pSurv**hatchTime)
     # print(">> assigned fate array & its shape:\n", assignedFate, assignedFate.shape)
@@ -1046,7 +1049,7 @@ def make_obs(par, storm, survey, config=config):
     # fateCues directly correlates to obsFreq, so doesn't need to be param
     fateCues   = 0.65 if par.obsFreq > 5 else 0.71 if par.obsFreq == 5 else 0.75
     if par.pWrong > 0: fateCues=1
-    if debug: print("probability that fate cues are present:", fateCues)
+    if debug: print("pWrong:", par.pWrong,"& probability that fate cues are present:", fateCues)
     # NOTE should I make sure all nests live for at least a day?
     # ---- make the nests: ---------------------------------------------------
     nData          = mk_nests(par=par, nestData=nd)
