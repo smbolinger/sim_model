@@ -453,7 +453,8 @@ plTest2 = {'numNests'  : [100],
             'obsFreq'  : [3],
             'stormFate': [False],
             'hatchTime': [16, 20, 28],
-            'pWrong':    [0.05, 0.1, 0.2, 0.3],
+            # 'pWrong':    [0.05, 0.1, 0.2, 0.3],
+            'pWrong':    [0.1, 0.2, 0.3, 0.4],
             'wType': [2, 7] }
 
 plTestFlood  = {'numNests'  : [100],
