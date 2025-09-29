@@ -56,6 +56,26 @@ class Params: # most importantly, Pylance recognizes the attributes, unlike
     useSMat:  bool
 
 @dataclass # type-secure (can't accidentally pass wrong type) & can be immutable
+class Params2: # most importantly, Pylance recognizes the attributes, unlike 
+              # dict keys
+    numNests: int
+    # stormDur: int
+    # stormFrq: int
+    obsFreq:  int
+    hatchTime:int
+    brDays:   int
+    whichLike:int
+    probSurv: np.float32
+    # SprobSurv:np.float32
+    # pMortFl  :np.float32
+    discProb: np.float32
+    # fateCues: np.float32
+    stormFate:bool
+    useSMat:  bool
+    pWrong:   np.float32
+    wrongType:int
+
+@dataclass # type-secure (can't accidentally pass wrong type) & can be immutable
 class Config: 
     """
     use different debug var bc these will print for every time optimizer runs
@@ -149,11 +169,11 @@ for arg, val in opts:
                 )
         sys.exit()
     # if arg == "-v": verbose = True
-    elif arg in ("-t", "--Test"):
+    elif arg in ("-t", "--Type"):
         # config.testing = True
         config.testing = val
         # print("Config - test mode:", config.testing)
-        print("Config - test mode:", config.testing)
+        print("Config - mode:", config.testing)
     elif arg in ("-d", "--Debug-general"):
         config.debug = True
         print("Config - debug mode (general):", config.debug)
@@ -387,11 +407,13 @@ staticPar = {'brDays': 180,
              'whichLike': 1,
             #  'stormFate': True,
              'useSMat': False
+            #  'pWrong'
             #  'fCuesPresent': 0.7
              }
 
 # parLists = {'numNests' : [500,1000],
 # parLists = {'numNests' : [150, 300],
+fixedProbs = [0.05, 0.1, 0.2, 0.3]
 parLists = {'numNests' : [250, 500],
 # parLists = {'numNests' : [300],
             # 'probSurv' : [0.95, 0.97],
@@ -408,6 +430,24 @@ parLists = {'numNests' : [250, 500],
             # 'hatchTime': [28] }
             'hatchTime': [16, 20, 28] }
 
+parLists2 = {'numNests' : [250, 500],
+# parLists = {'numNests' : [300],
+            # 'probSurv' : [0.95, 0.97],
+            'probSurv' : [0.96],
+            # 'pMortFl'  : [0.9, 0.75, 0.6], # flood/storm severity
+            # 'stormDur' : [3],
+            # 'stormDur' : [1, 2],
+            # 'stormFrq' : [5],
+            # 'stormFrq' : [1, 3, 5],
+            # 'stormFrq' : [1, 2, 3],
+            'obsFreq'  : [3],
+            # 'obsFreq'  : [7],
+           'stormFate': [False],
+            # 'hatchTime': [28] }
+            'hatchTime': [16, 20, 28],
+            'pWrong':    [0.05, 0.1, 0.2, 0.3],
+            'wrongType': [2, 7] }
+
 plTest  = {'numNests'  : [100],
 # plTest  = {'numNests'  : [50],
            'probSurv'  : [0.96],
@@ -423,6 +463,24 @@ plTest  = {'numNests'  : [100],
         #    'hatchTime' : [20],
             # 'useSMat'  : [True, False]
             # }
+
+plTest2 = {'numNests' : [250, 500],
+# parLists = {'numNests' : [300],
+            # 'probSurv' : [0.95, 0.97],
+            'probSurv' : [0.96],
+            # 'pMortFl'  : [0.9, 0.75, 0.6], # flood/storm severity
+            # 'stormDur' : [3],
+            # 'stormDur' : [1, 2],
+            # 'stormFrq' : [5],
+            # 'stormFrq' : [1, 3, 5],
+            # 'stormFrq' : [1, 2, 3],
+            'obsFreq'  : [3],
+            # 'obsFreq'  : [7],
+           'stormFate': [False],
+            # 'hatchTime': [28] }
+            'hatchTime': [16, 20, 28],
+            'pWrong':    [0.05, 0.1, 0.2, 0.3],
+            'wrongType': [2, 7] }
 
 plTestFlood  = {'numNests'  : [100],
 # plTest  = {'numNests'  : [30],
@@ -987,7 +1045,10 @@ def observer(nData, par, cues, surveys, out, cn=config):
     out[:,0] = surveyDays[pos[0]+svysTilDiscovery] # i
     out[:,1][discovered] = jVal[discovered] 
     out[:,2][discovered] = kVal[discovered]
-    out[:,3] = assign_fate(cues, fate, numNests, obsFreq, intFinal, stormFate)
+    if config.fateType=="fixed":
+        out[:,3] = assign_fixed(pWrong=par.pWrong, wrongVal=par.wrongType, trueFate=fate, numNests=numNests)
+    else:
+        out[:,3] = assign_fate(cues, fate, numNests, obsFreq, intFinal, stormFate)
     out[:,4] = num_svy - svysTilDiscovery  # number of observations for the nest
     out[:,5] = intFinal.astype(int) # length of final interval - transform to integer for the ndarray
     if cn.debugObs: 
@@ -2286,6 +2347,7 @@ def print_nest_info(nestData, discover, exclude):
 # def main(fnUnique, testing=config.testing, deb="none", debN="none", debS="none", config=config, pStatic=staticPar):
 # def main(fnUnique, debugOpt, testing=config.testing, config=config, pStatic=staticPar): # calls config too early
 # @profile
+# def main(fnUnique, debugOpt, testing, pList, config=config, pStatic=staticPar):
 def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
     """
     Debug options:
@@ -2296,6 +2358,7 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
         Otherwise, just the date.
     """
     lf_suffix=""
+    pList = parLists
     # these if-else statements only run once:
     if testing == "norm":
         config.nreps=400
@@ -2319,8 +2382,11 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
         debug=True
         pList=plDebug
         lf_suffix="-debug"
+    elif testing=="fixed":
+        pList=parLists2
     else:
-        pList = parLists # don't need to update any settings if not testing?
+        # pList = parLists # don't need to update any settings if not testing?
+        print("testing val invalid")
     # set_debug(deb=deb, debN=debN, debS=debS)
     if debugOpt != None:
     # if deb:
