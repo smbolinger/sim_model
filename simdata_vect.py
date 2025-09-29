@@ -237,8 +237,13 @@ def mk_fnames(suf:str, unique=True ):
         likeF.parent.mkdir(parents=True, exist_ok=True)
         
         # likeF = Path(Path.home()/'Dropbox/Models/sim_model/py_output/'/fname)
-    with open('likeFile-name.txt', 'w' ) as f:
-        f.write(str(likeF))
+    f_dir = "C:/Users/Sarah/Dropbox/Models/sim_model/py_output"
+    fpath = Path(f_dir/fname)
+    # with open('likeFile-name.txt', 'w' ) as f:
+    lfname = Path(fdir / 'likeFile-name.txt')
+    with open(lfname, 'w' ) as f:
+        # f.write(str(likeF))
+        f.write(str(fpath))
     column_names = np.array([
         # 'mark_s', 'psurv_est', 'ppred_est', 'pfl_est', 'ss_est', 'mps_est', 'mfs_est',
         'mark_s', 'psurv_est', 'ppred_est',
@@ -258,6 +263,7 @@ def mk_fnames(suf:str, unique=True ):
         # 'obs_int', 'num_discovered','num_excluded', 'exception'
         ])
     colnames = ', '.join([str(x) for x in column_names]) # needs to be string
+
     # saveNames = dict(
     #     likeFile   = likeF,
     #     dirName    = datetime.today().strftime('%m%d%Y_%H%M%S'),
@@ -449,7 +455,7 @@ plDebug = {'numNests'  : [50],
             # 'useSMat'  : [True, False]
             
 
-def mk_param_list(parList: Dict[str, list]) -> list:
+def mk_param_list(parList: Dict[str, list], fdir: str) -> list:
     """
     Take the dictionary of lists of param values, then unpack the lists to a 
     list of lists. Then feed this list of lists to itertools.product using *.
@@ -467,7 +473,9 @@ def mk_param_list(parList: Dict[str, list]) -> list:
     listVal = [parList[key] for key in parList]
     p_List = list(itertools.product(*listVal))
     # print(p_List)
-    with open("param-lists-4.csv", 'w', newline='') as f:
+    plfile = Path(fdir / "param-lists.csv")
+    # with open("param-lists-4.csv", 'w', newline='') as f:
+    with open(plfile, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerows(p_List)
     # p_List = list(product(parList)) # doesn't work either; just gets keys
@@ -2264,7 +2272,7 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
         lf_suffix = "-flood"
         print("using storm test values. global debug = ", debug)
     elif testing=="debug":
-        config.nreps=100
+        config.nreps=10
         debug=True
         pList=plDebug
         lf_suffix="-debug"
@@ -2285,7 +2293,7 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
     config.colNames = fname[1]
     print(config)
     with open(config.likeFile, "wb") as f: # doesn't need to be 'a' bc file is open
-        paramsArray = mk_param_list(parList=pList)
+        paramsArray = mk_param_list(parList=pList, fdir=fdir)
         # if debug: print(f">>>> there will be {len(paramsArray)*config.nreps} total rows")
         print(f">>>> there will be {len(paramsArray)} param sets & {len(paramsArray)*config.nreps} total rows")
         parID       = 0
@@ -2338,6 +2346,7 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
                 # print("bias:",(trueDSR-lVal[1])/trueDSR)
                 # newL = np.zeros((par.numNests, 2))
                 # newL = np.zeros(2)
+                # fdir  = fname[0].parent
                 # if (trueDSR - lVal[1]) / trueDSR > 0.40:
 
                     # print("still high bias")
