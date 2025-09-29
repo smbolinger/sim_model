@@ -2359,7 +2359,7 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
         lf_suffix="-fixed-test"
     else:
         # pList = parLists # don't need to update any settings if not testing?
-        print("testing val invalid")
+        print("testing val invalid, using full param lists")
     # set_debug(deb=deb, debN=debN, debS=debS)
     if debugOpt != None:
     # if deb:
