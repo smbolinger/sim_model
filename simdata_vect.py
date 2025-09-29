@@ -856,6 +856,36 @@ def mk_fates(nestDat, numNests, hatched,stormInfo, stormDays, con=config):
 # def observer(discProb, numNests, fates, surveyDays, nData, out):
 # def observer(discProb, numNests, fateCues, obsFreq, fates, surveyDays, nData, out):
 # -----------------------------------------------------------------------------
+# def assign_fixed(assignType, trueFate, numNests, cn=config):
+def assign_fixed(pWrong, wrongVal, trueFate, numNests, cn=config):
+    """
+    Inputs
+    ------
+    pWrong = fixed probability of assigning inaccurate fate
+    wrongVal = type of wrong fate assigned. 2=flooded, 7=unknown, 0=hatched
+    
+    Usage
+    -----
+    Compares a randomly generated probability (probMC) to pWrong to decide whether nest fate is incorrectly assigned.
+    
+    Returns
+    ------
+    assignedFate - vector of assigned fates modified to include inaccuracies
+    """
+    probMC = rng.uniform(low=0, high=1, size=numNests)    
+    if cn.debugObs: print(">> random probabilities to compare to pWrong:", probMC)
+    assignedFate = trueFate
+    if cn.debugObs: print(">> assigned fate before adding wrong assignments:", assignedFate)
+    if wrongVal==2:
+        assignedFate[assignedFate==0 and probMC > pWrong] = 2
+    elif wrongVal==7:
+        assignedFate[probMC > pWrong] = 7
+    if cn.debugObs: print(">> assigned fate after adding wrong assignments:", assignedFate)
+        
+    return(assignedFate)
+    
+    
+# -----------------------------------------------------------------------------
 # How does the observer assign nest fates? 
 # def assign_fate(assignType, fateCuesPresent, trueFate, numNests, obsFr, intFinal, stormFate, cn=config):
 def assign_fate(assignType, fateCuesPresent, trueFate, numNests, obsFr, intFinal, stormFate, cn=config):
@@ -873,48 +903,23 @@ def assign_fate(assignType, fateCuesPresent, trueFate, numNests, obsFr, intFinal
     Returns: vector w/ assigned fate for each nest
     """
     
-    if assignType=="cues":
-        if cn.debugObs: print(">> assigning fates based on field cues")
-        assignedFate = assign_cues(fateCuesPresent, obsFr, numNests, trueFate, intFinal, stormFate)
-    elif assignType=="unk":
-        if cn.debugObs: print(">> assigning fates based on percentage unknown")
-        assignedFate = assign_unknown()
-    elif assignType=="mis":
-        if cn.debugObs: print(">> assigning fates based on percentage wrong")
-        assignedFate = assign_wrong()
-    else:
-        print(">> assign type invalid")
-    # assignedFate = np.zeros(numNests) # if there was no storm in the final interval, correct fate is assigned 
-    # assignedFate.fill(7) # default is unknown; fill with known fates if field cues allow
-
-    # fateCuesProb = rng.uniform(low=0, high=1, size=numNests)
-    # fateCuesPres = np.zeros(numNests)
-    # fateCuesPres.fill(fateCuesPresent)
-    # # fateCuesPres[intFinal==True] = 0.1
-    # fateCuesPres[intFinal > obsFr] = 0.1 # nests with longer final interval have lower chance of cues
-    # # if cn.debugObs: print("compare fateCuesPres with a random probability:", fateCuesPres, fateCuesProb)
-        
-    # assignedFate[fateCuesProb < fateCuesPres] = trueFate[fateCuesProb < fateCuesPres] 
-    # if cn.debugObs: print(">> assigned fates:", assignedFate, sum(assignedFate))
-    # if stormFate: assignedFate[intFinal > obsFr] = 2
-    # if cn.debugObs: 
-    #     print(">> compare random probs to fateCuesPresent:\n", 
-    #           [fateCuesProb,fateCuesPres], 
-    #           fateCuesProb.shape)
-    #     print(">> nests with storm in final interval:", np.where(intFinal>obsFr))
-    #     print(">> storm fate == True?", stormFate)
-    #     print(">> assigned fates after storm fates assigned:", assignedFate, sum(assignedFate))
-    # fate cues prob should be affecting all nest fates equally, not just failures.
-    # if debug: print(">> proportion of nests assigned hatch fate:", np.sum((assignedFate==0)[discovered==True])/(sum(discovered==True)),"vs period survival:", pSurv**hatchTime)
-    # print(">> assigned fate array & its shape:\n", assignedFate, assignedFate.shape)
-    return(assignedFate)
-# -----------------------------------------------------------------------------
-def assign_cues(fateCues, obsFr, numNests, trueFate, intFinal, stormFate, cn=config):
+    # if assignType=="cues":
+    #     if cn.debugObs: print(">> assigning fates based on field cues")
+    #     assignedFate = assign_cues(fateCuesPresent, obsFr, trueFate, numNests, intFinal, stormFate)
+    # elif assignType=="unk":
+    #     if cn.debugObs: print(">> assigning fates based on percentage unknown")
+    #     assignedFate = assign_unknown()
+    # elif assignType=="mis":
+    #     if cn.debugObs: print(">> assigning fates based on percentage wrong")
+    #     assignedFate = assign_wrong()
+    # else:
+    #     print(">> assign type invalid")
     assignedFate = np.zeros(numNests) # if there was no storm in the final interval, correct fate is assigned 
     assignedFate.fill(7) # default is unknown; fill with known fates if field cues allow
+
     fateCuesProb = rng.uniform(low=0, high=1, size=numNests)
     fateCuesPres = np.zeros(numNests)
-    fateCuesPres.fill(fateCues)
+    fateCuesPres.fill(fateCuesPresent)
     # fateCuesPres[intFinal==True] = 0.1
     fateCuesPres[intFinal > obsFr] = 0.1 # nests with longer final interval have lower chance of cues
     # if cn.debugObs: print("compare fateCuesPres with a random probability:", fateCuesPres, fateCuesProb)
@@ -929,33 +934,10 @@ def assign_cues(fateCues, obsFr, numNests, trueFate, intFinal, stormFate, cn=con
         print(">> nests with storm in final interval:", np.where(intFinal>obsFr))
         print(">> storm fate == True?", stormFate)
         print(">> assigned fates after storm fates assigned:", assignedFate, sum(assignedFate))
+    # fate cues prob should be affecting all nest fates equally, not just failures.
+    # if debug: print(">> proportion of nests assigned hatch fate:", np.sum((assignedFate==0)[discovered==True])/(sum(discovered==True)),"vs period survival:", pSurv**hatchTime)
+    # print(">> assigned fate array & its shape:\n", assignedFate, assignedFate.shape)
     return(assignedFate)
-# -----------------------------------------------------------------------------
-# def assign_wrong(par, trueFate ):
-def assign_wrong(pWrong, numNests, trueFate, cn=config):
-    # assignedFate = np.zeros(numNests) # if there was no storm in the final interval, correct fate is assigned 
-    probMC = rng.uniform(low=0, high=1, size=numNests)    
-    if cn.debugObs: print(">> random probabilities to compare to pWrong:", probMC)
-    assignedFate = trueFate
-    if cn.debugObs: print(">> assigned fate before adding wrong assignments:", assignedFate)
-    assignedFate[assignedFate==0 and probMC > pWrong] = 2
-    if cn.debugObs: print(">> assigned fate after adding wrong assignments:", assignedFate)
-        
-    return(assignedFate)
-
-    
-    
-# -----------------------------------------------------------------------------
-def assign_unknown(pUnknown, numNests, trueFate, cn=config):
-    probU = rng.uniform(low=0, high=1, size=par.numNests)
-    if cn.debugObs: print(">> random probabilities to compare to pUnknown:", probU)
-    assignedFate = trueFate
-    if cn.debugObs: print(">> assigned fate before adding wrong assignments:", assignedFate)
-    assignedFate[assignedFate==0 and probMC > pWrong] = 2
-    if cn.debugObs: print(">> assigned fate after adding wrong assignments:", assignedFate)
-
-    return(assignedFate)
-
 # -----------------------------------------------------------------------------
 def svy_position(initiation, nestEnd, surveyDays, cn=config):
     """ Finds index in surveyDays of iniatiation and end dates for each nest """
