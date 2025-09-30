@@ -56,7 +56,6 @@ class Params: # most importantly, Pylance recognizes the attributes, unlike
     useSMat:  bool
     pWrong:   np.float32 
     wType:    int   # type of incorrect fate value: 0, 2, 7
-
 @dataclass # type-secure (can't accidentally pass wrong type) & can be immutable
 class Config: 
     """
@@ -81,20 +80,8 @@ class Config:
     colNames:    str
     numOut:      int
 
-# for i, arg in enumerate(sys.argv):
-    # print(f"Argument {i}: {arg}")
- # use different debug var bc these will print for every time optimizer runs
-# debugList = dict( debug_nest = False,
-                #   debug_obs = False, 
-                #   debugLL = False, 
-                #   debug = False,
-                #   debugM = False,
-                #   debugL = False )
-# fname=mk_fnames() # since function uses datetime, make sure to only call once
 rng = np.random.default_rng(seed=102891)
-# rng = np.random.default_rng(seed=82985)
-# config = Config(rng         = np.random.default_rng(seed=102891), 
-# config = Config(args        = sys.argv, 
+
 config = Config(nreps       = 500, 
 # config = Config(nreps       = 1, 
                 debug       = False, 
@@ -114,13 +101,7 @@ config = Config(nreps       = 500,
                 # numOut      = 21)
                 # numOut      = 18)
                 numOut      = 11)
-# if config.useWSL:
-#     storm_init = "/mnt/c/Users/Sarah/Dropbox/Models/sim_model/storm_init3.csv"
-#     like_f_dir  =  "/mnt/c/Users/Sarah/Dropbox/Models/sim_model/py_output"
-# else:
-#     storm_init = "C:/Users/Sarah/Dropbox/Models/sim_model/storm_init3.csv" 
-#     like_f_dir  = "C:/Users/Sarah/Dropbox/Models/sim_model/py_output"
-# import getopt, sys
+
 try:
     # arguments, values = getopt.getopt(args, options, optVal)
     # 'o' takes an argument, so has ':'
@@ -172,20 +153,12 @@ for arg, val in opts:
 print("debug options:", debugTypes)
 debug = config.debug
 print(debug)
-# v = debugList.values() #test
 # now        = datetime.today().strftime('%m%d%Y_%H%M%S')
 like_f_dir = "C:/Users/Sarah/Dropbox/Models/sim_model/py_output"
 storm_init = "C:/Users/Sarah/Dropbox/Models/sim_model/storm_init3.csv" 
 fnUnique   = False
 if config.useWSL:
-    # storm_init = "/mnt/c/Users/Sarah/Dropbox/Models/sim_model/storm_init3.csv"
-    # like_f_dir = "/mnt/c/Users/Sarah/Dropbox/Models/sim_model/py_output"
-    # storm_init = "~/projects/sim_data/storm_init3.csv"
-    # like_f_dir = "~/proojects/sim_data/out"
-    # tilde means nothing within a string
-    #storm_init = "/home/wodehouse/projects/sim_data/storm_init3.csv"
     storm_init = "/home/wodehouse/projects/sim_model/storm_init3.csv"
-    #like_f_dir = "/home/wodehouse/projects/sim_data/out"
     like_f_dir = "/home/wodehouse/projects/sim_model/out"
     fnUnique   = True
 # -----------------------------------------------------------------------------
@@ -207,9 +180,6 @@ def uniquify(path):
 
     return path
 # -----------------------------------------------------------------------------
-# def mk_dname(suf, unique=True):
-
-# def mk_fnames(like_f_dir, unique=True ):
 def mk_fnames(suf:str, unique=True ):
     """
     1. Create a directory w/ a unique name using datetime.today() & uniquify().
@@ -350,7 +320,6 @@ def init_from_csv(file):
     return(ret)
     # return(initProb)
 # -----------------------------------------------------------------------------
-# def sprob_from_csv( file=storm_init):
 def sprob_from_csv(file):
         # file="C:/Users/Sarah/Dropbox/Models/sim_model/storm_init3.csv"):
     """
@@ -373,7 +342,6 @@ def sprob_from_csv(file):
     if debug: print(">> week start date: storm probability =\n",ret)
     return(ret)
 # -----------------------------------------------------------------------------
-# -----------------------------------------------------------------------------
 #   NEST MODEL PARAMETERS:
 #region-----------------------------------------------------------------------
 # NOTE the main problem is that my fate-masking variable (storm activity) also 
@@ -381,44 +349,30 @@ def sprob_from_csv(file):
 # NOTE 2: how many varying params is a reasonable number?
 # staticPar = {'nruns': 1,
 # These are the values that are passed to the Params class
+
 initDat=init_from_csv(storm_init) # this will evaluate after storm_init has been changed for wsl
 stormDat=sprob_from_csv(storm_init) # is evaluated later, can account for wsl filenames
 
-
 staticPar = {'brDays': 180,
              'SprobSurv': 0.2, # never actually used
-            #  'pMortFl': 0.1,
              'discProb': 0.7,
              'whichLike': 1,
             #  'stormFate': True,
-             'useSMat': False
-            #  'pWrong'
-            #  'fCuesPresent': 0.7
-             }
+             'useSMat': False }
 
-# parLists = {'numNests' : [500,1000],
-# parLists = {'numNests' : [150, 300],
-# fixedProbs = [0.05, 0.1, 0.2, 0.3]
 parLists = {'numNests' : [250, 500],
-# parLists = {'numNests' : [300],
             # 'probSurv' : [0.95, 0.97],
             'probSurv' : [0.96],
             'pMortFl'  : [0.9, 0.75, 0.6], # flood/storm severity
-            # 'stormDur' : [3],
             'stormDur' : [1, 2],
-            # 'stormFrq' : [5],
-            # 'stormFrq' : [1, 3, 5],
             'stormFrq' : [1, 2, 3, 4],
             'obsFreq'  : [3, 5, 7],
-            # 'obsFreq'  : [7],
            'stormFate': [False,True],
-            # 'hatchTime': [28] }
             'hatchTime': [16, 20, 28], 
             'pWrong':    [0],
             'wType':     [-1] }
 
 parLists2 = {'numNests' : [250, 500],
-# parLists = {'numNests' : [300],
             'probSurv' : [0.96],
             'pMortFl'  : [0], # flood/storm severity
             'stormDur' : [0],
@@ -487,7 +441,12 @@ plDebug = {'numNests'  : [50],
            'pWrong':    [0.2],
            'wType':     [7] }
             
-
+#endregion--------------------------------------------------------------------
+#   FUNCTIONS
+# -----------------------------------------------------------------------------
+# Some are very small and specific (e.g. logistic function); others are 
+# quite involved.
+# -----------------------------------------------------------------------------
 def mk_param_list(parList: Dict[str, list], fdir: str) -> list:
     """
     Take the dictionary of lists of param values, then unpack the lists to a 
@@ -495,37 +454,29 @@ def mk_param_list(parList: Dict[str, list], fdir: str) -> list:
     
     Can also uncomment some code to write entire set of param lists to csv.
     
-    Returns: a list of dicts representing all possible param combos, with keys!
+    Returns
+    -----
+    a list of dicts representing all possible param combos, with keys!
+    
+    Notes
+    -----
+    product takes any number of iterables as input;
+    input in the original is a bunch of lists;
+    output in the original is a list of tuples
+
     """
-    # product takes any number of iterables as input
-    # input in the original is a bunch of lists
-    # output in the original is a list of tuples
-    # listVal = parList.values() # doesn't seem to be what i want
-    # p_List = list(product(parList.values()))
     print(f"using the {parList} params lists")
     listVal = [parList[key] for key in parList]
     p_List = list(itertools.product(*listVal))
     # print(p_List)
     plfile = Path(fdir / "param-lists.csv")
-    # with open("param-lists-4.csv", 'w', newline='') as f:
     with open(plfile, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerows(p_List)
-    # p_List = list(product(parList)) # doesn't work either; just gets keys
     # make this list of lists into a list of dicts with the original keys 
     paramsList = [dict(zip(parList.keys(), p_List[x])) for x in range(len(p_List))]
     
     return(paramsList)
-# pl = mk_param_list(parList=plTest) # test
-#endregion---------------------------------------------------------------------
-#   SAVE FILES 
-#region-----------------------------------------------------------------------
-# name for unique directory to hold all output:
-#endregion--------------------------------------------------------------------
-#   FUNCTIONS
-# -----------------------------------------------------------------------------
-# Some are very small and specific (e.g. logistic function); others are 
-# quite involved.
 # def stormGen(frq, dur, wStart, pStorm):
 def stormGen(frq, dur):
         # file="/mnt/c/Users/Sarah/Dropbox/Models/sim_model/storm_init3.csv"
@@ -606,13 +557,8 @@ def mk_surveys(stormDays, obsFreq, breedingDays):
 # -----------------------------------------------------------------------------
 # ------ NEST DATA HELPER FUNCTIONS -------------------------------------------
 # -----------------------------------------------------------------------------
-# def mk_init(weekStart, initProb, numNests):
 # @profile
 def mk_init(numNests):
-        # file="/mnt/c/Users/Sarah/Dropbox/Models/sim_model/storm_init3.csv"
-        # )): 
-    # initDat=init_from_csv(storm_init) # this will evaluate after storm_init has been changed for wsl
-    # initWeek = rng.choice(a=weekStart, size=numNests, p=initProb)  # random starting weeks; len(a) must equal len(p)
     initWeek = rng.choice(a=[*initDat], size=numNests, p=list(initDat.values()))  # random starting weeks; len(a) must equal len(p)
     initiation = initWeek + rng.integers(7)                    # add a random number from 1 to 6 (?) 
     # if debug: print(">> initiation week start days:\n", initWeek) 
@@ -669,38 +615,23 @@ def mk_nests(par, nestData):
     Returns:
     -------
     3 columns: nest ID, initiation date, end date
+    
+    Notes 
+    -----
+    1. Unpack necessary parameters - some have only 1 member, but they are still treated as arrays, not scalars
+    2. Assign values to the dataframe
+    
     """
 
-    # 1. Unpack necessary parameters
-    # NOTE about the params at the beginning of the script:
-    # some have only 1 member, but they are still treated as arrays, not scalars
-
-    # hatchTime = int(params[5]) 
-    # obsFreq   = int(params[6]) 
-    # numNests  = int(params[0]) 
-    # pSurv     = params[1]       # daily survival probability
-    # fateCuesPresent = 0.6 if obsFreq > 5 else 0.66 if obsFreq == 5 else 0.75
-    # if debug: print(
-    #     ">> observation frequency:", obsFreq, 
-    #     ">> prob of correct fate:", fateCuesPresent,
-    #     )
-
-    # 2. Assign values to the dataframe
-    # nestData[:,0] = np.arange(1,par.numNests+1) # column 1 = nest ID numbers 
     nestData[:,0] = np.arange(par.numNests) # column 1 = nest ID numbers 
     nestData[:,1] = mk_init(par.numNests)                              # record to a column of the data array
-    # nestData[:,1] = mk_init(weekStart, initProb, numNests)                              # record to a column of the data array
     #s if debug: print(">> end dates:\n", nestEnd, len(nestEnd)) 
     survival = mk_surv(par.numNests, par.hatchTime, par.probSurv)
     nestData[:,2] = nestData[:,1] +survival
     ## NOTE THIS IS NOT THE TRUE HATCHED NUMBER; DOESN'T TAKE STORMS INTO ACCOUNT
-    # nestData[:,3] = nestData[:,2] > hatchTime
-    # nestData[:,3] = nestData[:,1] + nestData[:,2]
-    # don't need to add end date to dataframe
     # NOTE Remember that int() only works for single values 
     # if debug: print(nestData[1:6,:])
     return(nestData)
-
 # ---- FLOODING & SUCH -------------------------------------------------------
 # def storm_nest(nestPeriod, surveysDays, stormDays, con=config):
 def storm_nest(stormFreq, nestPeriod, stormDays, con=config):
@@ -708,38 +639,18 @@ def storm_nest(stormFreq, nestPeriod, stormDays, con=config):
     Returns:
     -------
     a list containing numStorms & stormNestIndex
+
+    Background:
+    ----------
+    >> stormNestIndex searches for storm days w/in active period of each nest
+        - returns index where storm day would be within the active interval: 0 = before init; 2 = after end; 1 = within interval
+        - fate cues should become harder to interpret after storms
     """
-    # >> stormNestIndex searches for storm days w/in active period of each nest
-    #     >> returns index where storm day would be within the active interval: 
-    #             0 = before init; 2 = after end; 1 = within interval
-    #     >> fate cues should become harder to interpret after storms
     stormNestIndex = np.zeros((len(nestPeriod), stormFreq))
     stormNestIndex = searchSorted2(nestPeriod, stormDays)
     # stormNest = np.any(stormNestIndex == 1, axis=1) 
     # numStorms = np.sum(stormNestIndex==1, axis=1) # axis=1 means summing over rows?
 
-    # if con.debugNests: print("where were storms in active period?", stormNestIndex)
-    # if index == 1, then storm Day is within the period interval: 
-    # whichStorm = np.zeros((len(nestPeriod), stormFreq))
-    # whichStorm = []
-    
-    # if stormNestIndex.shape[1] > 1:
-    #     # whichStorm = np.where(stormNestIndex == 1, )
-    #     for n in range(len(nestPeriod)):
-    #         # whichStorm[n] = np.zeros(stormFreq)
-    #         # whichStorm[n] = np.array([i for i,val in enumerate(stormNestIndex[n]) if val==1 else -1] )
-    #         if stormNest[n]:
-    #             whichStorm[n] = [i for i,val in enumerate(stormNestIndex[n]) if val==1]
-    #         else:
-    #             whichStorm[n] = [-4]
-    #     # try:
-    #         # whichStorm = stormNestIndex.index(1)
-    # stormNestDays = 
-    # stormNestInd2 = np.zeros(len(nestPeriod))
-    # for n in range(sum(stormNest)):
-    #     stormNestInd2[n]  = searchSorted2(stormDays, nestPeriod[n])
-    # NOTE I *think* this is actually number of storm intervals, which is what 
-    # we want for the likelihood function. so that would be good...
     # return([numStorms, stormNestIndex])
     # return(numStorms)
     return(stormNestIndex)
@@ -885,42 +796,8 @@ def mk_fates(nestDat, numNests, hatched,stormInfo, stormDays, con=config):
     # if debug: print(">>>>> and true DSR, calculated correctly:", trueDSR2)
 # -----------------------------------------------------------------------------
 # ---- NEST DISCOVERY & OBSERVATION ----------------------------------------
-# def observer(discProb, numNests, fates, surveyDays, nData, out):
-# def observer(discProb, numNests, fateCues, obsFreq, fates, surveyDays, nData, out):
-# -----------------------------------------------------------------------------
-# def assign_fixed(assignType, trueFate, numNests, cn=config):
-def assign_fixed(pWrong, wrongVal, trueFate, numNests, cn=config):
-    """
-    Inputs
-    ------
-    pWrong = fixed probability of assigning inaccurate fate
-    wrongVal = type of wrong fate assigned. 2=flooded, 7=unknown, 0=hatched
-    
-    Usage
-    -----
-    Compares a randomly generated probability (probMC) to pWrong to decide whether nest fate is incorrectly assigned.
-    
-    Returns
-    ------
-    assignedFate - vector of assigned fates modified to include inaccuracies
-    """
-    probMC = rng.uniform(low=0, high=1, size=numNests)    
-    if cn.debugObs: print(">> random probabilities to compare to pWrong:", probMC)
-    assignedFate = trueFate
-    if cn.debugObs: print(">> assigned fate before adding wrong assignments:", assignedFate)
-    if wrongVal==2:
-        # assignedFate[assignedFate==0 and probMC > pWrong] = 2
-        assignedFate[assignedFate==0 and probMC < pWrong] = 2 # supposed to be hatched fates reassigned as fail
-    elif wrongVal==7:
-        assignedFate[probMC > pWrong] = 7
-    if cn.debugObs: print(">> assigned fate after adding wrong assignments:", assignedFate)
-        
-    return(assignedFate)
-    
-    
 # -----------------------------------------------------------------------------
 # How does the observer assign nest fates? 
-# def assign_fate(assignType, fateCuesPresent, trueFate, numNests, obsFr, intFinal, stormFate, cn=config):
 def assign_fate(assignVal, pWrong, fateCuesPresent, trueFate, numNests, obsFr, intFinal, stormFate, cn=config):
     """
     The observer assigns the correct fate based on a comparison of a set 
@@ -938,20 +815,17 @@ def assign_fate(assignVal, pWrong, fateCuesPresent, trueFate, numNests, obsFr, i
     """
     
     # assignedFate = np.zeros(numNests) # if there was no storm in the final interval, correct fate is assigned 
-    # assignedFate = trueFate
-    # assignedFate.fill(7) # default is unknown; fill with known fates if field cues allow
     assignedFate=np.empty(numNests)
-    assignedFate.fill(7)
+    assignedFate.fill(7) # default is unknown; fill with known fates if field cues allow
 
     fateProb = rng.uniform(low=0, high=1, size=numNests)
     fateCuesPres = np.zeros(numNests)
     fateCuesPres.fill(fateCuesPresent)
-    # fateCuesPres[intFinal==True] = 0.1
     fateCuesPres[intFinal > obsFr] = 0.1 # nests with longer final interval have lower chance of cues
-    # if cn.debugObs: print("compare fateCuesPres with a random probability:", fateCuesPres, fateCuesProb)
         
     assignedFate[fateProb < fateCuesPres] = trueFate[fateProb < fateCuesPres] 
     assignedFate[fateProb < pWrong] = assignVal # if fixed percentages turned off, pWrong == 0
+
     if cn.debugObs: print(">> true fates:", trueFate, len(trueFate))
     if cn.debugObs: print(">> assigned fates:", assignedFate, len(assignedFate))
     if stormFate: assignedFate[intFinal > obsFr] = 2
@@ -982,8 +856,6 @@ def svy_position(initiation, nestEnd, surveyDays, cn=config):
     return((position, position2)) # return a tuple
     # position2
 # -----------------------------------------------------------------------------
-# def observer(par, fateCues, fates, surveyDays, nData, out):
-# def observer(nData, par, cues, fate, surveys, out, cn=config):
 # @profile
 def observer(nData, par, cues, surveys, out, cn=config):
     """
@@ -1000,7 +872,6 @@ def observer(nData, par, cues, surveys, out, cn=config):
     cols= i, j, k, assigned fate, num *normal* obs ints, intFinal
     """
     initiation, end, fate = nData[:,1], nData[:,2], nData[:,3]
-    # numNests, obsFreq, discProb, stormFate, wType, pWrong = par # unpack par
     surveyDays, surveyInts = surveys
 
     pos = svy_position(initiation, end, surveys[0])
