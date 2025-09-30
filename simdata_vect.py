@@ -408,7 +408,7 @@ parLists = {'numNests' : [250, 500],
             'stormDur' : [1, 2],
             # 'stormFrq' : [5],
             # 'stormFrq' : [1, 3, 5],
-            'stormFrq' : [1, 2, 3],
+            'stormFrq' : [1, 2, 3, 4],
             'obsFreq'  : [3, 5, 7],
             # 'obsFreq'  : [7],
            'stormFate': [False,True],
@@ -952,8 +952,8 @@ def assign_fate(assignVal, pWrong, fateCuesPresent, trueFate, numNests, obsFr, i
         
     assignedFate[fateProb < fateCuesPres] = trueFate[fateProb < fateCuesPres] 
     assignedFate[fateProb < pWrong] = assignVal # if fixed percentages turned off, pWrong == 0
-    if cn.debugObs: print(">> true fates:", trueFate, sum(trueFate))
-    if cn.debugObs: print(">> assigned fates:", assignedFate, sum(assignedFate))
+    if cn.debugObs: print(">> true fates:", trueFate, len(trueFate))
+    if cn.debugObs: print(">> assigned fates:", assignedFate, len(assignedFate))
     if stormFate: assignedFate[intFinal > obsFr] = 2
     if cn.debugObs: 
         print(">> compare random probs to fateCuesPresent:\n", 
@@ -962,7 +962,7 @@ def assign_fate(assignVal, pWrong, fateCuesPresent, trueFate, numNests, obsFr, i
         print(f">> or to pWrong: {pWrong} with fill value: {assignVal}")
         print(">> nests with storm in final interval:", np.where(intFinal>obsFr))
         print(">> storm fate == True?", stormFate)
-        print(">> assigned fates after storm fates assigned:", assignedFate, len(assignedFate))
+        print(">> assigned fates after incorrect fates assigned:", assignedFate, len(assignedFate))
     # fate cues prob should be affecting all nest fates equally, not just failures.
     # if debug: print(">> proportion of nests assigned hatch fate:", np.sum((assignedFate==0)[discovered==True])/(sum(discovered==True)),"vs period survival:", pSurv**hatchTime)
     # print(">> assigned fate array & its shape:\n", assignedFate, assignedFate.shape)
@@ -1048,7 +1048,7 @@ def make_obs(par, storm, survey, config=config):
     nd       = np.zeros(shape=(par.numNests, 3), dtype=int)
     nd2      = np.zeros(shape=(par.numNests, 6), dtype=int)
     # fateCues directly correlates to obsFreq, so doesn't need to be param
-    fateCues   = 0.65 if par.obsFreq > 5 else 0.71 if par.obsFreq == 5 else 0.75
+    fateCues   = 0.71 if par.obsFreq > 5 else 0.76 if par.obsFreq == 5 else 0.8
     if par.pWrong > 0: fateCues=1
     if debug: print("pWrong:", par.pWrong,"& probability that fate cues are present:", fateCues)
     # NOTE should I make sure all nests live for at least a day?
@@ -1154,22 +1154,6 @@ def mayfield(num_fail, expo):
     Returns: the daily mortality 
     """
 #    I am assuming the nest data that is input has already been filtered to only discovered nests w/ known fate
-#    dat = ndata[
-    # hatched = np.sum(ndata[:,3])
-    # failed = len(ndata) - hatched
-    # expo is output from exposure function
-    # exposure = expo[:,2]
-    # hatch  = sum(ndata[:,3==0])
-    # fail   = ~hatch 
-    # fail = sum(ndata[:,3]!=0) # number of failed nests
-    
-    # failExp = sum()
-    # if debug: print(">> exposure percentage for final interval:", expPercent)
-    # if debug: print(">> hatch:\n",hatch,"\n>> and fail:\n",fail) 
-    # if debug: print(">>>> Calculate Mayfield estimator.")
-    # if debug: print(">> number of nests hatched:", hatched, "and failed", failed)
-    # mayf = failed / (hatched + 0.5*failed)
-    # mayf = failed / (hatched + (expPercent*failed))
     mayf = num_fail / (expo.sum())
     # if debug: print(">> Mayfield estimator of daily mortality (1-DSR) =", mayf) 
 
@@ -1409,22 +1393,6 @@ def prog_mark(s, ndata, nocc, con=config):
             p   = s**alive_days
         allp[n]   = p # NOTE this line is throwing the Deprecation Warning
     nll = sum(-np.log(allp))
-    # SEPARATE FUNCTION:
-    # allp = mark_probs(s=s, ndata=ndata)
-    # nll = sum(-np.log(allp))
-    
-    # print("all nests:", len(ndata)) 
-    # disc = ndata[np.where(ndata[:,6]!=0)] # i != 0 # should already have filtered out unobserved nests
-    # inp = disc[:,np.r_[0,7:11]] # doesn't include index 11
-    # inp = disc[:,np.r_[0,4:8]] # doesn't include index 11
-    # inp = ndata[:,np.r_[0,4:8]] # doesn't include index 11
-    # l    = len(inp)
-    # incompatible nests have already been excluded
-    # inpInd = inp[(inp[:,2]-inp[:,1]) != 0] # access all rows; 
-    #                                     create mask, index inp using it
-    # allp = prob[inpInd]
-    # alldof = dof[inpInd]
-    # lnp  = -np.log(allp) # vector of all log-transformed probabilities
     # NOTE these if statements take up lots of time, esp inside the optimizer
     # if con.debugM:
     #     print(">>>>> Program MARK >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
@@ -1436,13 +1404,6 @@ def prog_mark(s, ndata, nocc, con=config):
     #     print(">> all degrees of freedom:\n", alldof)
     #     print("log of all nest cell probabilities:", lnp)
     #     print(">> sum to get negative log likelihood of the data:", NLL)
-    #print(">> negative log likelihood of each nest cell probability:", lnp)
-    #lnSum = lnp.sum()
-    #NLL = -1*lnp.sum() # all caps are some kind of Python constant? in the style guide
-    # nll = Decimal(0.0)
-    # nll = ne.evaluate('sum(-log(allp))')
-    # NLL = Decimal(0.0)
-    # NLL = lnp.sum()
     return(nll)
 # -----------------------------------------------------------------------------
 def mark_wrapper(srn, ndata, nocc):
@@ -1664,26 +1625,6 @@ def state_vect(nNest, fl, ha):# can maybe calculate these only once
     # print(">> state at the end of a normal interval:\n",stateEnd) 
     # print(">> state on final nest observation:\n", stateLC)
     # ---------------------------------------------------------------------------------------------------
-    # 5. Compose the matrix equation for one observation interval.
-    #        The formula used is from Etterson et al. (2007) 
-    #    For this, you need the nest state at the beginning and end of the interval, plus interval length
-    #    > intElt - length in days of the observation interval being assessed 
-    #    > initial state (stateI) - state of the nest at the beginning of this interval 
-    #    > stateF - state of the nes at the end of this interval
-    #    There is a transition matrix that is multiplied for each day in the interval 
-    #    > in this case, the nest started the interval alive and ended it alive as well 
-    #    > daily nest probabilities: s - survival; mp - mortality from predation; mf - mortality from flooding 
-    #    > these are daily probabilities, so raise transition matrix to the power of number of days in interval  
-    #
-    #                                     _         _  intElt           _   _ 
-    #              [ 1 0 0 ]             |  s  0  0  |                 |  1  | 
-    #                             *      |  mp 1  0  |            *    |  0  | 
-    #                                    |_ mf 0  1 _|                 |_ 0 _|  
-    #                              
-    #      {  transpose(stateI) * trMatrix, raised to intElt power * stateF } 
-    #
-    # Then, you can multiply this equation times number of intervals (numIntTotal)
-    #    Single in  interval --> all intervals --> likelihood
 
     # in the following code, we calculate all matrix multiplications for all nests, and then turn them on/off
     # based on whether we need them. Would it be faster to only do the multiplications we need? That would require indexing
@@ -1715,6 +1656,29 @@ def nest_mat(argL, obsFreq, stormFin, useStormMat, config=config):
     Returns
     -------
     - list containing the two matrices [pwr, pwrStm]
+    
+    Background
+    ----------
+    
+    Compose the matrix equation for one observation interval. The formula used is from Etterson et al. (2007) 
+    For this, you need: 
+       > intElt - length in days of the observation interval being assessed 
+       > initial state (stateI) - state of the nest at the beginning of this interval 
+       > stateF - state of the nes at the end of this interval
+       There is a transition matrix that is multiplied for each day in the interval 
+       > in this case, the nest started the interval alive and ended it alive as well 
+       > daily nest probabilities: s - survival; mp - mortality from predation; mf - mortality from flooding 
+       > these are daily probabilities, so raise transition matrix to the power of number of days in interval  
+    
+                                        _         _  intElt           _   _ 
+                 [ 1 0 0 ]             |  s  0  0  |                 |  1  | 
+                                *      |  mp 1  0  |            *    |  0  | 
+                                       |_ mf 0  1 _|                 |_ 0 _|  
+                                 
+         {  transpose(stateI) * trMatrix, raised to intElt power * stateF } 
+    
+    Then, you can multiply this equation times number of intervals (numIntTotal)
+       Single in  interval --> all intervals --> likelihood
 
     """
     
@@ -2106,27 +2070,6 @@ def randArgs():
 # -----------------------------------------------------------------------------
 # need to loop through the param combinations
 # within the loop, need to unpack the params and run the optimizer
-# PARAM NAMES:
-if False:
-    print("hi")
-    # numNests: int
-    # stormDur: int
-    # stormFrq: int
-    # obsFreq:  int
-    # hatchTime:int
-    # brDays:   int
-    # probSurv: np.float32
-    # SprobSurv:np.float32
-    # pMortFl  :np.float32
-    # discProb: np.float32
-    # fateCues: np.float32
-    # stormFate:bool
-    # useStmMat:bool
-
-#def run_params(paramsList, dirName):
-# NOTE need to create storms after params are chosen
-# NOTE is there even a reason to have this in a function?
-# NOTE NOTE do I have to pass every object to each function explicitly?
 # @profile
 def run_optim(minimizer, fun, z, arg, met='Nelder-Mead'):
     """
