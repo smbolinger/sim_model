@@ -30,9 +30,11 @@ import scipy.stats as stats
 import sys
 from typing import Dict, Generator
 import csv
+import yaml
 
-from helpers import init_from_csv, sprob_from_csv, searchSorted2, in1d_sorted, mk_fnames, triangle, logistic
+from helpers import init_from_csv, sprob_from_csv, searchSorted2, in1d_sorted, mk_fnames, triangle, logistic, load_config
 from paramLists import staticPar, parLists, parLists2, plTest, plTest2, plTestFlood, plDebug
+from dataClass import Params, Config
 
 # NOTE: 
 # 1. turned off useSM (params)
@@ -40,73 +42,9 @@ from paramLists import staticPar, parLists, parLists2, plTest, plTest2, plTestFl
 # -----------------------------------------------------------------------------
 #  SETTINGS 
 # -----------------------------------------------------------------------------
-@dataclass # type-secure (can't accidentally pass wrong type) & can be immutable
-class Params: # most importantly, Pylance recognizes the attributes, unlike 
-              # dict keys
-    numNests: int
-    stormDur: int
-    stormFrq: int
-    obsFreq:  int
-    hatchTime:int
-    brDays:   int
-    whichLike:int
-    probSurv: np.float32
-    SprobSurv:np.float32
-    pMortFl  :np.float32
-    discProb: np.float32
-    # fateCues: np.float32
-    stormFate:bool
-    useSMat:  bool
-    pWrong:   np.float32 
-    wType:    int   # type of incorrect fate value: 0, 2, 7
-@dataclass # type-secure (can't accidentally pass wrong type) & can be immutable
-class Config: 
-    """
-    use different debug var bc these will print for every time optimizer runs
-    """
-    # rng:         Generator
-    # args:        list[str]
-    nreps:       int
-    debug:       bool
-    debugLL:     bool
-    debugNests:  bool
-    debugFlood:  bool
-    debugObs:    bool
-    debugM:      bool
-    # useWSL:      bool
-    useWin:      bool
-    # testing:     bool
-    testing:     str
-    fnUnique:    bool
-    likeFile:    str
-    likeDir:     str
-    stormInit:   str
-    colNames:    str
-    numOut:      int
-
 rng = np.random.default_rng(seed=102891)
+config = load_config("/home/wodehouse/Projects/sim_model/config.yaml", debug=True)
 
-config = Config(nreps       = 500, 
-# config = Config(nreps       = 1, 
-                debug       = False, 
-                debugLL     = False, 
-                debugNests  = False, 
-                debugM      = False,
-                debugObs    = False,
-                debugFlood  = False,
-                useWin      = False,
-                # testing     = False,
-                testing     = "no",
-                fnUnique    = False,
-                # likeFile    = fname[0], 
-                likeFile    = " ",
-                stormInit = "/home/wodehouse/Projects/sim_model/storm_init3.csv",
-                likeDir = "/home/wodehouse/Projects/sim_model/out",
-                colNames    = " ",
-                # colNames    = fname[1],
-                # numOut      = 21)
-                # numOut      = 18)
-                numOut      = 11)
 
 try:
     # arguments, values = getopt.getopt(args, options, optVal)
@@ -119,9 +57,11 @@ except getopt.error as err:
     print(str(err))
     # usage()
     sys.exit(2)
+
 debugTypes = None
 # output = None
 # verbose = False
+
 for arg, val in opts:
     if arg in ("-h", "--Help"):
         print("\n-------------------------------------------------------------------------------------------------------",
@@ -156,14 +96,17 @@ for arg, val in opts:
     # elif arg in ("-o", "--Output"):
         # print("Output file location:", val)
         # config.likeFile = val
+
 print("debug options:", debugTypes)
 debug = config.debug
 print(debug)
+
 # now        = datetime.today().strftime('%m%d%Y_%H%M%S')
 fnUnique   = False
 # storm_init = "/home/wodehouse/projects/sim_model/storm_init3.csv"
 # like_f_dir = "/home/wodehouse/projects/sim_model/out"
 # if config.useWSL:
+
 if config.useWin:
     config.likeDir = "C:/Users/Sarah/Dropbox/Models/sim_model/py_output"
     config.stormInit = "C:/Users/Sarah/Dropbox/Models/sim_model/storm_init3.csv" 
