@@ -34,7 +34,7 @@ import yaml
 
 from helpers import init_from_csv, sprob_from_csv, searchSorted2, in1d_sorted, mk_fnames, triangle, logistic, load_config
 from paramLists import staticPar, parLists, parLists2, plTest, plTest2, plTestFlood, plDebug
-from dataClass import Params, Config
+from getClass import Params, Config
 
 # NOTE: 
 # 1. turned off useSM (params)
