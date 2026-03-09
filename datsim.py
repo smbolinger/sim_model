@@ -12,30 +12,63 @@
 #                BUT I still don't know why the calculated DSR is consistently low.
 
 # import argparse
-from dataclasses import dataclass
-from datetime import datetime
+
+import numpy as np 
+import scipy.stats as stats
+import csv
 import decimal
-from decimal import Decimal
-# from itertools import product
 import getopt
 import itertools
-# import line_profiler
-# import numexpr as ne
-import numpy as np 
-# from os.path import exists
 import os
-from pathlib import Path
-from scipy import optimize
-import scipy.stats as stats
 import sys
-from typing import Dict, Generator
-import csv
 import yaml
 
+from dataclasses import dataclass
+from datetime import datetime
+from decimal import Decimal
+# from itertools import product
+# import line_profiler
+# import numexpr as ne
+# from os.path import exists
+from pathlib import Path
+from scipy import optimize
+from typing import Dict, Generator
+
+try:
+    # opts,args = getopt.gnu_getopt(sys.argv[1:],"ht:do:w",["Help", "Test", "Debug", "Win-true"])
+    opts,args = getopt.gnu_getopt(sys.argv[1:],"ht:d",["Help", "Test", "Debug"])
+except getopt.error as err:
+    print(str(err))
+    sys.exit(2)
+
+
 # from helpers import mk_param_list, init_from_csv, sprob_from_csv, searchSorted2, in1d_sorted, mk_fnames, triangle, logistic, load_config
-from helpers import load_config, init_from_csv, sprob_from_csv, mk_param_list, mk_fnames
+# from helpers import load_config, init_from_csv, sprob_from_csv, mk_param_list, mk_fnames
+from helpers import load_config, mk_param_list, mk_fnames
 from paramLists import staticPar, parLists, parLists2, plTest, plTest2, plTestFlood, plDebug
 from getClass import Params, Config
+
+config = load_config("/home/wodehouse/Projects/sim_model/config.yaml", debug=True)
+
+for arg, val in opts:
+    if arg in ("-h", "--Help"):
+        print("\n-------------------------------------------------------------------------------------------------------",
+               "\nsimdata_vect.py usage:\n\n",
+              "[-t --Test] Choose testing mode w/ smaller # of nests and reduced # of params OR used fixed probs:\n",
+              "\t\t1.'norm' - moderate values; 2.'storm' - extremes of storm values;\n",
+              "\t\t3.'fixed' - use fixed values; 4.'fixedtest' - test of fixed; 5.'no' (default)\n\n",
+              "[-d --Debug-general] Turn on simple/broad debugging statements? (Default:False)\n\n",
+              "\n-------------------------------------------------------------------------------------------------------"
+                )
+        sys.exit()
+    elif arg in ("-t", "--Type"):
+        config=load_config("/home/wodehouse/Projects/sim_model/test-config.yaml")
+        print("Config - TEST mode:", config.testing)
+    elif arg in ("-d", "--Debug-general"):
+        config.debug = True
+        print("Config - debug mode (general):", config.debug)
+
+
 # from makeNests import stormGen, mk_surveys, mk_init, mk_surv, mk_per, mk_nests, storm_nest, mk_flood, mk_fates
 from makeNests import stormGen
 from observer import make_obs, mk_surveys
@@ -48,63 +81,14 @@ from MCmatrix import like_smd, triangle, logistic
 # -----------------------------------------------------------------------------
 #  SETTINGS 
 # -----------------------------------------------------------------------------
-rng = np.random.default_rng(seed=102891)
-config = load_config("/home/wodehouse/Projects/sim_model/config.yaml", debug=True)
+# rng = np.random.default_rng(seed=102891)
+rng = np.random.default_rng(seed=config.rngSeed)
 
-try:
-    # arguments, values = getopt.getopt(args, options, optVal)
-    # 'o' takes an argument, so has ':'
-    # opts,args = getopt.getopt(sys.argv[1:],"htdwo:v",["Help", "Test", "Debug", "WSL-true","Out-file="])
-    opts,args = getopt.gnu_getopt(sys.argv[1:],"ht:do:w",["Help", "Test", "Debug", "Win-true"])
-    # for n in range(len(opts)): print(f"{opts[n]}: {args[n]}")
-    # opts,args = getopt.gnu_getopt(sys.argv[1:],"htdw",["Help", "Test", "Debug", "WSL-true"])
-except getopt.error as err:
-    print(str(err))
-    # usage()
-    sys.exit(2)
-
-debugTypes = None
-# output = None
-# verbose = False
-
-for arg, val in opts:
-    if arg in ("-h", "--Help"):
-        print("\n-------------------------------------------------------------------------------------------------------",
-               "\nsimdata_vect.py usage:\n\n",
-            #   "[-t --Test] Run in testing mode w/ smaller # of nests and reduced # of params? (Default:False)\n\n",
-              "[-t --Test] Choose testing mode w/ smaller # of nests and reduced # of params OR used fixed probs:\n",
-              "\t\t1.'norm' - moderate values; 2.'storm' - extremes of storm values;\n",
-              "\t\t3.'fixed' - use fixed values; 4.'fixedtest' - test of fixed; 5.'no' (default)\n\n",
-              "[-d --Debug-general] Turn on simple/broad debugging statements? (Default:False)\n\n",
-              "[-o --Options-debug] More specific print statements.\n",
-                "\t\t\tOptions: 'like','nest','mark','flood','obs'.\n",
-                "\t\t\tplace in single string with comma delim \n\n",
-              "[-w --Win-true] Use Windowdowss? filenames will be changed to match. (Default:False)\n",
-              "\n-------------------------------------------------------------------------------------------------------"
-                )
-        sys.exit()
-    # if arg == "-v": verbose = True
-    elif arg in ("-t", "--Type"):
-        # config.testing = True
-        config.testing = val
-        # print("Config - test mode:", config.testing)
-        print("Config - mode:", config.testing)
-    elif arg in ("-d", "--Debug-general"):
-        config.debug = True
-        print("Config - debug mode (general):", config.debug)
-    elif arg in ("-o", "--Options-debug"):
-        debugTypes=val
-        print("Debug options=", val)
-    elif arg in ("-w", "--Win-true"):
-        config.useWin = True
-        print("Config - using Win?", config.useWin)
-    # elif arg in ("-o", "--Output"):
-        # print("Output file location:", val)
-        # config.likeFile = val
+debugTypes = None # output = None verbose = False
 
 print("debug options:", debugTypes)
 debug = config.debug
-print(debug)
+# print(debug)
 
 # now        = datetime.today().strftime('%m%d%Y_%H%M%S')
 # config.fnUnique   = True
@@ -129,8 +113,6 @@ if config.useWin:
 # These are the values that are passed to the Params class
 
 # initDat=init_from_csv(storm_init) # this will evaluate after storm_init has been changed for wsl
-initDat=init_from_csv(config.stormInit) # this will evaluate after storm_init has been changed for wsl
-stormDat=sprob_from_csv(config.stormInit) # is evaluated later, can account for wsl filenames
 
 def randArgs():
     """
@@ -276,7 +258,7 @@ def rep_loop(par, nData, storm, survey, config):
     # stMat = state_vect(nNest=len(nData), fl=(nData[:,3]==2), ha=(nData[:,3]==0))
     dat = nData[:,4:10] # doesn't include column index 10
     # ans      = run_optim(fun=like_smd, z=randArgs(), 
-    arg=(dat, par.obsFreq, par.useSMat, storm, survey, par.whichLike)
+    arg=(dat, par.obsFreq, par.useSMat, storm, survey, par.whichLike, config)
     res      = run_optim(minimizer="norm", fun=like_smd, z=randArgs(), arg=arg)
     # res      = run_optim(minimizer = optimize.minimize, fun=like_smd, z=randArgs(), 
                         #  arg=(dat, par.obsFreq, stMat, par.useSMat, storm, survey, 2))
@@ -292,7 +274,7 @@ def rep_loop(par, nData, storm, survey, config):
     srand = rng.uniform(-10.00, 10.00)
     # markProb = mark_probs(s=srand, ndata=nData)
     # mark_s = run_optim(fun=mark_wrapper, z=srand, arg=(nData, markProb, par.brDays))
-    mark_s = run_optim(minimizer="norm", fun=mark_wrapper, z=srand, arg=(nData, par.brDays))
+    mark_s = run_optim(minimizer="norm", fun=mark_wrapper, z=srand, arg=(nData, par.brDays, config))
     #NOTE ans2 is an "OptimizeResult" object; need to extract "x"
     # Transform the MARK optimizer output so that it is between 0 and 1:
     # mark_s = logistic(ans2.x[0]) # answer.x is a list itself - need to index
@@ -316,118 +298,20 @@ def rep_loop(par, nData, storm, survey, config):
 # def main(testing=False, config=config, pStatic=staticPar):
 # def set_debug(deb, debN, debS, config=config):
 # def set_debug(deb=debugTypes):
-def set_debug(deb):
+# def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
+def main(fnUnique, testing, config=config, pStatic=staticPar):
     """
-    called from within main() to set the debug config
-
-    arguments to main():
-
-        debN = nests & observer (options: "all", "nests", "obs", "none"[default])
-
-        deb = MLE & program mark (options: "all", "like", "mark", "none"[default])
-
-        debS = flooding (options: "all", "none"[default])
-    """
-    if deb=="all": 
-        config.debugFlood = config.debugLL = config.debugM = config.debugNests = config.debugObs = True
-    elif "," in deb:
-        deb = deb.split(",")
-        # print(deb)
-    else:
-        deb = [deb]
-        # print(deb)
-        # for i, val in enumerate(deb):
-    for val in deb:
-        # print(val)
-        if val == "like": config.debugLL = True
-        # elif val == ("nest" or "nests"): config.debugNests = True
-        elif val == "nest": config.debugNests = True
-        elif val == "flood": config.debugFlood = True
-        elif val == "mark": 
-            config.debugM = True
-            # print("mark=True")
-        elif val == "obs": config.debugObs = True
-        # else: print("WARNING-invalid debug value. options: 'like', 'nest|nests', 'mark|MARK', 'flood', 'obs|observer'. place in single string with , delim ")
-        else: print("WARNING-invalid debug value. options: 'like','nest','mark','flood','obs'. place in single string with , delim ")
-            
-        # print("debug options in config:", config.debugM)
-        # if "like" in deb:
-        #    config.debugLL =True
-        # if "nest" or "nests" in deb:
-        #     config.debugNests = True
-        # if "flood" in deb:
-        #     config.debugFlood = True
-        # if "mark" in deb:
-        #     config.debugM = True
-        
-    # if debN == "all":
-    #     config.debugNests = config.debugObs = True
-    # elif debN == "nest":
-    #     config.debugNests = True
-    # elif debN == "obs":
-    #     config.debugObs = True
-
-    # if deb == "all":
-    #     config.debugLL=config.debugM=True
-    # elif deb == "mark":
-    #     config.debugM = True
-    # elif deb == "like":
-    #     config.debugLL = True
-    
-    # if debS =="all":
-    #     config.debugFlood = True
-    
-def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
-    """
-    Debug options:
-        'deb' is for the likelihood/program MARK. options: 'all', 'mark', 'like'
-        'debN' is for the nest-making & observer. options: 'all', 'nest', 'obs'
-        'debS' = storms/flooding (options: "all", "none"[default])
     If 'fnUnique'==True, filename is "uniquified" and includes H:M:S
         Otherwise, just the date.
     """
     lf_suffix=""
     pList = parLists
     # these if-else statements only run once:
-    if testing == "norm":
-        config.nreps=400
-        # print("changed config values:",config.debug, config.nreps)
-        pList = plTest
-        # global debug 
-        debug = True
-        lf_suffix = "-test"
-        print("using test values. global debug = ", debug)
-    elif testing=="storm":
-        config.nreps=10
-        config.debugFlood=True
-        config.debugObs=True
-        pList = plTestFlood
-        # global debug
-        debug = True
-        lf_suffix = "-flood"
-        print("using storm test values. global debug = ", debug)
-    elif testing=="debug":
-        print("CHECK THE DEBUG VALUES!!")
-        config.nreps=10
-        debug=True
-        pList=plDebug
-        lf_suffix="-debug"
-    # elif testing=="fixed":
-    #     pList=parLists2
-    #     lf_suffix="-fixed"
-    # elif testing=="fixedtest":
-    #     config.nreps=50
-    #     pList=plTest2
-    #     lf_suffix="-fixed-test"
-    else:
-        # pList = parLists # don't need to update any settings if not testing?
-        print("testing val invalid, using full param lists")
-    # set_debug(deb=deb, debN=debN, debS=debS)
-    if debugOpt != None:
-    # if deb:
-    # if hasattr(args,"")
-        # set_debug(debugTypes)
-        set_debug(debugOpt)
+    # if debugOpt != None:
+    # # if deb:
+    # # if hasattr(args,"")
+    #     # set_debug(debugTypes)
+    #     set_debug(debugOpt)
     # fname = mk_fnames(like_f_dir=like_f_dir) if fnUnique else mk_fnames(unique=False)
     fname = mk_fnames(suf = lf_suffix) if fnUnique else mk_fnames(suf =lf_suffix, unique=False)
     fdir  = fname[0].parent
@@ -448,14 +332,14 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
             par        = Params(**par_merge)
             print(">>>>>>>>> param set number:", parID, "and params in set:", par)
             stormDays  = stormGen(frq=par.stormFrq, dur=par.stormDur)
-            survey     = mk_surveys(stormDays, par.obsFreq, par.brDays)
+            survey     = mk_surveys(stormDays, par.obsFreq, par.brDays, conf=config)
             # surveyDays, surveyInts = survey
             repID = numMC = nEx = 0 # number of nests misclassified, number of exceptions
             # likeVal    = np.zeros(shape=(config.nreps,config.numOut))
             for r in range(config.nreps): 
                 # if debug: print("\n>>>>>>>>>>>> replicate ID: >>>>>>>>>>>>>>>>>>>>>>>>>>", repID)
                 try:
-                    nestData1 = make_obs(par=par, storm=stormDays, survey=survey) 
+                    nestData1 = make_obs(par=par, storm=stormDays, survey=survey, config=config) 
                 # except:
                 except IndexError as error:
                     print(
@@ -467,7 +351,7 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
                     # return(nestData)
                     continue
 
-                trueDSR  = calc_dsr(nData=nestData1, nestType="all", calcType="true")
+                trueDSR  = calc_dsr(nData=nestData1, nestType="all", calcType="true", conf=config)
                 flooded  = sum(nestData1[:,3]==2)
                 hatched  = sum(nestData1[:,3]==0)
                 # print_prop(nestData[:,7], nestData[:,3], )
@@ -477,7 +361,7 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
                 unknown  = (nestData[:,7]==7)
                 misclass = (nestData[:,7]!=nestData[:,3])
                 nestData    = nestData[~(exclude),:]    # remove excluded nests 
-                trueDSR_an   = calc_dsr(nData=nestData, nestType="analysis", calcType="true") 
+                trueDSR_an   = calc_dsr(nData=nestData, nestType="analysis", calcType="true", conf=config) 
                 lVal = rep_loop(par=par, nData=nestData, storm=stormDays,
                                    survey=survey,config=config)
                 # pars = np.array([par.probSurv, par.stormDur, par.stormFrq, par.numNests, 
@@ -581,7 +465,8 @@ def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
 
 
 
-main(fnUnique=config.fnUnique, debugOpt=debugTypes, testing=config.testing)
+# main(fnUnique=config.fnUnique, debugOpt=debugTypes, testing=config.testing)
+main(fnUnique=config.fnUnique, testing=config.testing)
 # main(fnUnique=False, testing=False, deb='none', debN="all")
 # if len(args) > 1:
 #     # debug = args[1] == "debugTrue"
@@ -598,3 +483,8 @@ main(fnUnique=config.fnUnique, debugOpt=debugTypes, testing=config.testing)
 
 
 
+
+              # "[-o --Options-debug] More specific print statements.\n",
+              #   "\t\t\tOptions: 'like','nest','mark','flood','obs'.\n",
+              #   "\t\t\tplace in single string with comma delim \n\n",
+              # "[-w --Win-true] Use Windowdowss? filenames will be changed to match. (Default:False)\n",
