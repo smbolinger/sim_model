@@ -17,7 +17,6 @@ import numpy as np
 import scipy.stats as stats
 import csv
 import decimal
-import getopt
 import itertools
 import os
 import sys
@@ -34,42 +33,12 @@ from pathlib import Path
 from scipy import optimize
 from typing import Dict, Generator
 
-try:
-    # opts,args = getopt.gnu_getopt(sys.argv[1:],"ht:do:w",["Help", "Test", "Debug", "Win-true"])
-    opts,args = getopt.gnu_getopt(sys.argv[1:],"ht:d",["Help", "Test", "Debug"])
-except getopt.error as err:
-    print(str(err))
-    sys.exit(2)
-
-
-# from helpers import mk_param_list, init_from_csv, sprob_from_csv, searchSorted2, in1d_sorted, mk_fnames, triangle, logistic, load_config
-# from helpers import load_config, init_from_csv, sprob_from_csv, mk_param_list, mk_fnames
-from helpers import load_config, mk_param_list, mk_fnames
-from paramLists import staticPar, parLists, parLists2, plTest, plTest2, plTestFlood, plDebug
 from getClass import Params, Config
+from settings import rng, config, staticPar, pLists
 
-config = load_config("/home/wodehouse/Projects/sim_model/config.yaml", debug=True)
+# config = load_config("/home/wodehouse/Projects/sim_model/config.yaml", debug=True)
 
-for arg, val in opts:
-    if arg in ("-h", "--Help"):
-        print("\n-------------------------------------------------------------------------------------------------------",
-               "\nsimdata_vect.py usage:\n\n",
-              "[-t --Test] Choose testing mode w/ smaller # of nests and reduced # of params OR used fixed probs:\n",
-              "\t\t1.'norm' - moderate values; 2.'storm' - extremes of storm values;\n",
-              "\t\t3.'fixed' - use fixed values; 4.'fixedtest' - test of fixed; 5.'no' (default)\n\n",
-              "[-d --Debug-general] Turn on simple/broad debugging statements? (Default:False)\n\n",
-              "\n-------------------------------------------------------------------------------------------------------"
-                )
-        sys.exit()
-    elif arg in ("-t", "--Type"):
-        config=load_config("/home/wodehouse/Projects/sim_model/test-config.yaml")
-        print("Config - TEST mode:", config.testing)
-    elif arg in ("-d", "--Debug-general"):
-        config.debug = True
-        print("Config - debug mode (general):", config.debug)
-
-
-# from makeNests import stormGen, mk_surveys, mk_init, mk_surv, mk_per, mk_nests, storm_nest, mk_flood, mk_fates
+from helpers import mk_param_list, mk_fnames
 from makeNests import stormGen
 from observer import make_obs, mk_surveys
 from dsrCalc import calc_dsr, mark_wrapper
@@ -82,11 +51,10 @@ from MCmatrix import like_smd, triangle, logistic
 #  SETTINGS 
 # -----------------------------------------------------------------------------
 # rng = np.random.default_rng(seed=102891)
-rng = np.random.default_rng(seed=config.rngSeed)
+# rng = np.random.default_rng(seed=config.rngSeed)
 
-debugTypes = None # output = None verbose = False
-
-print("debug options:", debugTypes)
+# debugTypes = None # output = None verbose = False
+# print("debug options:", debugTypes)
 debug = config.debug
 # print(debug)
 
@@ -96,23 +64,6 @@ debug = config.debug
 # like_f_dir = "/home/wodehouse/projects/sim_model/out"
 # if config.useWSL:
 
-if config.useWin:
-    config.likeDir = "C:/Users/Sarah/Dropbox/Models/sim_model/py_output"
-    config.stormInit = "C:/Users/Sarah/Dropbox/Models/sim_model/storm_init3.csv" 
-    config.fnUnique   = False
-# -----------------------------------------------------------------------------
-#  HELPER FUNCTIONS
-# -----------------------------------------------------------------------------
-
-#---- NEST MODEL PARAMETERS: ------------------------------------------------
-#region-----------------------------------------------------------------------
-# NOTE the main problem is that my fate-masking variable (storm activity) also 
-#      leads to certain nest fates
-# NOTE 2: how many varying params is a reasonable number?
-# staticPar = {'nruns': 1,
-# These are the values that are passed to the Params class
-
-# initDat=init_from_csv(storm_init) # this will evaluate after storm_init has been changed for wsl
 
 def randArgs():
     """
@@ -267,7 +218,7 @@ def rep_loop(par, nData, storm, survey, config):
                         #  )
                                 # args=( dat, obsFr, stMat, useSM, 1),
     if res[0] < 0.6:
-        print("run optimizer again with basinhopping")
+        if debug>=3: print(f"res={res[0]}; run optimizer again with basinhopping")
         # run_optim(fun=like_smd, z=randArgs(), arg=(dat,par.obsFreq,par.useSMat,storm,survey,par.whichLike),met=))
         res = run_optim(minimizer="bh", fun=like_smd, z=randArgs(), arg=arg)
     # res = ansTransform(ans)
@@ -288,7 +239,7 @@ def rep_loop(par, nData, storm, survey, config):
     # s2,mp2,mf2,ss2,mps2,mfs2 = res2 # unpack like_old() function output
     # like_val = [ mark_s,s2,mp2,mf2,ss2,mps2,mfs2]
     like_val = np.array([ mark_s,s2,mp2], dtype=np.longdouble)
-    # if config.debug: print(">> like_val:\n", like_val)
+    if config.debugLL>=3: print(">> like_val:\n", like_val)
     # if config.debugLL: print(">> like_val:\n", like_val)
     # like_val = np.array(like_val, dtype=np.longdouble)
     return(like_val)
@@ -299,7 +250,7 @@ def rep_loop(par, nData, storm, survey, config):
 # def set_debug(deb, debN, debS, config=config):
 # def set_debug(deb=debugTypes):
 # def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
-def main(fnUnique, testing, config=config, pStatic=staticPar):
+def main(fnUnique, testing, parLists, config=config, pStatic=staticPar):
     """
     If 'fnUnique'==True, filename is "uniquified" and includes H:M:S
         Otherwise, just the date.
@@ -317,13 +268,15 @@ def main(fnUnique, testing, config=config, pStatic=staticPar):
     fdir  = fname[0].parent
     # fdir  = os.path.split(fname[0])[0]
     # print(fdir)
-    config.likeFile = fname[0]
-    config.colNames = fname[1]
-    print(config)
-    with open(config.likeFile, "wb") as f: # doesn't need to be 'a' bc file is open
+    # config.likeFile = fname[0]
+    likeFile = fname[0]
+    # config.colNames = fname[1]
+    colNames = fname[1]
+    # print(config)
+    with open(likeFile, "wb") as f: # doesn't need to be 'a' bc file is open
         paramsArray = mk_param_list(parList=pList, fdir=fdir)
         # if debug: print(f">>>> there will be {len(paramsArray)*config.nreps} total rows")
-        print(f">>>> there will be {len(paramsArray)} param sets & {len(paramsArray)*config.nreps} total rows")
+        print(f"\n|>|>|>there will be {len(paramsArray)} param sets & {len(paramsArray)*config.nreps} total rows")
         parID       = 0
         for i in range(0, len(paramsArray)): # for each set of params
             # if debug: print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
@@ -339,7 +292,7 @@ def main(fnUnique, testing, config=config, pStatic=staticPar):
             for r in range(config.nreps): 
                 # if debug: print("\n>>>>>>>>>>>> replicate ID: >>>>>>>>>>>>>>>>>>>>>>>>>>", repID)
                 try:
-                    nestData1 = make_obs(par=par, storm=stormDays, survey=survey, config=config) 
+                    nestData1 = make_obs(par=par, storm=stormDays, survey=survey, conf=config) 
                 # except:
                 except IndexError as error:
                     print(
@@ -369,7 +322,8 @@ def main(fnUnique, testing, config=config, pStatic=staticPar):
                 # nVal = np.array([trueDSR, trueDSR_an, sum(discover), sum(exclude), repID])  
                 nVal = np.array([trueDSR, trueDSR_an, sum(discover), sum(exclude), sum(unknown), sum(misclass), flooded, hatched, nEx, repID, parID])  
                 like_val = np.concatenate((lVal, nVal))
-                colnames=config.colNames
+                # colnames=config.colNames
+                colnames=colNames
                 # if (trueDSR_an - lVal[1]) / trueDSR_an > 40:
                 # print("bias:",(trueDSR-lVal[1])/trueDSR)
                 # newL = np.zeros((par.numNests, 2))
@@ -466,7 +420,7 @@ def main(fnUnique, testing, config=config, pStatic=staticPar):
 
 
 # main(fnUnique=config.fnUnique, debugOpt=debugTypes, testing=config.testing)
-main(fnUnique=config.fnUnique, testing=config.testing)
+main(fnUnique=config.fnUnique, parLists=pLists, testing=config.testing)
 # main(fnUnique=False, testing=False, deb='none', debN="all")
 # if len(args) > 1:
 #     # debug = args[1] == "debugTrue"
