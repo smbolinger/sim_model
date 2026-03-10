@@ -1,8 +1,9 @@
 import numpy as np
+from MCmatrix import logistic
 # from datsim import config ## in case anything was changed in place
 
 # def calc_exp(inp, expPercent=0.5, cn=config): 
-def calc_exp(inp, expPercent=0.5, cn): 
+def calc_exp(inp, cn, expPercent=0.5): 
     """
     Calculate the exposure period for a nest (number of days observed)
         
@@ -110,7 +111,7 @@ def johnson(ndata, srn):
 # -----------------------------------------------------------------------------
 # @profile
 
-def calc_dsr(nData, nestType, calcType):
+def calc_dsr(nData, nestType, calcType, conf):
     """ 
     Calculate exposure and DSR for a given set of nests. 
 
@@ -129,7 +130,7 @@ def calc_dsr(nData, nestType, calcType):
         expDays = sum((nData[:,2]-nData[:,1]))
         hatched = sum(nData[:,3] == 0)
     else:
-        expDays = calc_exp(nData[:,4:7], expPercent=0.4)
+        expDays = calc_exp(nData[:,4:7], expPercent=0.4, cn=conf)
         expDays = expDays[:,2]
         hatched = sum(nData[:,7] == 0)
     dmr     = mayfield(num_fail=nNests-hatched, expo=expDays)
@@ -174,7 +175,7 @@ def prog_mark(s, ndata, nocc, con):
     # ALL IN ONE FUNCTION:
     s      = s.item() # makes singleton array into scalar
     allp   = np.array(range(1,len(ndata)), dtype=np.longdouble) # all nest probabilities 
-    expo = calc_exp(inp=ndata[:,4:7], expPercent=0.4)
+    expo = calc_exp(inp=ndata[:,4:7], expPercent=0.4, cn=con)
     for n in range(len(ndata)-1): # want n to be the row NUMBER
         alive_days = expo[n,0] - 1
         final_int  = expo[n,1] - 1
@@ -199,7 +200,7 @@ def prog_mark(s, ndata, nocc, con):
     return(nll)
 # -----------------------------------------------------------------------------
 
-def mark_wrapper(srn, ndata, nocc):
+def mark_wrapper(srn, ndata, nocc, conf):
     """
     This function calls the program MARK function when given a random starting 
     value (srn) and some nest data (ndata)
@@ -213,7 +214,7 @@ def mark_wrapper(srn, ndata, nocc):
     s = logistic(srn)
     #@#print("logistic of random starting value for program MARK:", s, s.dtype)
     # the logistic function tends to overflow if it's a normal float; make it np.float128
-    ret = prog_mark(s, ndata, nocc)
+    ret = prog_mark(s, ndata, nocc, con=conf)
     #@#print("ret=", ret)
     return ret
 # -----------------------------------------------------------------------------

@@ -29,8 +29,8 @@ parLists2 = {'numNests' : [250, 500],
             'pWrong':    [0.05, 0.1, 0.2, 0.3],
             'wType': [2, 7] }
 
-plTest  = {'numNests'  : [100],
-# plTest  = {'numNests'  : [50],
+# plTest  = {'numNests'  : [100],
+plTest  = {'numNests'  : [50],
            'probSurv'  : [0.96],
            'pMortFl'   : [0.75],
         #    'stormDur'  : [1],

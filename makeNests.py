@@ -1,6 +1,13 @@
 #!/usr/local/bin/python
 import numpy as np
-
+# from helpers import load_config, init_from_csv, sprob_from_csv, searchSorted2
+from helpers import init_from_csv, sprob_from_csv, searchSorted2
+# config = load_config("/home/wodehouse/Projects/sim_model/config.yaml", debug=True)
+# from datsim import config
+from settings import config, rng
+initDat=init_from_csv(config.stormInit) # this will evaluate after storm_init has been changed for wsl
+stormDat=sprob_from_csv(config.stormInit) # is evaluated later, can account for wsl filenames
+# debug=config.debugNest
 
 def stormGen(frq, dur):
         # file="/mnt/c/Users/Sarah/Dropbox/Models/sim_model/storm_init3.csv"
@@ -19,7 +26,7 @@ def stormGen(frq, dur):
     dr = np.arange(0, dur, 1)
     stormDays = [out + x for x in dr] # add sequential storm days when dur>1
     stormDays = np.array(stormDays).flatten()
-    print(">> storm days:", stormDays)
+    print("\t>> storm days:", stormDays)
     return(stormDays)
 # -----------------------------------------------------------------------------
 def mk_init(numNests):
@@ -27,8 +34,9 @@ def mk_init(numNests):
     initiation = initWeek + rng.integers(7)                    # add a random number from 1 to 6 (?) 
     # if debug: print(">> initiation week start days:\n", initWeek) 
     return(initiation)
-# -----------------------------------------------------------------------------
-def mk_surv(numNests, hatchTime, pSurv, con=config):
+
+#-----------------------------------------------------------------------------
+def mk_surv(numNests, hatchTime, pSurv, con):
     """
     Decide how long each nest is active
 
@@ -51,28 +59,15 @@ def mk_surv(numNests, hatchTime, pSurv, con=config):
     # if debug: print(">> survival in days:\n", survival, len(survival)) 
     
     survival[survival > hatchTime] = hatchTime # add some amt of error?
-    # if con.debugNests: print(">> survival in days:\n", survival, len(survival)) 
+    if con.debugNests>=3: print("\t>> survival in days:\n", survival, len(survival)) 
     # hatched = survival >= hatchTime # the hatched nests survived for >= hatchTime days 
     # if con.debugNests: print("hatched (no storms):", hatched, hatched.sum())
     ## NOTE THIS IS NOT THE TRUE HATCHED NUMBER; DOESN'T TAKE STORMS INTO ACCOUNT
     # if debug: print("real hatch proportion:", hatched.sum()/numNests)
     return(survival)
 # -----------------------------------------------------------------------------
-def mk_per(start, end, con=config):
-
-    # nestPeriod = np.stack((nestData[:,1], (nestData[:,1]+nestData[:,2]))) # create array of tuples
-    # need the double parentheses so it knows output is tuples
-    nestPeriod = np.stack((start, end)) # create array of tuples
-    nestPeriod = np.transpose(nestPeriod) # an array of start,end pairs 
-    # if con.debugNests: print(
-    #     ">> start and end of nesting period:\n", 
-    #     nestPeriod, 
-    #     nestPeriod.shape
-    #     )
-    return(nestPeriod)
-# -----------------------------------------------------------------------------
 # def mk_nests(par, init, weekStart, nestData): 
-def mk_nests(par, nestData): 
+def mk_nests(par, nestData, conf): 
     """
     nestData is an empty np array to be filled.
         
@@ -87,18 +82,19 @@ def mk_nests(par, nestData):
     
     """
 
+    print("\n[*] [*] [*] [*] [*] making nests [*] [*] [*] [*] [*] [*] [*] [*] ")
     nestData[:,0] = np.arange(par.numNests) # column 1 = nest ID numbers 
     nestData[:,1] = mk_init(par.numNests)                              # record to a column of the data array
-    #s if debug: print(">> end dates:\n", nestEnd, len(nestEnd)) 
-    survival = mk_surv(par.numNests, par.hatchTime, par.probSurv)
+    # if conf.debug: print(">> end dates:\n", nestEnd, len(nestEnd)) 
+    survival = mk_surv(par.numNests, par.hatchTime, par.probSurv, con=conf)
     nestData[:,2] = nestData[:,1] +survival
     ## NOTE THIS IS NOT THE TRUE HATCHED NUMBER; DOESN'T TAKE STORMS INTO ACCOUNT
     # NOTE Remember that int() only works for single values 
-    # if debug: print(nestData[1:6,:])
+    if conf.debug: print("\t>> end dates:", nestData[1:6,:])
     return(nestData)
 # ---- FLOODING & SUCH -------------------------------------------------------
 # def storm_nest(nestPeriod, surveysDays, stormDays, con=config):
-def storm_nest(stormFreq, nestPeriod, stormDays, con=config):
+def storm_nest(stormFreq, nestPeriod, stormDays, con):
     """
     Returns:
     -------
@@ -119,7 +115,7 @@ def storm_nest(stormFreq, nestPeriod, stormDays, con=config):
     # return(numStorms)
     return(stormNestIndex)
 # -----------------------------------------------------------------------------
-def mk_flood( stormDays, pMortFl, stormIndex, numNests, con=config):
+def mk_flood( stormDays, pMortFl, stormIndex, numNests, con):
     """
     NEED TO KNOW WHICH STORM SO CAN CHANGE END DATE
     Decide which nests fail from flooding:
@@ -156,7 +152,7 @@ def mk_flood( stormDays, pMortFl, stormIndex, numNests, con=config):
         if numStorms[n] > 0:
             # flood = np.zeros(len(stormIndex[n]), dtype=np.int32)
             flood = np.zeros(len(stormDays), dtype=np.int32)
-            # if config.debugFlood: print(f"nest {n} experienced >1 storm")
+            if config.debugFlood>=2: print(f"nest {n} experienced >1 storm")
             # flood = list(range(len(stormIndex[n])))
             for s in range(len(flood)):
                 # if config.debugFlood: print("s=", s)
@@ -166,7 +162,7 @@ def mk_flood( stormDays, pMortFl, stormIndex, numNests, con=config):
                     # flood[s] = flP[x] > pMortFl
                     flood[s] = flP[x] < pMortFl # I changed how pMortFL was defined.
                     x=x+1
-                    # if config.debugFlood: print("nest flooded?", flood[s])
+                    if config.debugFlood>=2: print("nest flooded?", flood[s])
                     # print(f"nest {n}: flooded?", flood[s])
             if any(flood.astype(bool)):
                 flooded[n] = 1
@@ -199,8 +195,8 @@ def mk_flood( stormDays, pMortFl, stormIndex, numNests, con=config):
     # stormInfo[:,2] = floodFail # true number flooded
     stormInfo[:,2] = flooded # true number flooded
     # print(sum(flooded))
-    if config.debugFlood: 
-        print("prob of failure due to flooding:", pMortFl)
+    if con.debugFlood>=1: 
+        print("|>prob of failure due to flooding:", pMortFl, end="")
         print("flooded:", flooded)
         print("storm nests:", stormNest)
         # print("flooded and during storm:", floodFail, floodFail.sum())
@@ -216,7 +212,7 @@ def mk_flood( stormDays, pMortFl, stormIndex, numNests, con=config):
 # -----------------------------------------------------------------------------
 # def mk_fates(nestDat, numNests, hatched, flooded, con=config):
 # def mk_fates(nestDat, numNests, hatched, whichS, stormDays, con=config):
-def mk_fates(nestDat, numNests, hatched,stormInfo, stormDays, con=config):
+def mk_fates(nestDat, numNests, hatched,stormInfo, stormDays, con):
     """
     Want number flooded to derive organically from the storm activity, instead of being a preset value
 
@@ -227,21 +223,22 @@ def mk_fates(nestDat, numNests, hatched,stormInfo, stormDays, con=config):
     """
     
     trueFate = np.empty(numNests) 
-    # if con.debugNests: print(">> hatched:", hatched, sum(hatched))
+    if con.debugNests>=1: print(">> hatched:", sum(hatched))
+    if con.debugNests>=3: print( hatched)
     trueFate.fill(1) # nests that didn't flood or hatch were depredated 
     flooded = stormInfo[:,2].astype(int)
     whichStorm = stormInfo[:,1].astype(int) # now this is the actual storm DAY, not the index
     trueFate[hatched == True] = 0 # was nest discovered?  
     trueFate[flooded == True] = 2  # should override the nests that "hatched" that were actually during storm
-    if con.debugNests: print(">> end date before storms accounted for:", nestDat[:,2])
+    if con.debugNests>=3: print("\t|>|> end date before storms accounted for:\n", nestDat[:,2])
     # had to add the ==True for some reason
     nestDat[:,2][flooded==True] = whichStorm[flooded==True]
-    if con.debugNests: print("did nest hatch?\n", hatched, sum(hatched), "\ndid nest flood?\n", flooded, sum(flooded))
+    if con.debugNests>=2: print("\t|>|> did nest hatch?\n", hatched, sum(hatched), "\ndid nest flood?\n", flooded, sum(flooded))
     
     nestDat = np.concatenate((nestDat, trueFate[:,None]), axis=1)
     #OH, but I don't ever return nestDat anyway. so maybe this should be a function that ADDS true fate to nestDat.
 
-    # if con.debugNests: print(">>>>> true final nest fates:\n", trueFate, len(trueFate))
+    if con.debugNests>=2: print(">>>>> true final nest fates:\n", trueFate, len(trueFate))
     # return(trueFate)
     return(nestDat)
 

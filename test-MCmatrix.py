@@ -1,4 +1,7 @@
 import numpy as np
+## if you really want to have print debugging w/in the likelihood functions
+## (which run like a million times)
+
 # from datsim import config ## in case anything was changed in place
 
 def triangle(x0, y0):

@@ -1,4 +1,6 @@
 from datetime import datetime
+import csv
+import itertools
 import numpy as np
 import os
 from pathlib import Path
@@ -8,19 +10,24 @@ import yaml
 # from datsim import config
 from getClass import Config
 
-def load_config(fpath, debug=False):
-    with open(fpath, "r") as cfg:
-        my_conf = yaml.safe_load(cfg)
-    if debug: print(">=> config:\n", my_conf)
-    my_conf = Config(**my_conf)
-    if debug: print(">=> convert to class:", my_conf)
-    return my_conf
-
-config=load_config("/home/wodehouse/Projects/sim_model/config.yaml", debug=True)
+# def load_config(fpath, debug=False):
+#     with open(fpath, "r") as cfg:
+#         my_conf = yaml.safe_load(cfg)
+#     if debug: print(">=> config:\n", my_conf)
+#     my_conf = Config(**my_conf)
+#     if debug: print(">=> convert to class:", my_conf)
+#     return my_conf
+#
+# config=load_config("/home/wodehouse/Projects/sim_model/config.yaml", debug=True)
+# from datsim import config
+from settings import config, rng
 debug = config.debug
 
-# debug=False
+# -----------------------------------------------------------------------------
+#  HELPER FUNCTIONS
+# -----------------------------------------------------------------------------
 
+# debug=False
 def mk_param_list(parList: Dict[str, list], fdir: str) -> list:
     """
     Take the dictionary of lists of param values, then unpack the lists to a 
@@ -39,7 +46,7 @@ def mk_param_list(parList: Dict[str, list], fdir: str) -> list:
     output in the original is a list of tuples
 
     """
-    print(f"using the {parList} params lists")
+    print(f">=> using the {parList} params lists")
     listVal = [parList[key] for key in parList]
     p_List = list(itertools.product(*listVal))
     # print(p_List)
@@ -133,7 +140,10 @@ def init_from_csv(file):
     weekStart = weekStart.astype(int)
     # return(dict(zip(weekStart, initProb)))
     ret = dict(zip(weekStart, initProb))
-    if debug: print(">> week: init probability = ",ret)
+    # if debug: print("\t>=> week: init probability = ",round(ret,3))
+    if debug: print("\t>=> week: init probability = ")
+    if debug: print({key: round(value,3) for key,value in ret.items()})
+    # if debug: print({as.int(key): as.float(round(value,3)) for key,value in ret.items()})
     return(ret)
     # return(initProb)
 # -----------------------------------------------------------------------------
@@ -156,7 +166,9 @@ def sprob_from_csv(file):
     weekStart = (storm_weeks2 * 7) - 90 # why minus 90?
     weekStart = weekStart.astype(int)
     ret = dict(zip(weekStart, stormProb))
-    if debug: print(">> week start date: storm probability =\n",ret)
+    # if debug: print("\t>=> week start date: storm probability =\n",round(ret,3))
+    if debug: print("\t>=> week start date: storm probability =\n")
+    if debug: print({key: round(value,3) for key,value in ret.items()})
     return(ret)
 
 #--- PRINTING: -----------------------------------------------------------------
@@ -431,163 +443,163 @@ def print_nest_info(nestData, discover, exclude):
 
 
 #--- OLD: ----------------------------------------------------------------------
-def like_old(argL, obsFreq, nestData, surveyDays, stormDays, numNests):
-    """
-
-    This function computes the overall likelyhood of the data given the model parameter estimates.
-    
-    The model parameters are expected to be received in the following order:
-    - a_s   = probability of survival during non-storm days
-    - a_mp  = conditional probability of predation given failure during non-storm days
-    - a_mf  = conditional probability of flooding given failure during non-storm days
-    - a_ss  = probability of survival during storm days
-    - a_mfs = conditional probability of predation given failure during storm days
-    - a_mps = conxditional probability of predation given failure during storm days
-    - sM    = for program MARK?
-
-    """
-  
-    nCol = 18
-    a_s, a_mp, a_mf, a_ss, a_mps, a_mfs, sM = argL
-    obs_int = obsFreq
-    likeData = np.zeros(shape=(numNests, nCol), dtype=np.longdouble) 
-
-    stillAlive  = np.array([1, 0, 0])
-    mortFlood   = np.array([0, 1, 0])
-    mortPred    = np.array([0, 0, 1])
-
-    # > starting matrix, from etterson 2007:
-    startMatrix = np.array([[a_s,0,0], [a_mf,1,0], [a_mp,0,1]]) 
-    # > use this matrix for storm weeks:
-    stormMatrix = np.array([[a_ss,0,0], [a_mfs,1,0], [a_mps,0,1]]) 
-        # how is this matrix actually being incorporated during the analysis?
-
-    logLike = Decimal(0.0)          # initialize the overall likelihood counter
-    #logLike = float(logLike)
-    rowNum = 0
-    for row in nestData:
-    # columns for the likelihood comparison datarframe:
-    #         num obs, log lik of nest, log lik period 1, period 2, etc.  
-        
-    # FOR EACH NEST -------------------------------------------------------------------------------------
-
-        nest    = row         # choose one nest (multiple output components from mk_obs())
-        # print('obs_int check: ', obs_int)
-
-        # disc    = nest[7].astype(int)    # first found
-        disc    = nest[0].astype(int)    # first found
-        # endObs  = nest[9].astype(int)    # last observed
-        endObs  = nest[2].astype(int)    # last observed
-        # hatched = nest[3]
-        # flooded = nest[4]
-        hatched = nest[3] == 0
-        flooded = nest[3] == 2
-
-        if flooded == True & hatched == False:
-            fate = 2
-        elif flooded == False & hatched == False:
-            fate = 3
-        else:
-            fate = 1
-        # fate    = nest[7].astype(int)    # assigned fate
-
-        if np.isnan(disc):
-            ###print("this nest was not discovered but made it through")
-            continue
-        
-        num     = len(np.arange(disc, endObs, obs_int)) + 1 # number o observations
-        # print('#############################################################')
-        # print('nest =', nest[0], 'row number =', rowNum, 'number of obs =', num)
-
-        likeData[rowNum, 0:3]  = np.array([nest[0], fate, num] )
-
-        # print("num=", num)
-        obsDays = in1d_sorted(
-            # (np.linspace(disc, endObs, num=num)), surveyDays)
-            np.linspace(disc, endObs, num=num),
-            surveyDays)
-        # print("obs days for nest:", obsDays)
-        obsPairs = np.fromiter(
-            itertools.pairwise(obsDays), 
-            dtype=np.dtype((int,2))
-            ) # do elements of numpy arrays have to be floats?
-        # print("date pairs in observation period:", obsPairs) 
-
-        # > make a list of intervals between each pair of observations 
-        #   (necessary for likelihood function)
-        intList = obsPairs[:,1] - obsPairs[:,0]
-        # print("interval list:", intList)
-        
-        # > start off with all intervals = alive
-        obs     = [stillAlive for _ in range(len(obsPairs)+1)] 
-
-        # > change the last obs if nest failed:
-        if fate == 2:
-            obs[-1] = mortFlood
-        elif fate == 3:
-            obs[-1] = mortPred
-
-        # print("fate, obs = ", fate, " , ", obs) # check that last entry in obs corresponds to fate
-
-        # if hatch, leave as is?
-
-        # place this likelihood counter inside the for loop so it resets 
-        # with each nest:
-        logLikelihood = Decimal(0.0)   
-        #logLikelihood = float(logLikelihood)
-
-        # likeData[0, rowNum] = nest[0]
-        obsNum = 0
-        for i in range(len(obs)-1):
-        # FOR EACH OBSERVATION OF THIS NEST ---------------------------------------------------------------------
-
-            # print("observation number:", obsNum)
-            
-            intElt  = (intList[i-1]).astype(int)  # access the (i-1)th element of intList,
-                                    # which is the interval from the (i-1)th
-                                    # to the ith observation
-
-            #stateF  = obs[i]
-            stateF  = obs[i+1] 
-            stateI  = obs[i]
-            # print("stateF:",stateF)
-            TstateI = np.transpose(stateI)
-            # print("TstateI:", TstateI)
-
-            # if any(d in storm_days for d in range(i-1, i)):
-            if any(d in stormDays for d in range(i-1, i)):
-                # if any of the days in the current observation interval (range) is also in storm days, use storm matrix
-                # print("using storm matrix")
-                lDay = np.dot(stateF, np.linalg.matrix_power(stormMatrix, intElt))
-                # this is the dot product of the current state of the nest and the storm matrix ^ interval length
-           # look into using @ instead of nest dot calls 
-            else:
-                # print("using normal matrix")
-                lDay = np.dot(stateF, np.linalg.matrix_power(startMatrix, intElt))
-
-            lPer = np.dot(lDay, TstateI)
-            # print("likelihood for this interval:", lPer)
-
-            logL = Decimal(- np.log(lPer))
-            # print("negative log likelihood of this interval:", logL)
-
-            #logL = float(logL)
-
-            logLikelihood = logLikelihood + logL # add in the likelihood for this one observation
-            # print("log likelihood of nest observation history:", logLikelihood)
-            colNum = obsNum + 4 
-            likeData[rowNum, colNum] = logL
-            obsNum = obsNum + 1
-
-        likeData[rowNum,3] = logLikelihood
-        logLike = logLike + logLikelihood        # add in the likelihood for the observation history of this nest
-        rowNum  = rowNum + 1
-        # print("increment row number:", rowNum)
-        # print("overall log likelihood so far:", logLike)
-        
-
-    # print(
-    #     "nest num, fate, num obs, lik(obs hist), lik(each obs int) ... \n",
-    #     likeData[:10,:] # print first ten rows
-    # )
-    return(logLike) 
+# def like_old(argL, obsFreq, nestData, surveyDays, stormDays, numNests):
+#     """
+#
+#     This function computes the overall likelyhood of the data given the model parameter estimates.
+#
+#     The model parameters are expected to be received in the following order:
+#     - a_s   = probability of survival during non-storm days
+#     - a_mp  = conditional probability of predation given failure during non-storm days
+#     - a_mf  = conditional probability of flooding given failure during non-storm days
+#     - a_ss  = probability of survival during storm days
+#     - a_mfs = conditional probability of predation given failure during storm days
+#     - a_mps = conxditional probability of predation given failure during storm days
+#     - sM    = for program MARK?
+#
+#     """
+#
+#     nCol = 18
+#     a_s, a_mp, a_mf, a_ss, a_mps, a_mfs, sM = argL
+#     obs_int = obsFreq
+#     likeData = np.zeros(shape=(numNests, nCol), dtype=np.longdouble) 
+#
+#     stillAlive  = np.array([1, 0, 0])
+#     mortFlood   = np.array([0, 1, 0])
+#     mortPred    = np.array([0, 0, 1])
+#
+#     # > starting matrix, from etterson 2007:
+#     startMatrix = np.array([[a_s,0,0], [a_mf,1,0], [a_mp,0,1]]) 
+#     # > use this matrix for storm weeks:
+#     stormMatrix = np.array([[a_ss,0,0], [a_mfs,1,0], [a_mps,0,1]]) 
+#         # how is this matrix actually being incorporated during the analysis?
+#
+#     logLike = Decimal(0.0)          # initialize the overall likelihood counter
+#     #logLike = float(logLike)
+#     rowNum = 0
+#     for row in nestData:
+#     # columns for the likelihood comparison datarframe:
+#     #         num obs, log lik of nest, log lik period 1, period 2, etc.  
+#
+#     # FOR EACH NEST -------------------------------------------------------------------------------------
+#
+#         nest    = row         # choose one nest (multiple output components from mk_obs())
+#         # print('obs_int check: ', obs_int)
+#
+#         # disc    = nest[7].astype(int)    # first found
+#         disc    = nest[0].astype(int)    # first found
+#         # endObs  = nest[9].astype(int)    # last observed
+#         endObs  = nest[2].astype(int)    # last observed
+#         # hatched = nest[3]
+#         # flooded = nest[4]
+#         hatched = nest[3] == 0
+#         flooded = nest[3] == 2
+#
+#         if flooded == True & hatched == False:
+#             fate = 2
+#         elif flooded == False & hatched == False:
+#             fate = 3
+#         else:
+#             fate = 1
+#         # fate    = nest[7].astype(int)    # assigned fate
+#
+#         if np.isnan(disc):
+#             ###print("this nest was not discovered but made it through")
+#             continue
+#
+#         num     = len(np.arange(disc, endObs, obs_int)) + 1 # number o observations
+#         # print('#############################################################')
+#         # print('nest =', nest[0], 'row number =', rowNum, 'number of obs =', num)
+#
+#         likeData[rowNum, 0:3]  = np.array([nest[0], fate, num] )
+#
+#         # print("num=", num)
+#         obsDays = in1d_sorted(
+#             # (np.linspace(disc, endObs, num=num)), surveyDays)
+#             np.linspace(disc, endObs, num=num),
+#             surveyDays)
+#         # print("obs days for nest:", obsDays)
+#         obsPairs = np.fromiter(
+#             itertools.pairwise(obsDays), 
+#             dtype=np.dtype((int,2))
+#             ) # do elements of numpy arrays have to be floats?
+#         # print("date pairs in observation period:", obsPairs) 
+#
+#         # > make a list of intervals between each pair of observations 
+#         #   (necessary for likelihood function)
+#         intList = obsPairs[:,1] - obsPairs[:,0]
+#         # print("interval list:", intList)
+#
+#         # > start off with all intervals = alive
+#         obs     = [stillAlive for _ in range(len(obsPairs)+1)] 
+#
+#         # > change the last obs if nest failed:
+#         if fate == 2:
+#             obs[-1] = mortFlood
+#         elif fate == 3:
+#             obs[-1] = mortPred
+#
+#         # print("fate, obs = ", fate, " , ", obs) # check that last entry in obs corresponds to fate
+#
+#         # if hatch, leave as is?
+#
+#         # place this likelihood counter inside the for loop so it resets 
+#         # with each nest:
+#         logLikelihood = Decimal(0.0)   
+#         #logLikelihood = float(logLikelihood)
+#
+#         # likeData[0, rowNum] = nest[0]
+#         obsNum = 0
+#         for i in range(len(obs)-1):
+#         # FOR EACH OBSERVATION OF THIS NEST ---------------------------------------------------------------------
+#
+#             # print("observation number:", obsNum)
+#
+#             intElt  = (intList[i-1]).astype(int)  # access the (i-1)th element of intList,
+#                                     # which is the interval from the (i-1)th
+#                                     # to the ith observation
+#
+#             #stateF  = obs[i]
+#             stateF  = obs[i+1] 
+#             stateI  = obs[i]
+#             # print("stateF:",stateF)
+#             TstateI = np.transpose(stateI)
+#             # print("TstateI:", TstateI)
+#
+#             # if any(d in storm_days for d in range(i-1, i)):
+#             if any(d in stormDays for d in range(i-1, i)):
+#                 # if any of the days in the current observation interval (range) is also in storm days, use storm matrix
+#                 # print("using storm matrix")
+#                 lDay = np.dot(stateF, np.linalg.matrix_power(stormMatrix, intElt))
+#                 # this is the dot product of the current state of the nest and the storm matrix ^ interval length
+#            # look into using @ instead of nest dot calls 
+#             else:
+#                 # print("using normal matrix")
+#                 lDay = np.dot(stateF, np.linalg.matrix_power(startMatrix, intElt))
+#
+#             lPer = np.dot(lDay, TstateI)
+#             # print("likelihood for this interval:", lPer)
+#
+#             logL = Decimal(- np.log(lPer))
+#             # print("negative log likelihood of this interval:", logL)
+#
+#             #logL = float(logL)
+#
+#             logLikelihood = logLikelihood + logL # add in the likelihood for this one observation
+#             # print("log likelihood of nest observation history:", logLikelihood)
+#             colNum = obsNum + 4 
+#             likeData[rowNum, colNum] = logL
+#             obsNum = obsNum + 1
+#
+#         likeData[rowNum,3] = logLikelihood
+#         logLike = logLike + logLikelihood        # add in the likelihood for the observation history of this nest
+#         rowNum  = rowNum + 1
+#         # print("increment row number:", rowNum)
+#         # print("overall log likelihood so far:", logLike)
+#
+#
+#     # print(
+#     #     "nest num, fate, num obs, lik(obs hist), lik(each obs int) ... \n",
+#     #     likeData[:10,:] # print first ten rows
+#     # )
+#     return(logLike) 

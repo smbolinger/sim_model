@@ -41,9 +41,10 @@ class Config:
     # testing:     bool
     testing:     str
     fnUnique:    bool
-    likeFile:    str
+    # likeFile:    str
     likeDir:     str
     stormInit:   str
-    colNames:    str
+    # colNames:    str
     numOut:      int
+    rngSeed:      int
 

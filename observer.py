@@ -1,8 +1,12 @@
 #!/usr/local/bin/python
 import numpy as np
-from makeNests import mk_nests, mk_fates
+from makeNests import mk_nests, mk_fates, mk_flood, storm_nest
+# from helpers import load_config
+# config = load_config("/home/wodehouse/Projects/sim_model/config.yaml", debug=True)
+# rng = np.random.default_rng(seed=config.rngSeed)
+from settings import config, rng
 
-def mk_surveys(stormDays, obsFreq, breedingDays):
+def mk_surveys(stormDays, obsFreq, breedingDays, conf):
     """
     This function creates the list of survey days by taking a random start date 
     from the first 5 breeding days and creating a range with step size determined
@@ -25,16 +29,30 @@ def mk_surveys(stormDays, obsFreq, breedingDays):
     # survey interval for first obs is 0:
     surveyInts  = np.array([0] + [surveyDays[n] - surveyDays[n-1] for n in range(1, len(surveyDays)-1) ] )
     # surveyInts  = np.append(surveyInts, )
-    if debug: 
-        print(">> all survey days, minus storms:\n", surveyDays, len(surveyDays)) 
+    if conf.debug: 
+        print("\t>-> all survey days, minus storms:\n", surveyDays, len(surveyDays)) 
 
     return(surveyDays, surveyInts)
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 # ------ NEST DATA HELPER FUNCTIONS -------------------------------------------
 # -----------------------------------------------------------------------------
+def mk_per(start, end, con):
+
+    # nestPeriod = np.stack((nestData[:,1], (nestData[:,1]+nestData[:,2]))) # create array of tuples
+    # need the double parentheses so it knows output is tuples
+    nestPeriod = np.stack((start, end)) # create array of tuples
+    nestPeriod = np.transpose(nestPeriod) # an array of start,end pairs 
+    # if con.debugNests: print(
+    #     ">> start and end of nesting period:\n", 
+    #     nestPeriod, 
+    #     nestPeriod.shape
+    #     )
+    return(nestPeriod)
+# -----------------------------------------------------------------------------
 # @profile
-def assign_fate(assignVal, pWrong, fateCuesPresent, trueFate, numNests, obsFr, intFinal, stormFate, cn=config):
+# def assign_fate(assignVal, pWrong, fateCuesPresent, trueFate, numNests, obsFr, intFinal, stormFate, cn=config):
+def assign_fate(assignVal, pWrong, fateCuesPresent, trueFate, numNests, obsFr, intFinal, stormFate, cn):
     """
     The observer assigns the correct fate based on a comparison of a set 
     probability to random draws from a uniform distribution. If observer is 
@@ -62,17 +80,17 @@ def assign_fate(assignVal, pWrong, fateCuesPresent, trueFate, numNests, obsFr, i
     assignedFate[fateProb < fateCuesPres] = trueFate[fateProb < fateCuesPres] 
     assignedFate[fateProb < pWrong] = assignVal # if fixed percentages turned off, pWrong == 0
 
-    if cn.debugObs: print(">> true fates:", trueFate, len(trueFate))
-    if cn.debugObs: print(">> assigned fates:", assignedFate, len(assignedFate))
+    if cn.debugObs: print("\t>-> true fates:", trueFate, len(trueFate))
+    if cn.debugObs: print("\t>-> assigned fates:", assignedFate, len(assignedFate))
     if stormFate: assignedFate[intFinal > obsFr] = 2
     if cn.debugObs: 
-        print(">> compare random probs to fateCuesPresent:\n", 
+        print("\t>-> compare random probs to fateCuesPresent:\n", 
               [fateProb,fateCuesPres], 
               fateProb.shape)
-        print(f">> or to pWrong: {pWrong} with fill value: {assignVal}")
-        print(">> nests with storm in final interval:", np.where(intFinal>obsFr))
-        print(">> storm fate == True?", stormFate)
-        print(">> assigned fates after incorrect fates assigned:", assignedFate, len(assignedFate))
+        print(f"\t>-> or to pWrong: {pWrong} with fill value: {assignVal}")
+        print("\t>-> nests with storm in final interval:", np.where(intFinal>obsFr))
+        print("\t>-> storm fate == True?", stormFate)
+        print("\t>-> assigned fates after incorrect fates assigned:", assignedFate, len(assignedFate))
     # fate cues prob should be affecting all nest fates equally, not just failures.
     # if debug: print(">> proportion of nests assigned hatch fate:", np.sum((assignedFate==0)[discovered==True])/(sum(discovered==True)),"vs period survival:", pSurv**hatchTime)
     # print(">> assigned fate array & its shape:\n", assignedFate, assignedFate.shape)
@@ -80,7 +98,7 @@ def assign_fate(assignVal, pWrong, fateCuesPresent, trueFate, numNests, obsFr, i
 
 # -----------------------------------------------------------------------------
 
-def svy_position(initiation, nestEnd, surveyDays, cn=config):
+def svy_position(initiation, nestEnd, surveyDays, cn):
     """ Finds index in surveyDays of iniatiation and end dates for each nest """
     # if cn.debugObs: print(">> initiation dates:\n", initiation)
     position = np.searchsorted(surveyDays, initiation) 
@@ -96,7 +114,7 @@ def svy_position(initiation, nestEnd, surveyDays, cn=config):
 # -----------------------------------------------------------------------------
 # @profile
 
-def observer(nData, par, cues, surveys, out, cn=config):
+def observer(nData, par, cues, surveys, out, conf):
     """
     The observer searches for nests on survey days. Surveys til discovery (success)
     are calculated as random draws from a negative binomial distribution with
@@ -110,10 +128,11 @@ def observer(nData, par, cues, surveys, out, cn=config):
     output: ndarray w/ nrows=numNests. 
     cols= i, j, k, assigned fate, num *normal* obs ints, intFinal
     """
+    print("\n[*] [*] [*] [*] [*] observer [*] [*] [*] [*] [*] [*] [*] [*] ")
     initiation, end, fate = nData[:,1], nData[:,2], nData[:,3]
     surveyDays, surveyInts = surveys
 
-    pos = svy_position(initiation, end, surveys[0])
+    pos = svy_position(initiation, end, surveys[0], cn=conf)
     num_svy          = pos[1] - pos[0]   
     svysTilDiscovery = rng.negative_binomial(n=1, p=par.discProb, size=par.numNests) # see above for explanation of p 
     discovered       = svysTilDiscovery < num_svy
@@ -129,19 +148,19 @@ def observer(nData, par, cues, surveys, out, cn=config):
     # if config.fateType=="fixed":
         # out[:,3] = assign_fixed(pWrong=par.pWrong, wrongVal=par.wType, trueFate=fate, numNests=numNests)
     # else:
-    out[:,3] = assign_fate(par.wType, par.pWrong, cues, fate, par.numNests, par.obsFreq, intFinal, par.stormFate)
+    out[:,3] = assign_fate(par.wType, par.pWrong, cues, fate, par.numNests, par.obsFreq, intFinal, par.stormFate, cn=conf)
     out[:,4] = num_svy - svysTilDiscovery  # number of observations for the nest
     out[:,5] = intFinal.astype(int) # length of final interval - transform to integer for the ndarray
-    if cn.debugObs: 
-        print("surveys til discovery; discovered T/F, total obs days, total active days:")
+    if conf.debugObs: 
+        print("\t|>surveys til discovery; discovered T/F, total obs days, total active days:")
         for i in range(len(out)):
-            print(f"{i:02}: {svysTilDiscovery[i]} | {discovered[i]} | {(out[:,2]-out[:,0])[i]} | {(nData[:,2]-nData[:,1])[i]}")
+            print(f"\t{i:02}: {svysTilDiscovery[i]} | {discovered[i]} | {(out[:,2]-out[:,0])[i]} | {(nData[:,2]-nData[:,1])[i]}")
     return(out)
 
 # -----------------------------------------------------------------------------
 # @profile
 
-def make_obs(par, storm, survey, config=config):
+def make_obs(par, storm, survey, conf):
     """
     1. Call functions mk_nests, mk_per, storm_nest, mk_flood, mk_fates, & observer
     2. Combine the output into an array: 
@@ -161,22 +180,22 @@ def make_obs(par, storm, survey, config=config):
     # fateCues directly correlates to obsFreq, so doesn't need to be param
     fateCues   = 0.71 if par.obsFreq > 5 else 0.76 if par.obsFreq == 5 else 0.8
     if par.pWrong > 0: fateCues=1
-    if debug: print("pWrong:", par.pWrong,"& probability that fate cues are present:", fateCues)
+    if conf.debug: print("\t|>|>pWrong:", par.pWrong,"& probability that fate cues are present:", fateCues)
     # NOTE should I make sure all nests live for at least a day?
     # ---- make the nests: ---------------------------------------------------
-    nData          = mk_nests(par=par, nestData=nd)
-    nestPeriod     = mk_per(nData[:,1], (nData[:,2])) # changed output of mk_nests 
-    stormOut       = storm_nest(par.stormFrq, nestPeriod, storm)
-    stormDat       = mk_flood(storm, par.pMortFl, stormOut, numNests=par.numNests)
+    nData          = mk_nests(par=par, nestData=nd, conf=conf)
+    nestPeriod     = mk_per(nData[:,1], (nData[:,2]), con=conf) # changed output of mk_nests 
+    stormOut       = storm_nest(par.stormFrq, nestPeriod, storm, con=conf)
+    stormDat       = mk_flood(storm, par.pMortFl, stormOut, numNests=par.numNests, con=conf)
     # inclFlood        = mk_flood(nData, par.pMortFl, stormsPerNest, numNests=par.numNests)
     # flooded        = stormDat[:,2] # need more than just whether nest flooded; need date
     hatched        = (nData[:,2]-nData[:,1]) >= par.hatchTime # hatched before storms accounted for
-    if config.debugNests: print("hatched (before storms)=", hatched, sum(hatched))
-    nData      = mk_fates(nData, par.numNests, hatched, stormDat, storm)
+    if conf.debugNests: print("\t|>hatched (before storms)=", hatched, sum(hatched))
+    nData      = mk_fates(nData, par.numNests, hatched, stormDat, storm, con=conf)
     # ---- observer: ---------------------------------------------------------
     # par2      = [par.numNests, par.obsFreq, par.discProb, par.stormFate, par.wType, par.pWrong]
     # obs       = observer(nData, par=par2, cues=fateCues, surveys=survey, out=nd2)
-    obs       = observer(nData, par=par, cues=fateCues, surveys=survey, out=nd2)
+    obs       = observer(nData, par=par, cues=fateCues, surveys=survey, out=nd2, conf=conf)
     # ---- concatenate to make data for the nest models: ---------------------
     nestData = np.concatenate((nData, 
                             #    np.zeros((par.numNests,4)),
@@ -193,7 +212,7 @@ def make_obs(par, storm, survey, config=config):
     # nestData[:,15] = nestData[:,2] - nestData[:,1]
     
     # if config.debug: print("nestData:\n", nestData)
-    if config.debugNests: print("\nnestData:\n", nestData)
+    if conf.debugNests: print("\nnestData:\n", nestData)
     # np.savetxt("nestdata_afterflood.csv", nestData, delimiter=",")
     # np.save("nest_data.npy", nestData)
     # np.save(nestfile, nestData)
