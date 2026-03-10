@@ -11,14 +11,13 @@
 #                the actual calculated DSR, not the assigned DSR (0.93 or 0.95)
 #                BUT I still don't know why the calculated DSR is consistently low.
 
-# import argparse
-
 import numpy as np 
 import scipy.stats as stats
 import csv
 import decimal
 import itertools
 import os
+import pprint
 import sys
 import yaml
 
@@ -35,34 +34,16 @@ from typing import Dict, Generator
 
 from getClass import Params, Config
 from settings import rng, config, staticPar, pLists
-
-# config = load_config("/home/wodehouse/Projects/sim_model/config.yaml", debug=True)
-
 from helpers import mk_param_list, mk_fnames
 from makeNests import stormGen
 from observer import make_obs, mk_surveys
 from dsrCalc import calc_dsr, mark_wrapper
 from MCmatrix import like_smd, triangle, logistic
 
-# NOTE: 
-# 1. turned off useSM (params)
-# 2. output is 9 columns for now
-# -----------------------------------------------------------------------------
-#  SETTINGS 
-# -----------------------------------------------------------------------------
-# rng = np.random.default_rng(seed=102891)
-# rng = np.random.default_rng(seed=config.rngSeed)
-
-# debugTypes = None # output = None verbose = False
+# debugTypes = None # output = None verbose = False 
 # print("debug options:", debugTypes)
-debug = config.debug
-# print(debug)
-
 # now        = datetime.today().strftime('%m%d%Y_%H%M%S')
-# config.fnUnique   = True
-# storm_init = "/home/wodehouse/projects/sim_model/storm_init3.csv"
-# like_f_dir = "/home/wodehouse/projects/sim_model/out"
-# if config.useWSL:
+debug = config.debug
 
 
 def randArgs():
@@ -80,13 +61,12 @@ def randArgs():
     srand = rng.uniform(-10.0, 10.0) # should the MARK and matrix MLE start @ same value?
     # z = np.array([s, mp, ss, mps, srand])
     z = np.array([s, mp])
-
     return(z)
+
 # -----------------------------------------------------------------------------
 #   CREATE NEST DATA AND RUN THE OPTIMIZER 
 # -----------------------------------------------------------------------------
-# need to loop through the param combinations
-# within the loop, need to unpack the params and run the optimizer
+## loop thru param combinations; within loop, unpack params & run optimizer
 # @profile
 def run_optim(minimizer, fun, z, arg, met='Nelder-Mead'):
     """
@@ -100,19 +80,13 @@ def run_optim(minimizer, fun, z, arg, met='Nelder-Mead'):
     """
     
     try:
-        # out = optimize.minimize(fun, z, args=arg, method=met)
-        # out = minimizer(fun, z, args=arg, method=met)
         out = choose_alg(minimizer, fun, z, arg, met)
-
         ex = 0.0
     except decimal.InvalidOperation as error2:
-        # ex=100.0
         ex=-1.0
         print(">> Error: invalid operation in decimal:", error2, "Go to next replicate.")
         return(ex)
-        # continue
     except OverflowError as error3:
-        # ex=200.0
         ex=-2.0
         print(
             ">> Error: overflow error:", 
@@ -120,8 +94,6 @@ def run_optim(minimizer, fun, z, arg, met='Nelder-Mead'):
             "Go to next replicate."
             )
         return(ex)
-        # continue
-    #
     # print("Success?", out.success, out.message, "answer=", out.x)
     if fun==like_smd: 
         # print("Success?", out.success, out.message, "answer=", out.x)
@@ -145,8 +117,6 @@ def choose_alg(minim, fun, z, arg, met):
         minimizer = optimize.basinhopping(fun, z, minimizer_kwargs=min_kwargs)
         
     return(minimizer)
-# def make_obs(par, init, dfs, stormDays, surveyDays, config=config):
-# @profile
     
 def ansTransform(ans):
     """
@@ -178,7 +148,6 @@ def ansTransform(ans):
     # mps2 = ret3[1]
     # mfs2 = 1.0 - ss2 - mps2
     
-    #ansTransformed = np.array([s2, mp2, mf2, ss2, mps2, mfs2], dtype=np.float128)
     # ansTransformed = np.array([s2, mp2, mf2, ss2, mps2, mfs2], dtype=np.longdouble)
     ansTransformed = np.array([s2, mp2, mf2], dtype=np.longdouble)
     # print(">> results as an array:\n", ansTransformed)
@@ -187,8 +156,6 @@ def ansTransform(ans):
 
 # -----------------------------------------------------------------------------
 
-# def rep_loop(par, repID, nData, vals, storm, survey, config):
-# def rep_loop(par, nData, vals, storm, survey, config):
 # @profile
 def rep_loop(par, nData, storm, survey, config):
     """
@@ -241,15 +208,8 @@ def rep_loop(par, nData, storm, survey, config):
     like_val = np.array([ mark_s,s2,mp2], dtype=np.longdouble)
     if config.debugLL>=3: print(">> like_val:\n", like_val)
     # if config.debugLL: print(">> like_val:\n", like_val)
-    # like_val = np.array(like_val, dtype=np.longdouble)
     return(like_val)
     
-# def save_vals(parID, repID, like_val, ):
-# def main(testing=False, fname=mk_fnames(), pStatic=staticPar):
-# def main(testing=False, config=config, pStatic=staticPar):
-# def set_debug(deb, debN, debS, config=config):
-# def set_debug(deb=debugTypes):
-# def main(fnUnique, debugOpt, testing, config=config, pStatic=staticPar):
 def main(fnUnique, testing, parLists, config=config, pStatic=staticPar):
     """
     If 'fnUnique'==True, filename is "uniquified" and includes H:M:S
@@ -266,13 +226,8 @@ def main(fnUnique, testing, parLists, config=config, pStatic=staticPar):
     # fname = mk_fnames(like_f_dir=like_f_dir) if fnUnique else mk_fnames(unique=False)
     fname = mk_fnames(suf = lf_suffix) if fnUnique else mk_fnames(suf =lf_suffix, unique=False)
     fdir  = fname[0].parent
-    # fdir  = os.path.split(fname[0])[0]
-    # print(fdir)
-    # config.likeFile = fname[0]
     likeFile = fname[0]
-    # config.colNames = fname[1]
     colNames = fname[1]
-    # print(config)
     with open(likeFile, "wb") as f: # doesn't need to be 'a' bc file is open
         paramsArray = mk_param_list(parList=pList, fdir=fdir)
         # if debug: print(f">>>> there will be {len(paramsArray)*config.nreps} total rows")
@@ -283,7 +238,10 @@ def main(fnUnique, testing, parLists, config=config, pStatic=staticPar):
             par        = paramsArray[i] 
             par_merge  = {**par, **pStatic}
             par        = Params(**par_merge)
-            print(">>>>>>>>> param set number:", parID, "and params in set:", par)
+            print("\n <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <>")
+            # print("\n>>>>>>>>> param set number:", parID, "and params in set:", par)
+            print("\n>>>>>> param set #",parID,"& params in set:\n\t",par)
+            # pprint.pprint(par, indent=4, width=90)
             stormDays  = stormGen(frq=par.stormFrq, dur=par.stormDur)
             survey     = mk_surveys(stormDays, par.obsFreq, par.brDays, conf=config)
             # surveyDays, surveyInts = survey
@@ -376,69 +334,4 @@ def main(fnUnique, testing, parLists, config=config, pStatic=staticPar):
                 
             parID = parID + 1
 
-    
-# rng = config.rng
-# debug_nest=config.debugNests
-# debugM=config.debugLL
-# debugLL=config.debugLL
-# args = config.args
-# args = sys.argv[1:]
-# args = sys.argv()
-# options = "htdwo:"
-# optVal  =
-
-# except getopt.error as err:
-#     print(str(err))
-# test1 = False if 
-
-# using argparse gives more functionality, but optparse gives more control:
-# parser = argparse.ArgumentParser()
-# parser.add_argument("-t", "--test", 
-#                     help="run in testing mode w/ limited param values & limited num nests? (default:False)", 
-#                     type=bool, action='store_true')
-# parser.add_argument("-w", "--wsl", 
-#                     help="using WSL? - will change filenames to match (default:False)", 
-#                     type=bool, action='store_true')
-# parser.add_argument("-d", "--debug", 
-#                     help="turn on/off the basic debugger - for more print statements, see script (default:False)", 
-#                     type=bool, action='store_true')
-# parser.add_argument("-f", "--file", 
-#                     help="change likelihood output file location",
-#                     type=str)
-# args=parser.parse_args()
-
-# config.useWSL = args.wsl
-
-
-# debug = config.debug
-# NOTE need to decide if it's worth saving line-by-line
-# main(fnUnique=False, testing=True,deb='none', debN="all", debS="none")
-# main(fnUnique=False, useWSL=False, testing=True, deb='none', debN="none", debS="none")
-# main(fnUnique=False, debugOpt=debugTypes)
-# main(fnUnique=fnUnique, debugOpt=debugTypes, testing=config.testing)
-
-
-
-# main(fnUnique=config.fnUnique, debugOpt=debugTypes, testing=config.testing)
 main(fnUnique=config.fnUnique, parLists=pLists, testing=config.testing)
-# main(fnUnique=False, testing=False, deb='none', debN="all")
-# if len(args) > 1:
-#     # debug = args[1] == "debugTrue"
-#     # enumerate() give sboth index and value
-#     for i in range(len(args)):
-#         debugList[args[i]] = True
-# for key, val in debugList.items():
-#     globals()[key] = val
-#     print(globals()[key], val)
-    
-# llArgs = randArgs()
-# testLL  = like_smd(x=llArgs, obsData=dat, obsFreq=par.obsFreq, 
-#                    stateMat=stMat, useSM=par.useSMat, whichRet=1)
-
-
-
-
-              # "[-o --Options-debug] More specific print statements.\n",
-              #   "\t\t\tOptions: 'like','nest','mark','flood','obs'.\n",
-              #   "\t\t\tplace in single string with comma delim \n\n",
-              # "[-w --Win-true] Use Windowdowss? filenames will be changed to match. (Default:False)\n",
