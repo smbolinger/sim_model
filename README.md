@@ -1,0 +1,19 @@
+
+to run: poetry run python3 simdata_vect.py 
+
+-------------------------------------------------------------------------------------------------------  
+simdata_vect.py usage:                                                                                                                                                                                                                                          ║.bashrc
+                                                                                                                                                                                                                                                                ║
+ [-t --Test] Choose testing mode w/ smaller # of nests and reduced # of params OR used fixed probs:                                                                                                                                                             ║prefix-e
+                1.'norm' - moderate values; 2.'storm' - extremes of storm values;                                                                                                                                                                               ║view refs
+                3.'fixed' - use fixed values; 4.'fixedtest' - test of fixed; 5.'no' (default)                                                                                                                                                                   ║
+                                                                                                                                                                                                                                                                ║prefix-X
+ [-d --Debug-general] Turn on simple/broad debugging statements? (Default:False)                                                                                                                                                                                ║kill pane
+                                                                                                                                                                                                                                                                ║
+ [-o --Options-debug] More specific print statements.                                                                                                                                                                                                           ║prefix-Z
+                        Options: 'like','nest','mark','flood','obs'.                                                                                                                                                                                            ║redo pane
+                        place in single string with comma delim                                                                                                                                                                                                 ║
+                                                                                                                                                                                                                                                                ║prefix-b
+ [-w --WSL-true] Use WSL? filenames will be changed to match. (Default:False)                                                                                                                                                                                   ║send cmd
+                                                                                                                                                                                                                                                                ║
+-------------------------------------------------------------------------------------------------------  
