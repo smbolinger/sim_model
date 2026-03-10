@@ -4,13 +4,19 @@
 *.json
 *.lprof
 *.docx
+lib64
 
 # directories:
 /references
 /py_output
-/output
+/out
+/lib
+/bin
 /test
 /logs
 /other
 /analysis
 .Rproj.user
+/.venv
+/backup
+/__pycache__
