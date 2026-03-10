@@ -4,6 +4,7 @@ import itertools
 import numpy as np
 import os
 from pathlib import Path
+import pprint
 import sys
 from typing import Dict, Generator
 import yaml
@@ -27,6 +28,17 @@ debug = config.debug
 #  HELPER FUNCTIONS
 # -----------------------------------------------------------------------------
 
+def expDecay(n0, k, t):
+    """
+    Exponential decay function.
+
+    n0 = initial value
+    k  = rate of decay
+    t  = time
+    """
+    # return(n0 * (1-lam) ** t)
+    return n0 * np.exp(-k * t) 
+
 # debug=False
 def mk_param_list(parList: Dict[str, list], fdir: str) -> list:
     """
@@ -46,7 +58,8 @@ def mk_param_list(parList: Dict[str, list], fdir: str) -> list:
     output in the original is a list of tuples
 
     """
-    print(f">=> using the {parList} params lists")
+    # print(f"\t>=> using the {parList} params lists")
+    pprint.pprint(f"\t>=> using the {parList} params lists", width=90)
     listVal = [parList[key] for key in parList]
     p_List = list(itertools.product(*listVal))
     # print(p_List)
@@ -102,20 +115,8 @@ def in1d_sorted(A,B):
     idx = np.searchsorted(B, A)
     idx[idx==len(B)] = 0
     return A[B[idx] == A]
+
 # -----------------------------------------------------------------------------
-
-def expDecay(n0, k, t):
-    """
-    Exponential decay function.
-
-    n0 = initial value
-    k  = rate of decay
-    t  = time
-    """
-    # return(n0 * (1-lam) ** t)
-    return n0 * np.exp(-k * t) 
-
-
 
 def init_from_csv(file):
         # file="C:/Users/Sarah/Dropbox/Models/sim_model/storm_init3.csv"):
@@ -141,8 +142,10 @@ def init_from_csv(file):
     # return(dict(zip(weekStart, initProb)))
     ret = dict(zip(weekStart, initProb))
     # if debug: print("\t>=> week: init probability = ",round(ret,3))
-    if debug: print("\t>=> week: init probability = ")
-    if debug: print({key: round(value,3) for key,value in ret.items()})
+    # if debug: print("\t>=> loading init dates; <week start date>: <init probability> ")
+    if debug: print("\t>=> loading init dates; <week start date>: <init probability> ")
+    if debug: print("\t", {str(key): str(round(value,3)) for key,value in ret.items()})
+    # if debug: pprint.pprint({str(key): str(round(value,3)) for key,value in ret.items()}, indent=4, width=90)
     # if debug: print({as.int(key): as.float(round(value,3)) for key,value in ret.items()})
     return(ret)
     # return(initProb)
@@ -167,25 +170,15 @@ def sprob_from_csv(file):
     weekStart = weekStart.astype(int)
     ret = dict(zip(weekStart, stormProb))
     # if debug: print("\t>=> week start date: storm probability =\n",round(ret,3))
-    if debug: print("\t>=> week start date: storm probability =\n")
-    if debug: print({key: round(value,3) for key,value in ret.items()})
+    if debug: print("\t>=> loading storm prob; <week start date>: <storm probability> ")
+    # if debug: print({key: round(value,3) for key,value in ret.items()})
+    # retstr = map(str, ret)
+    # if debug: print({key: round(value,3) for key,value in retstr.items()}) ##doesn't work
+    # if debug: print(map(str,{key: round(value,3) for key,value in ret.items()}))##doesn't work
+    if debug: print("\t",{str(key): str(round(value,3)) for key,value in ret.items()})
+    # if debug: pprint.pprint({str(key): str(round(value,3)) for key,value in ret.items()}, indent=4, width=90)
     return(ret)
 
-#--- PRINTING: -----------------------------------------------------------------
-    # def pr_fates_dsr(nData, expo, trueDSR, nestType):
-                # if debug:
-                #     print(
-                #         "> DISCOVERED NESTS - total | analyzed: hatched:", 
-                #         discovered, "|", analyzed,
-                #         # "excluded from analysis:", excluded,
-                #         "failed:", failed, "|", failed2,
-                #         # nestData.shape[0] - sum(nestData[:,3])
-                #         # "exposure days:", expDays, "|", sum(nestData[:,15])
-                #         "true DSR:", trueDSR_disc, "|", trueDSR_an
-                #         )
-# -----------------------------------------------------------------------------
-# --- PRINT FUNCTIONS ---------------------------------------------------------
-# -----------------------------------------------------------------------------
 def uniquify(path):
     """
     from https://stackoverflow.com/questions/13852700/create-file-but-if-name-exists-add-number
@@ -271,12 +264,27 @@ def mk_fnames(suf:str, con=config, unique=True):
     #     colnames = ', '.join([str(x) for x in column_names]) # needs to be string
     # )
     # print(">> save directory name:", dirName)
-    print(">> likelihood file path:", likeF)
+    print("\t>=> likelihood file path:", likeF)
     # return(saveNames)
     return(likeF, colnames)
     # return(fdir, likeF, colnames)
 # -----------------------------------------------------------------------------
 
+#--- PRINTING: -----------------------------------------------------------------
+    # def pr_fates_dsr(nData, expo, trueDSR, nestType):
+                # if debug:
+                #     print(
+                #         "> DISCOVERED NESTS - total | analyzed: hatched:", 
+                #         discovered, "|", analyzed,
+                #         # "excluded from analysis:", excluded,
+                #         "failed:", failed, "|", failed2,
+                #         # nestData.shape[0] - sum(nestData[:,3])
+                #         # "exposure days:", expDays, "|", sum(nestData[:,15])
+                #         "true DSR:", trueDSR_disc, "|", trueDSR_an
+                #         )
+# -----------------------------------------------------------------------------
+# --- PRINT FUNCTIONS ---------------------------------------------------------
+# -----------------------------------------------------------------------------
 def print_observer(svysTilDiscovery, discovered):
     print("surveys til discovery; discovered T/F:", svysTilDiscovery, discovered)
     # if cn.debugObs: print("nestID, init, end, tfate, i, j, k, afate, nnobs, intFin:\n", 

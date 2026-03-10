@@ -1,3 +1,6 @@
+# -----------------------------------------------------------------------------
+#  SETTINGS 
+# -----------------------------------------------------------------------------
 
 from datetime import datetime
 import csv
@@ -14,11 +17,11 @@ from getClass import Config
 from paramLists import staticPar, parLists, parLists2, plTest, plTest2, plTestFlood, plDebug
 
 dtime = datetime.today().strftime('%d %b %Y @ %H:%M')
-print(f"\n <> <> <> <> <> <> <> <> datsim.py - {dtime}<> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <>\n")
+print("\n\n<> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <>")
+print(f"\n <> <> <> <> <> <> <> <> datsim.py - {dtime} <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <>")
 print("\n[*] [*] [*] [*] [*] [*] settings [*] [*] [*] [*] [*] [*] [*] [*] [*] ")
 
 try:
-    # opts,args = getopt.gnu_getopt(sys.argv[1:],"ht:do:w",["Help", "Test", "Debug", "Win-true"])
     opts,args = getopt.gnu_getopt(sys.argv[1:],"ht:d",["Help", "Test", "Debug"])
 except getopt.error as err:
     print(str(err))
@@ -26,17 +29,10 @@ except getopt.error as err:
 
 def load_config(fpath, debug=False):
     with open(fpath, "r") as cfg:
-        my_conf = yaml.safe_load(cfg)
-    # if debug: print(">=> config:\n", my_conf)
+        my_conf = yaml.safe_load(cfg) # if debug: print(">=> config:\n", my_conf)
     my_conf = Config(**my_conf)
     if debug: print("\t>=> config, converted to class:", my_conf)
     return my_conf
-
-
-# from makeNests import stormGen, mk_surveys, mk_init, mk_surv, mk_per, mk_nests, storm_nest, mk_flood, mk_fates
-# from helpers import mk_param_list, init_from_csv, sprob_from_csv, searchSorted2, in1d_sorted, mk_fnames, triangle, logistic, load_config
-# from helpers import load_config, init_from_csv, sprob_from_csv, mk_param_list, mk_fnames
-# from helpers import load_config, mk_param_list, mk_fnames
 
 test=""
 debug=False
@@ -52,15 +48,10 @@ for arg, val in opts:
                 )
         sys.exit()
     elif arg in ("-t", "--Type"):
-        # config=load_config("/home/wodehouse/Projects/sim_model/test-config.yaml")
         test=val
     elif arg in ("-d", "--Debug-general"):
-        # config.debug = True
         debug = True
-        # print("\t|>Config-debug:", config.debug, end="  ")
-        # print("\t|>Debug:", debug, end=" ")
-    # else:
-# if len(opts) <1:
+
 if test:
     config=load_config("/home/wodehouse/Projects/sim_model/test-config.yaml")
     print("\t|>Config-TEST mode:", config.testing, end=" ")
