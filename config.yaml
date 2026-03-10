@@ -1,0 +1,46 @@
+nreps: 500
+numOut: 11
+testing: "no"
+useWin: False
+fnUnique: False
+rngSeed: 102891
+
+stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
+likeDir: "/home/wodehouse/Projects/sim_model/out"
+# likeFile: " "
+# colNames: " "
+
+# maybe debug should be somewhere else? since it is edited on the fly
+debug: 0
+debugLL: 0
+debugNests: 0
+debugM: 0
+debugObs: 0
+debugFlood: 0
+
+## nesting??
+# debugging:
+#   debug: 
+
+
+# config = Config(nreps       = 500, 
+# # config = Config(nreps       = 1, 
+#                 debug       = False, 
+#                 debugLL     = False, 
+#                 debugNests  = False, 
+#                 debugM      = False,
+#                 debugObs    = False,
+#                 debugFlood  = False,
+#                 useWin      = False,
+#                 # testing     = False,
+#                 testing     = "no",
+#                 fnUnique    = False,
+#                 # likeFile    = fname[0], 
+#                 likeFile    = " ",
+#                 stormInit = "/home/wodehouse/Projects/sim_model/storm_init3.csv",
+#                 likeDir = "/home/wodehouse/Projects/sim_model/out",
+#                 colNames    = " ",
+#                 # colNames    = fname[1],
+#                 # numOut      = 21)
+#                 # numOut      = 18)
+#                 numOut      = 11)
