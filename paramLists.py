@@ -11,12 +11,39 @@ parLists = {'numNests' : [250, 500],
             'probSurv' : [0.96],
             'pMortFl'  : [0.9, 0.75, 0.6], # flood/storm severity
             'stormDur' : [1, 2],
-            'stormFrq' : [1, 2, 3, 4],
-            'obsFreq'  : [3, 5, 7],
+            # 'stormFrq' : [1, 2, 3, 4],
+            'stormFrq' : [1, 2, 3],
+            # 'obsFreq'  : [3, 5, 7],
+            'obsFreq'  : [3, 4, 5],
            'stormFate': [False,True],
-            'hatchTime': [16, 20, 28], 
             'pWrong':    [0],
-            'wType':     [-1] }
+            'wType':     [-1],
+            'hatchTime': [16, 20, 28]
+            } 
+
+plNSTest = {'numNests' : [50],
+            'probSurv' : [0.96],
+            'pMortFl'  : [0], # flood/storm severity
+            'stormDur' : [0],
+            'stormFrq' : [0],
+            'obsFreq'  : [3,5],
+           'stormFate': [False],
+            'pWrong':    [0.05, 0.1, 0.2, 0.3],
+            'wType': [ 7] ,
+            'hatchTime': [16, 28]
+            }
+
+plNoStorm = {'numNests' : [250, 500],
+            'probSurv' : [0.96],
+            'pMortFl'  : [0], # flood/storm severity
+            'stormDur' : [0],
+            'stormFrq' : [0],
+            'obsFreq'  : [3,4,5],
+           'stormFate': [False],
+            'pWrong':    [0.05, 0.1, 0.2, 0.3],
+            'wType': [2, 7] ,
+            'hatchTime': [16, 20, 28]
+            }
 
 parLists2 = {'numNests' : [250, 500],
             'probSurv' : [0.96],
@@ -25,9 +52,10 @@ parLists2 = {'numNests' : [250, 500],
             'stormFrq' : [0],
             'obsFreq'  : [3],
            'stormFate': [False],
-            'hatchTime': [16, 20, 28],
             'pWrong':    [0.05, 0.1, 0.2, 0.3],
-            'wType': [2, 7] }
+            'wType': [2, 7] ,
+            'hatchTime': [16, 20, 28]
+            }
 
 # plTest  = {'numNests'  : [100],
 plTest  = {'numNests'  : [100],
@@ -38,10 +66,10 @@ plTest  = {'numNests'  : [100],
         #    'stormFrq'  : [2],
            'stormFrq'  : [1,2],
         #    'obsFreq'   : [3],
-           'obsFreq'   : [3, 7],
+           'obsFreq'   : [3, 5],
+           'stormFate': [False,True],
            'pWrong'    : [0.1],
            'wType'     : [7],
-           'stormFate': [False,True],
            'hatchTime' : [20, 28] 
            }
         #    'hatchTime' : [20],
