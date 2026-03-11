@@ -44,6 +44,7 @@ from MCmatrix import like_smd, triangle, logistic
 # print("debug options:", debugTypes)
 # now        = datetime.today().strftime('%m%d%Y_%H%M%S')
 debug = config.debug
+print("> debug value:", debug)
 
 
 def randArgs():
@@ -206,7 +207,7 @@ def rep_loop(par, nData, storm, survey, config):
     # s2,mp2,mf2,ss2,mps2,mfs2 = res2 # unpack like_old() function output
     # like_val = [ mark_s,s2,mp2,mf2,ss2,mps2,mfs2]
     like_val = np.array([ mark_s,s2,mp2], dtype=np.longdouble)
-    if config.debugLL>=3: print(">> like_val:\n", like_val)
+    if config.debugLL>=2: print(">> like_val:\n", like_val)
     # if config.debugLL: print(">> like_val:\n", like_val)
     return(like_val)
     
@@ -271,6 +272,24 @@ def main(fnUnique, testing, parLists, config=config, pStatic=staticPar):
                 exclude  = ((nestData[:,7] == 7) | (nestData[:,4]==nestData[:,5]))                         
                 unknown  = (nestData[:,7]==7)
                 misclass = (nestData[:,7]!=nestData[:,3])
+                if debug>=1:
+                  print(
+                      f"\n |== discovered: {discover.sum()} |"
+                      f" excluded: {exclude.sum()} |"
+                      f" misclassified: {misclass.sum()} |"
+                      f" true DSR: {trueDSR} ==| "
+                      )
+                if debug>=2:
+                  print(
+                      f"\n |== (assigned)flooded: {sum(nestData[:,7]==2)} |"
+                      f" (assigned)hatched: {sum(nestData[:,7]==0)} |"
+                      f" unknown fate: {unknown.sum()} ==|"
+                      )
+                if debug>=3:
+                  print(
+                      f"\n |== (true)flooded: {flooded.sum()} |"
+                      f"(true)hatched: {hatched.sum()} ==|"
+                      )
                 nestData    = nestData[~(exclude),:]    # remove excluded nests 
                 trueDSR_an   = calc_dsr(nData=nestData, nestType="analysis", calcType="true", conf=config) 
                 lVal = rep_loop(par=par, nData=nestData, storm=stormDays,
@@ -283,7 +302,9 @@ def main(fnUnique, testing, parLists, config=config, pStatic=staticPar):
                 # colnames=config.colNames
                 colnames=colNames
                 # if (trueDSR_an - lVal[1]) / trueDSR_an > 40:
-                # print("bias:",(trueDSR-lVal[1])/trueDSR)
+                # if debug>=2: print("DSR bias:",(trueDSR-lVal[1])/trueDSR)
+                if debug>=2: 
+                  print(f"calc DSR: {lVal[1]} | DSR bias: {(trueDSR-lVal[1])/trueDSR}")
                 # newL = np.zeros((par.numNests, 2))
                 # newL = np.zeros(2)
                 # fdir  = fname[0].parent
