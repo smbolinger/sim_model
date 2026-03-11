@@ -125,7 +125,7 @@ def nest_mat(argL, obsFreq, stormFin, useStormMat, config):
     
     # a_s, a_mp, a_mf, a_ss, a_mps, a_mfs, sM = argL
     a_s, a_mp, a_mf = argL
-    # if debug: print("observation interval, storm in final interval?, use storm matrix?\n",obsFreq, stormFin, useStormMat)
+    # if config.debugLL>=2: print("observation interval, storm in final interval?, use storm matrix?\n",obsFreq, stormFin, useStormMat)
     trMatrix = np.array([[a_s,0,0], [a_mf,1,0], [a_mp,0,1]]) 
     pwr = np.linalg.matrix_power(trMatrix, obsFreq) # raise the matrix to the power of the number of days in obs int
     # storm matrix just has a longer observation interval

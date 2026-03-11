@@ -30,6 +30,7 @@ def calc_exp(inp, cn, expPercent=0.5):
       > not calculating nestling exposure bc precocial/semi-precocial chicks
         leave the nest so early 
   """
+  if cn.debugM>=4: print(f"exp percent={expPercent} ; inp (ID, i, j, k, fate:)\n",inp)
   expo = np.zeros((len(inp), 3))
   for n in range(len(inp)-1): # want n to be the row NUMBER
     # alive_days = inp[n,1] - inp[n,0] # interval from first found to last active 
@@ -187,16 +188,19 @@ def prog_mark(s, ndata, nocc, con):
     allp[n]   = p # NOTE this line is throwing the Deprecation Warning
   nll = sum(-np.log(allp))
   # NOTE these if statements take up lots of time, esp inside the optimizer
-  # if con.debugM:
-  #   print(">>>>> Program MARK >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-  #   print("> number of nests:", len(ndata), "discovered nests:", len(disc))
-  #   print("inp (ID, i, j, k, fate:)\n",inp)
-  #   print("l=", l, "| s=", s, "| nocc=", nocc)
-  #   print("----------------------------")
-  #   print(">> all nest cell probabilities:\n", allp)
-  #   print(">> all degrees of freedom:\n", alldof)
-  #   print("log of all nest cell probabilities:", lnp)
-  #   print(">> sum to get negative log likelihood of the data:", NLL)
+  if con.debugM>=4:
+    print(">>>>> Program MARK >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+    # print("> number of nests:", len(ndata), "discovered nests:", len(disc))
+    print("> number of nests:", len(ndata), end=" ")
+    # print("inp (ID, i, j, k, fate:)\n",inp)
+    # print("l=", l, "| s=", s, "| nocc=", nocc)
+    print("| s=", s, "| nocc=", nocc)
+    # print("----------------------------")
+    print(">> all nest cell probabilities:\n", allp)
+    # print(">> all degrees of freedom:\n", alldof)
+    # print("log of all nest cell probabilities:", lnp)
+    print(
+        ">> sum log nest cell probs to get negative log likelihood of the data:", nll)
   return(nll)
 # -----------------------------------------------------------------------------
 
