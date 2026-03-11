@@ -17,6 +17,7 @@ debugNests: 0
 debugM: 0
 debugObs: 0
 debugFlood: 0
+debugSummary: 1
 
 ## nesting??
 # debugging:

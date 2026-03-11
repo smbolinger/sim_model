@@ -14,10 +14,11 @@ likeDir: "/home/wodehouse/Projects/sim_model/out"
 # maybe debug should be somewhere else? since it is edited on the fly
 debug: 2
 debugLL: 0
-debugNests: 3 
-debugM: 2
+debugNests: 1 
+debugM: 1
 debugObs: 3
-debugFlood: 3
+debugFlood: 1
+debugSummary: 1
 
 ## nesting??
 # debugging:

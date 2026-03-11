@@ -36,6 +36,7 @@ class Config:
     debugFlood:  bool
     debugObs:    bool
     debugM:      bool
+    debugSummary: bool
     # useWSL:      bool
     useWin:      bool
     # testing:     bool
