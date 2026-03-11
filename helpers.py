@@ -4,6 +4,7 @@ import itertools
 import numpy as np
 import os
 from pathlib import Path
+# import matplotlib.pyplot as plt
 import pprint
 import sys
 from typing import Dict, Generator
@@ -27,6 +28,8 @@ debug = config.debug
 # -----------------------------------------------------------------------------
 #  HELPER FUNCTIONS
 # -----------------------------------------------------------------------------
+def indPrint(x, ind=4, comp=True, wd=90):
+  pprint.pprint(x, indent=ind, compact=comp, width=wd)
 
 def expDecay(n0, k, t):
     """
