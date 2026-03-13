@@ -44,7 +44,7 @@ from MCmatrix import like_smd, triangle, logistic
 # print("debug options:", debugTypes)
 # now    = datetime.today().strftime('%m%d%Y_%H%M%S')
 debug = config.debug
-print("> debug value:", debug)
+print("\t|>|>|>debug value:", debug)
 
 
 def randArgs():
@@ -207,7 +207,8 @@ def rep_loop(par, nData, storm, survey, config):
   # s2,mp2,mf2,ss2,mps2,mfs2 = res2 # unpack like_old() function output
   # like_val = [ mark_s,s2,mp2,mf2,ss2,mps2,mfs2]
   like_val = np.array([ mark_s,s2,mp2], dtype=np.longdouble)
-  if config.debugLL>=2: print(">> like_val:\n", like_val)
+  # if config.debugLL>=2: print(">> like_val:\n", like_val)
+  if debug>=2: print(">> like_val:\n", like_val)
   # if config.debugLL: print(">> like_val:\n", like_val)
   return(like_val)
   

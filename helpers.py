@@ -28,8 +28,17 @@ debug = config.debug
 # -----------------------------------------------------------------------------
 #  HELPER FUNCTIONS
 # -----------------------------------------------------------------------------
-def indPrint(x, ind=4, comp=True, wd=90):
-  pprint.pprint(x, indent=ind, compact=comp, width=wd)
+def arrPrint(x, ind=4, comp=True, wd=90):
+  """print arrays, indented. converts if not np.ndarray."""
+  # pprint.pprint(x, indent=ind, compact=comp, width=wd) ## doesn't indent properly
+  # pprint.pprint(f"{i for i in x} ", width=wd)
+  # print("\t" + str(x).replace("\n", "\n\t"))
+  if not isinstance(x, np.ndarray):
+    x = np.array(x)
+  xlen = len(x)
+  x = np.array2string(x, separator=" ", prefix="      ")
+  # print("      ", x, len(x))
+  print("      ", x, xlen)
 
 def expDecay(n0, k, t):
     """
@@ -61,8 +70,8 @@ def mk_param_list(parList: Dict[str, list], fdir: str) -> list:
     output in the original is a list of tuples
 
     """
-    # print(f"\t>=> using the {parList} params lists")
-    pprint.pprint(f"\t>=> using the {parList} params lists", width=90)
+    print(f"\t>=> using the {parList} params lists")
+    # pprint.pprint(f"\t>=> using the {parList} params lists", width=90)
     listVal = [parList[key] for key in parList]
     p_List = list(itertools.product(*listVal))
     # print(p_List)
@@ -147,7 +156,9 @@ def init_from_csv(file):
     # if debug: print("\t>=> week: init probability = ",round(ret,3))
     # if debug: print("\t>=> loading init dates; <week start date>: <init probability> ")
     if debug: print("\t>=> loading init dates; <week start date>: <init probability> ")
-    if debug: print("\t", {str(key): str(round(value,3)) for key,value in ret.items()})
+    # if debug: print("\t", {str(key): str(round(value,3)) for key,value in ret.items()})
+    if debug: print("   ".join(map(str,ret.keys())))
+    if debug: print(" ".join(map(str,ret.values())))
     # if debug: pprint.pprint({str(key): str(round(value,3)) for key,value in ret.items()}, indent=4, width=90)
     # if debug: print({as.int(key): as.float(round(value,3)) for key,value in ret.items()})
     return(ret)

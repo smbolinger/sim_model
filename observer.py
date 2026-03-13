@@ -3,7 +3,7 @@ import numpy as np
 import pprint
 from makeNests import mk_nests, mk_fates, mk_flood, storm_nest
 from settings import config, rng
-from helpers import expDecay, indPrint
+from helpers import expDecay, arrPrint
 
 def mk_surveys(stormDays, obsFreq, breedingDays, conf):
   """
@@ -29,13 +29,9 @@ def mk_surveys(stormDays, obsFreq, breedingDays, conf):
   surveyInts  = np.array([0] + [surveyDays[n] - surveyDays[n-1] for n in range(1, len(surveyDays)-1) ] )
   # surveyInts  = np.append(surveyInts, )
   if conf.debug: 
-    # print("\t>-> all survey days, minus storms:\n", surveyDays, len(surveyDays)) 
-    print(f"\t>-> all survey days, minus storms (length {len(surveyDays)}):\n\t", surveyDays) 
-    # print("\t",{str(key):str(value) for key,value in enumerate(surveyDays)})
-    # pprint.pprint({str(key):str(value) for key,value in surveyDays}, indent=4, width=90)
-    # for key,value in surveyDays:
-    #   print(f"\t{key}: {value}")
-    # pprint.pprint(surveyDays, indent=4, width=90) 
+    print(f"\t>-> all survey days, minus storms (len {len(surveyDays)}):")
+    # indPrint(surveyDays) 
+    arrPrint(surveyDays) 
 
   return(surveyDays, surveyInts)
 
@@ -46,10 +42,9 @@ def mk_per(start, end, con):
   nestPeriod = np.stack((start, end)) # create array of tuples
   nestPeriod = np.transpose(nestPeriod) # an array of start,end pairs 
   if con.debugNests>=5:
-    # print( ">> start & end of nest period:\n", nestPeriod, nestPeriod.shape)
-    # print( f">> start & end of nest period (length:{nestPeriod.shape}):\n")
     print( f">> start & end of nest period:\n")
-    pprint.pprint(nestPeriod, indent=4, compact=True, width=90)
+    # pprint.pprint(nestPeriod, indent=4, compact=True, width=90)
+    arrPrint(nestPeriod)
   return(nestPeriod)
 
 # @profile
@@ -76,11 +71,14 @@ def assign_fate(assignVal, pWrong, trueFate, numNests, obsFr, intFinal, stormFat
 
   # fateCuesPresent   = expDecay(n0=0.9, k=0.15, t=intFinal)
   fateCuesPresent   = expDecay(n0=1, k=0.12, t=intFinal)
-  if cn.debugObs>=3: print("\t|> probability of fate cues:\n", round(fateCuesPresent,3))
-  if cn.debugObs>=4: print("\t|>& final int (for comparison):\n", intFinal)
+  if cn.debugObs>=3: print("\t|> probability of fate cues:")
+  arrPrint(np.round(fateCuesPresent,3))
+  if cn.debugObs>=4: print("\t|>& final int (for comparison):")
+  arrPrint(intFinal)
 
   fateProb = rng.uniform(low=0, high=1, size=numNests)
-  if cn.debugObs >=4: print("\t|>random probs for fate:\n", round(fateProb,3))
+  if cn.debugObs >=4: print("\t|>random probs for fate:")
+  arrPrint(np.round(fateProb,3))
   # fateCuesPres = np.zeros(numNests)
   # fateCuesPres.fill(fateCuesPresent)
   # fateCuesPres[intFinal > obsFr] = 0.1 # nests with longer final interval have lower chance of cues
@@ -91,9 +89,11 @@ def assign_fate(assignVal, pWrong, trueFate, numNests, obsFr, intFinal, stormFat
 
   if cn.debugObs>=3:
     print("\t>-> true fates (all nests, not just discovered):")
-    print(trueFate, len(trueFate))
+    # print(trueFate, len(trueFate))
+    arrPrint(trueFate)
     print("\t>-> assigned fates before (all nests, not just discovered):")
-    print(assignedFate, len(assignedFate))
+    # print(assignedFate, len(assignedFate))
+    arrPrint(assignedFate)
   if stormFate: assignedFate[intFinal > obsFr] = 2
   if cn.debugObs>=2:
     print(
@@ -101,7 +101,9 @@ def assign_fate(assignVal, pWrong, trueFate, numNests, obsFr, intFinal, stormFat
         f"D:{sum(trueFate==1)}|F:{sum(trueFate==2)}"
         )
     print("\t>-> assigned fates after incorrect fates assigned(all nests):")
-    print(assignedFate, len(assignedFate))
+    # print(assignedFate, len(assignedFate))
+    arrPrint(assignedFate)
+    
   if cn.debugObs>=4: 
     print("\t>-> compare random probs to fateCuesPresent:\n", 
         # [fateProb,fateCuesPres], 
@@ -162,8 +164,8 @@ def observer(nData, par, surveys, out, conf):
   discovered     = svysTilDiscovery < num_svy
   num_svy[~discovered] = 0
   if conf.debugObs>=3:
-    print("> nest discovered? (svysTilDiscovery < num_svy)")
-    print(discovered)
+    print("\t|> nest discovered? (svysTilDiscovery < num_svy)")
+    arrPrint(discovered)
   if conf.debugObs>=4:
     print("> surveys til discovery:")
     print(svysTilDiscovery)
@@ -190,27 +192,31 @@ def observer(nData, par, surveys, out, conf):
     trueFate = nData[:,3]
     assignedFate = out[:,3][discovered]
     print(
-        f"\t\t>-> assigned fate counts (discovered):\tH:{sum(assignedFate==0)}|"
+        f"\t\t=>=> assigned fate counts (discovered):\tH:{sum(assignedFate==0)}|"
         f"D:{sum(assignedFate==1)}|F:{sum(assignedFate==2)}"
         )
-    print("\t>-> true fates (discovered nests):",
-          trueFate[discovered], len(trueFate[discovered]))
-    print("\t>-> assigned fates (discovered nests):",
+    print("\t>-> true fates (discovered nests):")
+    arrPrint(trueFate[discovered])
+          # trueFate[discovered], len(trueFate[discovered]))
+    print("\t>-> assigned fates (discovered nests):")
           # assignedFate[discovered], len(assignedFate[discovered]))
-          assignedFate, len(assignedFate))
+          # assignedFate, len(assignedFate))
+    arrPrint(assignedFate)
   if conf.debugObs>=1: 
-    print("\t>-> assigned fates:", assignedFate, len(assignedFate))
+    # print("\t>-> assigned fates:", assignedFate, len(assignedFate))
+    print("\t>-> assigned fates:")
+    arrPrint(assignedFate)
     assHatch = ((out[:,3])==0)[discovered==True]
     nonUnk   = ((out[:,3])!=7)[discovered==True]
     prop = np.sum(assHatch)/(np.sum(nonUnk))
     print(
       f"\t>> proportion of non-unk fate nests assigned hatch fate"
       f" ({np.sum(assHatch)} / {np.sum(nonUnk)}):",
-      round(prop,5),
+      np.round(prop,5),
       # np.sum(((out[:,3])==0)[discovered==True])/(sum(discovered==True)),
       # np.sum(((out[:,3])==0)[discovered==True])/(np.sum((out[:,3]!=7)[discovered==True])),
       "vs period survival:",
-      round(par.probSurv**par.hatchTime,5)
+      np.round(par.probSurv**par.hatchTime,5)
       )
   if conf.debugObs==2: 
     # trueFate = round(nData[:,3])
@@ -237,14 +243,25 @@ def observer(nData, par, surveys, out, conf):
           )
       # print(f"\t\t{i:02}: {svysTilDiscovery[i]} | {discovered[i]} | {(out[:,2]-out[:,0])[i]}:03 | {(nData[:,2]-nData[:,1])[i]}")
   if conf.debugObs>=3: 
+    trueFate = nData[:,3]
     assignedFate = out[:,3]
+    active = nData[:,2]-nData[:,1]
+    obsLen = (out[:,2]-out[:,0])
     print(
-        f"\t\t>-> assigned fate counts:\tH:{sum(assignedFate==0)}|"
+        f"\t\t =>=> assigned fate counts:\tH:{sum(assignedFate==0)}|"
         f"D:{sum(assignedFate==1)}|F:{sum(assignedFate==2)}"
         )
-    print("\t|>surveys til discovery; discovered T/F, total obs days, total active days:")
+    print(
+        "\t|>surveys til discovery; discovered T/F; total obs days;"
+        " total active days; assigned fate; true fate:")
+    # print("\t|>surveys til discovery; discovered T/F, total obs days, total active days:")
     for i in range(len(out)):
-      print(f"\t\t{i:02}: {svysTilDiscovery[i]} | {discovered[i]:03} | {(out[:,2]-out[:,0])[i]} | {(nData[:,2]-nData[:,1])[i]}")
+      print(
+          f"\t\t{i:03} : {svysTilDiscovery[i]:02} | {discovered[i]:>5} | {(obsLen[i]):>4} |"
+          # f" {((nData[:,2]-nData[:,1])[i]):>4} | {assignedFate[i]} | {trueFate[i]}"
+          f" {round(active[i]):>4} | {assignedFate[i]} | {round(trueFate[i])}"
+          )
+      # print(f"\t\t{i:02}: {svysTilDiscovery[i]} | {discovered[i]:03} | {(out[:,2]-out[:,0])[i]} | {(nData[:,2]-nData[:,1])[i]}")
   return(out)
 
 #-----------------------------------------------------------------------------
