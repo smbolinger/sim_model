@@ -57,7 +57,7 @@ for arg, val in opts:
   elif arg in ("-d", "--Debug-general"):
       debug = True
 
-tests = ['test', 'storm', 'fixedtest', 'nstest']
+tests = ['control','test', 'storm', 'fixedtest', 'nstest']
 if atype in tests:
   config=load_config("/home/wodehouse/Projects/sim_model/test-config.yaml")
   print("\t|>Config-TEST mode:", config.testing, end=" ")
@@ -118,6 +118,10 @@ elif atype=="nostorm":
   print("\t|>no storms", end=" ")
   pLists=plNoStorm
   lf_suffix="-nostorm"
+elif atype=="control":
+  print("\t|>control values", end=" ")
+  pLists=plTest2
+  lf_suffix="-control"
 else:
   pLists = parLists # don't need to update any settings if not testing?
   print("\t|>testing val invalid; using full param lists")
