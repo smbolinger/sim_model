@@ -1,9 +1,9 @@
 # output files, text files:
 *.out
-*.txt
 *.json
 *.lprof
 *.docx
+*.png
 lib64
 
 # directories:
@@ -20,3 +20,4 @@ lib64
 /.venv
 /backup
 /__pycache__
+old/
