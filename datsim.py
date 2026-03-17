@@ -71,13 +71,13 @@ def randArgs():
 # @profile
 def run_optim(minimizer, fun, z, arg, met='Nelder-Mead'):
   """
-  Run scipy.optimize.minimize on 'fun'. Will return value of -1 or -2 if exceptions occur.
+    Run scipy.optimize.minimize on 'fun'. Will return value of -1 or -2 if exceptions occur.
 
-  If all is well, transform the output (using ansTransform() for MCMC model, and
-  logistic() for MARK model)
+    If all is well, transform the output (using ansTransform() for MCMC model, and
+    logistic() for MARK model)
 
-  Returns:
-  the transformed output.
+    Returns:
+    the transformed output.
   """
   
   try:
@@ -108,6 +108,7 @@ def run_optim(minimizer, fun, z, arg, met='Nelder-Mead'):
     # res=ansTransform(ans, unpack=False)
     # res=ansTransform(ans=out)
     res = logistic(out.x[0])
+    # print("\t", res)
   return(res)
 
 def choose_alg(minim, fun, z, arg, met):
@@ -121,10 +122,10 @@ def choose_alg(minim, fun, z, arg, met):
   
 def ansTransform(ans):
   """
-  Transform the optimizer output so that it is between 0 and 1, and the 3 
-  probabilities sum to 1. 
+    Transform the optimizer output so that it is between 0 and 1, and the 3 
+    probabilities sum to 1. 
 
-  'ans' is an object of type 'OptimizeResult', which has a number of components
+    'ans' is an object of type 'OptimizeResult', which has a number of components
   """
   # if unpack:
     # ans = ans.x  
@@ -160,13 +161,12 @@ def ansTransform(ans):
 # @profile
 def rep_loop(par, nData, storm, survey, config):
   """
-  For each data replicate, call this function, which:
-    - takes the reduced nest data as input
-    - calls the optimizer on like_smd() and mark_wrapper()
+    For each data replicate, call this function, which:
+      - takes the reduced nest data as input
+      - calls the optimizer on like_smd() and mark_wrapper()
     
-  Returns:
-    like_val
-    [0]
+    Returns: like_val (daily survival and mortality values)
+      [0]: program MARK (DSR).....[1]: MCMC (DSR).....[2]: MCMC (DMR)......
   """
   # ---- empty array to store data for this replicate: ---------
   # like_val  = np.zeros(shape=(config.numOut), dtype=np.longdouble)
@@ -208,14 +208,24 @@ def rep_loop(par, nData, storm, survey, config):
   # like_val = [ mark_s,s2,mp2,mf2,ss2,mps2,mfs2]
   like_val = np.array([ mark_s,s2,mp2], dtype=np.longdouble)
   # if config.debugLL>=2: print(">> like_val:\n", like_val)
-  if debug>=2: print(">> like_val:\n", like_val)
+  # if debug>=2: print(">> like_val (MARK, MCMC-surv, MCMC-pred):", like_val)
+  if debug>=2: print(f">> like_val: MARK={like_val[0]}, MCMC-surv={like_val[1]}, MCMC-pred={like_val[2]}")
   # if config.debugLL: print(">> like_val:\n", like_val)
   return(like_val)
   
 def main(fnUnique, testing, parLists, config=config, pStatic=staticPar):
   """
-  If 'fnUnique'==True, filename is "uniquified" and includes H:M:S
-    Otherwise, just the date.
+    If 'fnUnique'==True, filename is "uniquified" and includes H:M:S
+      --> Otherwise, just the date.
+
+    Output: a csv combining output from likelihood optimization (lVal- output 
+    from rep_loop) & certain nest-related and optimizer-related values (nVal)
+      Columns:
+      [0] MARK estimate.....[1] MCMC estimate....[2] MCMC mortality estimate
+      [3] Mayfield estimate - all nests [4] Mayfield estimate - analysis nests
+      [5] num discovered....[6] num excluded.....[7] num unknown fate
+      [8] num misclassified [9] num flooded.....[10] num hatched
+      [11] num exceptions caught [12] replicate ID [13] parameter set ID
   """
   lf_suffix=""
   pList = parLists
@@ -250,13 +260,14 @@ def main(fnUnique, testing, parLists, config=config, pStatic=staticPar):
       repID = numMC = nEx = 0 # number of nests misclassified, number of exceptions
       # likeVal  = np.zeros(shape=(config.nreps,config.numOut))
       for r in range(config.nreps): 
-        # if debug: print("\n>>>>>>>>>>>> replicate ID: >>>>>>>>>>>>>>>>>>>>>>>>>>", repID)
+        if config.testing:
+          print("\n>>>>>>>>>>>> replicate ID: >>>>>>>>>>>>>>>>>>>>>>>>>>", repID)
         try:
           nestData1 = make_obs(par=par, storm=stormDays, survey=survey, conf=config) 
         # except:
         except IndexError as error:
           print(
-            ">> IndexError in nest data:", 
+            ">> !!! IndexError in nest data:", 
             error,
             ". Go to next replicate")
           nEx = nEx + 1

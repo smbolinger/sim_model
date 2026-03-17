@@ -1,6 +1,8 @@
 #!/usr/local/bin/python
 import numpy as np
 import pprint
+# import matplotlib.pyplot as plt
+import plotext as plt # plot ASCII plots in the terminal window
 from makeNests import mk_nests, mk_fates, mk_flood, storm_nest
 from settings import config, rng
 from helpers import expDecay, arrPrint
@@ -51,18 +53,22 @@ def mk_per(start, end, con):
 # def assign_fate(assignVal, pWrong, fateCuesPresent, trueFate, numNests, obsFr, intFinal, stormFate, cn):
 def assign_fate(assignVal, pWrong, trueFate, numNests, obsFr, intFinal, stormFate, cn):
   """
-  The observer assigns the correct fate based on a comparison of a set 
-  probability to random draws from a uniform distribution. If observer is 
-  incorrect, then they assign a fate of unknown unless stormFate==True, in
-  which case all nests that ended in a period that contained a storm are 
-  assumed to have failed due to the storm.
+  Observer assigns correct or incorrect fate based on some conditions:
+    The observer assigns the correct fate based on a comparison of a set 
+    probability to random draws from a uniform distribution. If observer is 
+    incorrect, then they assign a fate of unknown unless stormFate==True, in
+    which case all nests that ended in a period that contained a storm are 
+    assumed to have failed due to the storm.
+
+    Arguments: 
+    assignVal = the value given for incorrect fates
   
     fateCuesProb=random values to compare
     fateCuesPres=probability of fate cues being present
       >-> created within the function using exp decay & final int length
     if fate percentages are fixed, fateCuesPres should be the same (=1) for all
   
-  Returns: vector w/ assigned fate for each nest
+    Returns: vector w/ assigned fate for each nest
   """
   
   # assignedFate = np.zeros(numNests) # if there was no storm in the final interval, correct fate is assigned 
@@ -70,22 +76,38 @@ def assign_fate(assignVal, pWrong, trueFate, numNests, obsFr, intFinal, stormFat
   assignedFate.fill(7) # default is unknown; fill with known fates if field cues allow
 
   # fateCuesPresent   = expDecay(n0=0.9, k=0.15, t=intFinal)
-  fateCuesPresent   = expDecay(n0=1, k=0.12, t=intFinal)
-  if cn.debugObs>=3: print("\t|> probability of fate cues:")
-  arrPrint(np.round(fateCuesPresent,3))
-  if cn.debugObs>=4: print("\t|>& final int (for comparison):")
-  arrPrint(intFinal)
+  fateCuesPresent   = expDecay(n0=1, k=0.1, t=intFinal)
+  # if cn.debugObs>=3: 
+  #   timevals = np.arange(0,10)
+  #   probvals = expDecay(n0=1, k=0.1, t=timevals)
+
+    # print("\n\trange of prob vals for plot:",np.min(probvals), np.max(probvals))
+    # fig = plt.plot(probvals,timevals) # maybe can't assign a plotext plot to an object?
+    # plt.clt()
+    # plt.clear_color()
+    # plt.clf()
+    # plt.plot(probvals, timevals)
+    # # fig.savefig("figs/expDecay.png")
+    # plt.show() # syntax for plotext is almost identical to matplotlib syntax
+    #
+  if cn.debugObs>=3:
+    print("\t|> probability of fate cues:")
+    arrPrint(np.round(fateCuesPresent,3))
+  if cn.debugObs>=4:
+    print("\t|>& final int (for comparison):")
+    arrPrint(intFinal)
 
   fateProb = rng.uniform(low=0, high=1, size=numNests)
-  if cn.debugObs >=4: print("\t|>random probs for fate:")
-  arrPrint(np.round(fateProb,3))
+  if cn.debugObs >=4:
+    print("\t|>random probs for fate:")
+    arrPrint(np.round(fateProb,3))
   # fateCuesPres = np.zeros(numNests)
   # fateCuesPres.fill(fateCuesPresent)
   # fateCuesPres[intFinal > obsFr] = 0.1 # nests with longer final interval have lower chance of cues
     
   # assignedFate[fateProb < fateCuesPres] = trueFate[fateProb < fateCuesPres] 
   assignedFate[fateProb < fateCuesPresent] = trueFate[fateProb < fateCuesPresent] 
-  assignedFate[fateProb < pWrong] = assignVal # if fixed percentages turned off, pWrong == 0
+  # assignedFate[fateProb < pWrong] = assignVal # if fixed percentages turned off, pWrong == 0
 
   if cn.debugObs>=3:
     print("\t>-> true fates (all nests, not just discovered):")
@@ -141,18 +163,20 @@ def svy_position(initiation, nestEnd, surveyDays, cn):
 # def observer(nData, par, cues, surveys, out, conf):
 def observer(nData, par, surveys, out, conf):
   """
-  The observer searches for nests on survey days. Surveys til discovery (success)
-  are calculated as random draws from a negative binomial distribution with
-  daily success probability of discProb. If surveys til discovery is less
-  than total number of surveys while nest is active, then nest is discovered.
-    The observer then assigns fate in assign_fate. 
+    The observer searches for nests on survey days.
+    Surveys til discovery (success) are calculated as random draws from a
+    negative binomial distribution with daily success probability of discProb.
+    If surveys til discovery is less than total number of surveys while nest
+    is active, then nest is discovered. The observer then assigns fate in
+    assign_fate. 
 
-  output:
-  ndarray w/ nrows=numNests. 
-  columns = i, j, k, assigned fate, num *normal* obs ints, intFinal
+  Returns: ndarray w/ nrows=numNests. 
+  [columns = i, j, k, assigned fate, num *normal* obs ints, intFinal]
 
-  NOTES:
-  Remember, pos[0] is the first survey after initiation, and pos[1] is the first survey after end.
+    NOTES:
+    ---------
+    Remember, pos[0] is the first survey after initiation, and pos[1] is the first survey after end.
+
   """
   print("\n[*] [*] [*] [*] [*] observer [*] [*] [*] [*] [*] [*] [*] [*] ")
   initiation, end, fate = nData[:,1], nData[:,2], nData[:,3]
@@ -188,7 +212,7 @@ def observer(nData, par, surveys, out, conf):
   out[:,3] = assign_fate(par.wType, par.pWrong, fate, par.numNests, par.obsFreq, intFinal, par.stormFate, cn=conf)
   out[:,4] = num_svy - svysTilDiscovery  # number of observations for the nest
   out[:,5] = intFinal.astype(int) # length of final interval - transform to integer for the ndarray
-  if conf.debugObs>=2:
+  if conf.debugObs>=3:
     trueFate = nData[:,3]
     assignedFate = out[:,3][discovered]
     print(
@@ -204,21 +228,25 @@ def observer(nData, par, surveys, out, conf):
     arrPrint(assignedFate)
   if conf.debugObs>=1: 
     # print("\t>-> assigned fates:", assignedFate, len(assignedFate))
+    print("\t>-> number discovered: ", np.sum(discovered==True))
     print("\t>-> assigned fates:")
     arrPrint(assignedFate)
     assHatch = ((out[:,3])==0)[discovered==True]
     nonUnk   = ((out[:,3])!=7)[discovered==True]
+    trHatch  = ((nData[:,3]==0))[discovered==True]
     prop = np.sum(assHatch)/(np.sum(nonUnk))
+    prop2 = np.sum(trHatch)/(np.sum(discovered==True))
     print(
-      f"\t>> proportion of non-unk fate nests assigned hatch fate"
+      f"\t>> proportion non-unk nests assigned hatch fate"
       f" ({np.sum(assHatch)} / {np.sum(nonUnk)}):",
       np.round(prop,5),
       # np.sum(((out[:,3])==0)[discovered==True])/(sum(discovered==True)),
       # np.sum(((out[:,3])==0)[discovered==True])/(np.sum((out[:,3]!=7)[discovered==True])),
-      "vs period survival:",
-      np.round(par.probSurv**par.hatchTime,5)
+      "vs. period survival:",
+      np.round(par.probSurv**par.hatchTime,5),
+      f"vs. proportion of all nests: {prop2}"
       )
-  if conf.debugObs==2: 
+  if conf.debugObs==3 or conf.debugObs==2: 
     # trueFate = round(nData[:,3])
     trueFate = nData[:,3]
     assignedFate = out[:,3][discovered]
@@ -251,13 +279,14 @@ def observer(nData, par, surveys, out, conf):
         f"\t\t =>=> assigned fate counts:\tH:{sum(assignedFate==0)}|"
         f"D:{sum(assignedFate==1)}|F:{sum(assignedFate==2)}"
         )
+  if conf.debugObs>=4:
     print(
         "\t|>surveys til discovery; discovered T/F; total obs days;"
         " total active days; assigned fate; true fate:")
     # print("\t|>surveys til discovery; discovered T/F, total obs days, total active days:")
     for i in range(len(out)):
       print(
-          f"\t\t{i:03} : {svysTilDiscovery[i]:02} | {discovered[i]:>5} | {(obsLen[i]):>4} |"
+          f"\t\t{i:03} : {svysTilDiscovery[i]:02} | {discovered[i]:>2} | {(obsLen[i]):>4} |"
           # f" {((nData[:,2]-nData[:,1])[i]):>4} | {assignedFate[i]} | {trueFate[i]}"
           f" {round(active[i]):>4} | {assignedFate[i]} | {round(trueFate[i])}"
           )
@@ -269,16 +298,17 @@ def observer(nData, par, surveys, out, conf):
 def make_obs(par, storm, survey, conf):
   """
   1. Call functions mk_nests, mk_per, storm_nest, mk_flood, mk_fates, & observer
-  2. Combine the output into an array: 
-     [0]:nest ID.............[1]:initiation.......[2]:survival(w/o storm).....
-     [4]:first found.........[5]:last active......[6]:last checked............
-     [7]:assigned fate.......[8]:num obs int......[9]:days in final interval..
+    2. Combine the output into an array: 
+       [0]:nest ID...........[1]:initiation........[2]:survival(w/o storm)....
+       [3]:true fate ........[4]:first found.......[5]:last active............
+       [6]:last checked......[7]:assigned fate.....[8]:num obs int............
+       [9]:days in final interval.............................................
 
-  Returns:
-    numpy ndarray containing nest & observation data (column indices above)
-    
-    Can also uncomment lines to save nest data to .npy file
-    
+    Returns:
+      numpy ndarray containing nest & observation data (column indices above)
+      
+      Can also uncomment lines to save nest data to .npy file
+      
     And other lines to make nest data that's compatible with the old script.
   """
   nd     = np.zeros(shape=(par.numNests, 3), dtype=int)

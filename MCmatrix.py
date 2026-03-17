@@ -1,4 +1,5 @@
 import numpy as np
+from helpers import printLL
 # from datsim import config ## in case anything was changed in place
 
 def triangle(x0, y0):
@@ -32,14 +33,26 @@ def logistic(x)->np.longdouble:
 def state_vect(nNest, fl, ha):# can maybe calculate these only once
 # def state_vect(flooded, hatched):# can maybe calculate these only once
   """
-  numNests is not the total number (param value) but the number not excluded
-  1. Define state vectors (1x3 matrices) - all the possible nest states 
-      [1 0 0] (alive)   [0 1 0] (fail-predation)   [0 0 1] (fail-flood) 
-  ---------------------------------------------------------------------------------------------------
-  2. Create arrays to hold state vectors for all nests:
-     a. state of nest on date nest was first found (stateFF)
-     b. state of nest on date nest was last checked (stateLC) - this is the fate as observed
-  Could also calculate bassed on nest fate value
+    PURPOSE:
+    --------
+    1. Define state vectors (1x3 matrices) - all the possible nest states 
+        [1 0 0] (alive)....[0 1 0] (fail-predation)....[0 0 1] (fail-flood) 
+    2. Create arrays to hold state vectors for all nests:
+       a. state of nest on date nest was first found (stateFF)
+       b. state of nest on date nest was last checked (stateLC) - this is the
+          fate as observed
+    RETURNS:
+    -------
+      > a list of 2 arrays (each size numNests x 3)
+          > stateEnd - state at end of normal interval, for all nests
+          > stateLC  - state at end of final interval, for all nests
+    ---------------------------------------------------------------------------------------------------
+    NOTES:
+    ------
+      numNests is not the total number (param value) but the number not excluded
+        > Could also calculate bassed on nest fate value
+      ha = True if nest hatched; fl = True if nest flooded
+    
   """
   stillAlive = np.array([1,0,0]) 
   mortFlood  = np.array([0,1,0])
@@ -51,13 +64,10 @@ def state_vect(nNest, fl, ha):# can maybe calculate these only once
    # > use broadcasting - fill doesn't work with arrays as the fill value:
   stateEnd[:] = stillAlive # alive at end of normal interval
   stateLC[:]  = mortPred   # default is still depredation
-
   stateLC[fl==True] = mortFlood  # flooded status gets flooded state vector
   stateLC[ha==True] = stillAlive # hatched nests stay alive the entire time
-
   # nests always start alive, or they wouldn't be checked
   # TstateI = np.transpose(stillAlive)  # this is just one, not a vector?
-  
   return([stateEnd, stateLC])
   ##print(">> transpose of initial state vector:", TstateI, TstateI.shape)
   #                       this will depend on how many storms/when they are
@@ -82,44 +92,43 @@ def state_vect(nNest, fl, ha):# can maybe calculate these only once
 
 def nest_mat(argL, obsFreq, stormFin, useStormMat, config):
   """
-  Purpose
-  -------
-  1. Create transition matrix for normal intervals & storm intervals
-  2. Raise transition matrix to the power of interval length
-  - intervals with storms are longer (obs_int x 2)
-  - there is no separate storm matrix anymore (see notes)
+    Purpose
+    -------
+      1. Create transition matrix for normal intervals & storm intervals
+      2. Raise transition matrix to the power of interval length
+          - intervals with storms are longer (obs_int x 2)
+          - there is no separate storm matrix anymore (see notes)
   
-  Inputs
-  ------
-  - argL = vals for the minimizer
-  - useStormMat = T/F should you use the storm transition matrix for storm intervals
+    INPUTS
+    ------
+          - argL = vals for the minimizer
+          - useStormMat = T/F should you use the storm transition matrix for storm intervals
   
-  Returns
-  -------
-  - list containing the two matrices [pwr, pwrStm]
+    RETURNS
+    -------
+          - list containing the two matrices [pwr, pwrStm]
   
-  Background
-  ----------
+    Background
+    ----------
+      Compose the matrix equation for one observation interval. The formula used is from Etterson et al. (2007) 
+      For this, you need: 
+         > intElt - length in days of the observation interval being assessed 
+         > initial state (stateI) - state of the nest at the beginning of this interval 
+         > stateF - state of the nes at the end of this interval
+       There is a transition matrix that is multiplied for each day in the interval 
+         > in this case, the nest started the interval alive and ended it alive as well 
+         > daily nest probabilities: s - survival; mp - mortality from predation; mf - mortality from flooding 
+         > these are daily probabilities, so raise transition matrix to the power of number of days in interval  
   
-  Compose the matrix equation for one observation interval. The formula used is from Etterson et al. (2007) 
-  For this, you need: 
-     > intElt - length in days of the observation interval being assessed 
-     > initial state (stateI) - state of the nest at the beginning of this interval 
-     > stateF - state of the nes at the end of this interval
-     There is a transition matrix that is multiplied for each day in the interval 
-     > in this case, the nest started the interval alive and ended it alive as well 
-     > daily nest probabilities: s - survival; mp - mortality from predation; mf - mortality from flooding 
-     > these are daily probabilities, so raise transition matrix to the power of number of days in interval  
-  
-                    _     _  intElt       _   _ 
-         [ 1 0 0 ]       |  s  0  0  |         |  1  | 
-                *    |  mp 1  0  |      *  |  0  | 
-                     |_ mf 0  1 _|         |_ 0 _|  
+     ......................................_........._^intElt........_   _ 
+     ...........[ 1 0 0 ].................|  s  0  0  |.............|  1  | 
+     ............................*........|  mp 1  0  |......*......|  0  | 
+     .....................................|_ mf 0  1 _|.............|_ 0 _|  
                  
      {  transpose(stateI) * trMatrix, raised to intElt power * stateF } 
   
-  Then, you can multiply this equation times number of intervals (numIntTotal)
-     Single in  interval --> all intervals --> likelihood
+    Then, you can multiply this equation times number of intervals (numIntTotal)
+       Single in  interval --> all intervals --> likelihood
 
   """
   
@@ -141,24 +150,24 @@ def nest_mat(argL, obsFreq, stormFin, useStormMat, config):
 def interval(pwr, numNests, fl, pr, cn): 
 # def interval(pwr,numNests,sNest, fl, ha ,cn=config): 
   """
-  Purpose
-  -------
-  Create matrix multiplication to get the likelihood for each type of interval:
-  - active nests in all intervals start as alive
-  - regular (alive-->alive), storm(alive-->alive during storm -- rare),
-    final (alive-->failed), storm final (alive-->flooded)
-  - final interval for hatched nests = 0
-  - longer obs int for nests that survived storms should already be accounted for? 
+    Purpose
+    -------
+    Create matrix multiplication to get the likelihood for each type of interval:
+      - active nests in all intervals start as alive
+      - regular (alive-->alive), storm(alive-->alive during storm -- rare),
+        final (alive-->failed), storm final (alive-->flooded)
+      - final interval for hatched nests = 0
+      - longer obs int for nests that survived storms should already be accounted for? 
 
-  Arguments
-  ---------
-  - pwr = output from nest_mat()
-  - stateMat = array of 1x3 end-of-interval and final matrices for all nests
+    Arguments
+    ---------
+      - pwr = output from nest_mat()
+      - stateMat = array of 1x3 end-of-interval and final matrices for all nests
   
-  Returns
-  -------
-  list of 4 likelihood values, one for each type of interval:
-  [normalInt, stormInt, finalInt, stormFinal]
+    Returns
+    -------
+      list of 4 likelihood values, one for each type of interval:
+      [normalInt, stormInt, finalInt, stormFinal]
 
   """
   stillAlive = np.array([1,0,0]) 
@@ -180,64 +189,67 @@ def interval(pwr, numNests, fl, pr, cn):
   finalInt   = np.ones((numNests))
   normalInt.fill(oneNormInt)
   finalInt[pr] = oneFinalPr
+
   finalInt[fl] = oneFinalSt
-  # there is no final interval for hatched. log(1) will become zero beforee summing
-  # --------------------------------------------------------------------------
-  # DO MATRIX MULTIPLICATION ON THE ARRAYS:
-  # stateEnd, stateLC = stateMat
-  # # if cn.debugLL: print(">> end state of normal / final interval:\n", stateEnd, "/", stateLC)
-  # # if cn.debugLL: print(">> end state of normal / final interval:\n",np.column_stack(((stateEnd), (stateLC))))
-  # normalInt = stateEnd@pwrN@TstateI
-  # stormInt = stateEnd@pwrS@TstateI
-  # # oneStInt   = 
-  # # The final interval is one of these two (ends in final state):
-  # # normalFinal = stateLC@pwr@TstateI
-  # finalInt = stateLC@pwrN@TstateI
-  # # stormFinal  = stateLC@pwrS@TstateI
-  # # finalInt[stormTrue] = stormFinal
-  # --------------------------------------------------------------------------
-  # if cn.debugLL: 
-  #   print(">>>> ")
+
+  if cn.debugLL>=3:  
+    print(">>>> ")
   #   print(">> end state of normal interval:\n", stateEnd)
   #   print(">> end state of final interval:\n",  stateLC)
-  #   print(">> likelihood of one normal interval:\n",
-  #   normalInt,
-  #   normalInt.shape,
-  #   normalInt.dtype)
-  #   print(">> likelihood of final interval:\n",
-  #   finalInt,
-  #   finalInt.shape,
-  #   finalInt.dtype)
+    print(">> likelihood of one normal interval:\n",
+    normalInt,
+    normalInt.shape,
+    normalInt.dtype)
+    print(">> likelihood of final interval:\n",
+    finalInt,
+    finalInt.shape,
+    finalInt.dtype)
   # NOTE now pwr has storms incorporated
   # print("final interval:", normalFinal, "and -log likelihood:", -np.log(normalFinal))
 
   # return([normalInt, stormInt, finalInt, stormFinal])
   return([normalInt, finalInt])
+    #old code-------------------------------------------------------------------------
+      # DO MATRIX MULTIPLICATION ON THE ARRAYS:
+      # stateEnd, stateLC = stateMat
+      # # if cn.debugLL: print(">> end state of normal / final interval:\n", stateEnd, "/", stateLC)
+      # # if cn.debugLL: print(">> end state of normal / final interval:\n",np.column_stack(((stateEnd), (stateLC))))
+      # normalInt = stateEnd@pwrN@TstateI
+      # stormInt = stateEnd@pwrS@TstateI
+      # # oneStInt   = 
+      # # The final interval is one of these two (ends in final state):
+      # # normalFinal = stateLC@pwr@TstateI
+      # finalInt = stateLC@pwrN@TstateI
+      # # stormFinal  = stateLC@pwrS@TstateI
+      # # finalInt[stormTrue] = stormFinal
+      # --------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 
 def logL(numNests, intervals, numInt, config):
   """
-  Purpose
-  -------
-  Calculate the negative log likelihood for each nest:
-  1. Create a counter using Decimal for precision
-  2. Create an array of -log likelihood for each nest for:
-    - regular interval (where storm==True, this is the storm interval)
-    - final interval (where fl==True, this is the storm final interval)
-    - for matrices, 1x3 * 3x3 * 3x1 leaves you with a single value for each nest
-  3. Sum the -log likelihood values to get an overall value.
-  
-  - using the stormInt is too complicated for how little it affects things...
+    PURPOSE
+    -------
+    Calculate the negative log likelihood for each nest:
+      1. Create a counter using Decimal for precision
+      2. Create an array of negative log likelihood for each nest for:
+          - regular interval (where storm==True, this is the storm interval)
+          - final interval (where fl==True, this is the storm final interval)
+      3. Sum the -log likelihood values to get an overall value.
 
-  Inputs
-  ------
-  normalInt, finalInt, & stormFinal are output from interval() - represent likelihood of one interval
+    INPUTS
+    ------
+      normalInt, finalInt, & stormFinal are output from interval()
+        - represent likelihood of one interval
   
-  ha = True if nest hatched; fl = True if nest flooded
-  
-  Returns
-  -------
-  logLike
+    RETURNS
+    -------
+      logLike (likelihood summed over all nests)
+
+    NOTES
+    ------
+      > for matrices, 1x3 * 3x3 * 3x1 leaves you with a single value for each
+        nest for each interval, & thus for the entire observation history
+      > using the stormInt is too complicated for how little it affects things
   
   """
 # def logL(normalInt, finalInt, numInt):
@@ -275,15 +287,15 @@ def logL(numNests, intervals, numInt, config):
 
   logLike    = np.sum(logLikelihood)
   # logLike    = ne.evaluate('sum(logLikelihood)')
-  # if config.debugLL:
+  if config.debugLL:
   #   print("number of nests:", numNests, "\n hatched:", ha, "\n flooded:, fl") 
-  #   print("numInt excluding final interval:", numInt)
-  #   print(">> -log likelihood of 1 interval:", logLik)
-  #   print(">> -log likelihood final interval, updated with storms/hatch:\n", logLikFin)
-  #   print(">> -log likelihood of each nest history:", logLikelihood)
-  #   print(">>>> overall -log likelihood:", logLike)
-  #   printLL(numNests=numNests, logLik=logLik, logLikFin=logLikFin, 
-  #           numInt=numInt, logL=logLikelihood)
+    print("numInt excluding final interval:", numInt)
+    print(">> -log likelihood of 1 interval:", logLik)
+    print(">> -log likelihood final interval, updated with storms/hatch:\n", logLikFin)
+    print(">> -log likelihood of each nest history:", logLikelihood)
+    print(">>>> overall -log likelihood:", logLike)
+    printLL(numNests=numNests, logLik=logLik, logLikFin=logLikFin, 
+            numInt=numInt, logL=logLikelihood)
   return(logLike) # this is what is being optimized
 # -----------------------------------------------------------------------------
 # try to keep these in numpy:
@@ -297,14 +309,16 @@ def logL(numNests, intervals, numInt, config):
 
 def like(argL, numN, obsFr, obsDat, useSM, con):
   """
-  perfectInfo == 0 or 1 to tell you whether you know all nest fates or not
-  ---------------------------------------------------------------------------------------------------
-  1. Unpack:
-     a. Initial values for optimizer:
-  a_s, a_mp, a_mf, a_ss, a_mps, a_mfs, sM = argL
-     b. Observation history values from nest data:
-  fl, ha, ff, la, lc, nInt, sTrue = obsDat
-  fl, ha, ff, la, lc, nInt = obsDat
+    1. Unpack:
+        a. Initial values for optimizer:
+        ......a_s, a_mp, a_mf, a_ss, a_mps, a_mfs, sM = argL
+        b. Observation history values from nest data:
+        ......fl, ha, ff, la, lc, nInt, sTrue = obsDat
+        ......fl, ha, ff, la, lc, nInt = obsDat
+    ---------------------------------------------------------------------------------------------------
+    NOTES:
+    ----------
+      perfectInfo == 0 or 1 to tell you whether you know all nest fates or not
   
   """
   # numpy array should be unpacked along the first dimension, so transpose:

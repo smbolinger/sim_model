@@ -70,16 +70,16 @@ def mk_surv(numNests, hatchTime, pSurv, con):
 # def mk_nests(par, init, weekStart, nestData): 
 def mk_nests(par, nestData, conf): 
   """
-  nestData is an empty np array to be filled.
+    nestData is an empty np array to be filled.
     
-  Returns:
-  -------
-  3 columns: nest ID, initiation date, end date
+    Returns:
+    -------
+    3 columns: nest ID, initiation date, end date
   
-  Notes 
-  -----
-  1. Unpack necessary parameters - some have only 1 member, but they are still treated as arrays, not scalars
-  2. Assign values to the dataframe
+    Notes 
+    -----
+    1. Unpack necessary parameters - some have only 1 member, but they are still treated as arrays, not scalars
+    2. Assign values to the dataframe
   
   """
 
@@ -253,16 +253,16 @@ def mk_flood( stormDays, pMortFl, stormIndex, numNests, con):
 # def mk_fates(nestDat, numNests, hatched, whichS, stormDays, con=config):
 def mk_fates(nestDat, numNests, hatched,stormInfo, stormDays, con):
   """
-  Want number flooded to derive organically from the storm activity, instead 
-  of being a preset value
+    Want number flooded to derive organically from the storm activity, instead 
+    of being a preset value
 
-  Runs mk_flood() to update end dates to account for storms. 
-  Then adds a column for true fate to nest data.
+    Runs mk_flood() to update end dates to account for storms. 
+    Then adds a column for true fate to nest data.
 
-  stormInfo = output from mk_flood()
+    stormInfo = output from mk_flood()
 
   Returns:
-  Nest data with true fate added and end dates for storm nests updated.
+    Nest data with true fate added and end dates for storm nests updated.
   """
   
   trueFate = np.empty(numNests) 
