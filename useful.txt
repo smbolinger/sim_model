@@ -1,0 +1,16 @@
+
+docstring template:
+
+  """
+    PURPOSE
+    -------
+
+    INPUTS
+    ------
+
+    RETURNS
+    -------
+
+    NOTES
+    ------
+  """

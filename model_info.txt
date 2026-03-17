@@ -1,0 +1,24 @@
+
+OUTPUT - OBSERVER FUNCTIONS:
+-------------------------------------------------------
+make_obs()     : array; cols: ID, init, survival, i, j, k, assigned fate, num obs int, intFinal (length)
+observer()     : ndarray; cols: i,j,k,assigned fate, num normal obs int, intFinal(length)
+assign_fate()  : vector w/ assigned fate for each nest
+
+mk_per()       : 
+svy_position() : for each nest, tuple w/ position of init & end within survey days
+
+OUTPUT - NEST-MAKING FUNCTIONS:
+-------------------------------------------------------
+mk_nests       : array w/ nest ID, init (output from mk_init), end (init + survival [output from mk_surv])
+storm_nest     : list of numStorms & stormIndex for each nest
+mk_flood       : list of num storms, which storm it flooded during, & nest flooded AND storm (T/F)
+mk_fates       : adds fate to nest data & updates end date w/ storms
+
+OUTPUT - DSR FUNCTIONS:
+-------------------------------------------------------
+calc_exp       :   ndarray. nrows=len(inp); cols=alive_days, final_int, exposure
+mayfield       :  the daily mortality
+calc_dsr       : DSR value
+
+

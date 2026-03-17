@@ -1,0 +1,44 @@
+
+------- general ----------------------------------------------------- 
+  
+  v1  - titles, discoverd, excluded, misclassified, true DSR
+  v2  - calculated DSR, bias of DSR value, assigned fate totals
+  v3  - alert run optimizer again; like_val, hatch/flood totals
+
+-------- makeNests ----------------------------------------------------- 
+
+  v1  - 
+  v2  - true final fates
+  v3  - hatched (T/F), flooded (T/F), survival (in days) for each nest
+  v4  - end dates before storms accounted for
+
+-------- flooding ----------------------------------------------------- 
+
+  v1  - prob of flood; num flooded; num storm nests; flooding summary (first&last 5 rows)
+  v2  - prob of flooding, storm nests (T/F), flooded (T/F)
+  v3  - walk thru storms for each nest to determine flooding; flooding summary (all rows)
+  v4  - nests w/ storm in final int, storm fate = True?
+
+-------- observer ----------------------------------------------------- 
+
+  v1  - proportion assigned hatch, period survival
+  v2  -  true fates, assigned fates after, discovered t/f
+  v3  -  prob of fate cues,num surveys til discovery, all nest obs data, assigned fates before,
+         num survey, survey til disc
+
+  v4  - final interval, random probs compared to fate cues, 
+  v5  - start& end of nesting period, position of init & end in survey day list, survey days
+  v6  - 
+
+-------- calculate DSR ----------------------------------------------------- 
+
+  v1  - 
+  v2  -
+  v3  - output from calc_exp(), subtitles from mayfield() function
+  v4  - output info from program MARK, input to calc_exp
+
+-------- calculate log likelihood ----------------------------------------------------- 
+  ** reemember, anything for ll functions will run every time optimizer runs
+  v1  - 
+  v2  -
+  v3  -
