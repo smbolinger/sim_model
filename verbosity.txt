@@ -23,11 +23,11 @@
 
   v1  - proportion assigned hatch, period survival
   v2  -  true fates, assigned fates after, discovered t/f
-  v3  -  prob of fate cues,num surveys til discovery, all nest obs data, assigned fates before,
+  v3  -  num surveys til discovery, all nest obs data, assigned fates before,
          num survey, survey til disc
 
-  v4  - final interval, random probs compared to fate cues, 
-  v5  - start& end of nesting period, position of init & end in survey day list, survey days
+  v4  - prob of fate cues, random probs compared to fate cues, num surveys per nest
+  v5  - final interval,start& end of nesting period, position of init & end in survey day list, survey days
   v6  - 
 
 -------- calculate DSR ----------------------------------------------------- 
