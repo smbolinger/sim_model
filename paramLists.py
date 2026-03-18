@@ -57,36 +57,37 @@ parLists2 = {'numNests' : [250, 500],
             'hatchTime': [16, 20, 28]
             }
 
-# plTest  = {'numNests'  : [100],
 plTest  = {'numNests'  : [100],
+# plTest  = {'numNests'  : [80],
            'probSurv'  : [0.96],
            'pMortFl'   : [0.75],
         #    'stormDur'  : [1],
            'stormDur'  : [2],
         #    'stormFrq'  : [2],
-           'stormFrq'  : [1,2],
+           'stormFrq'  : [2],
         #    'obsFreq'   : [3],
            'obsFreq'   : [3, 5],
            'stormFate': [False,True],
            'pWrong'    : [0.1],
            'wType'     : [7],
-           'hatchTime' : [20, 28] 
+           'hatchTime' : [20] 
            }
         #    'hatchTime' : [20],
             # 'useSMat'  : [True, False]
             # }
 
-plTest2 = {'numNests'  : [100],
+plTest2 = {'numNests'  : [100], ## control values
             'probSurv' : [0.96],
             'pMortFl'  : [0], # flood/storm severity
             'stormDur' : [0],
             'stormFrq' : [0],
-            'obsFreq'  : [3],
+            'obsFreq'  : [1],
             'stormFate': [False],
-            'hatchTime': [16, 20, 28],
+            'hatchTime': [16],
             # 'pWrong':    [0.05, 0.1, 0.2, 0.3],
-            'pWrong':    [0.1, 0.2, 0.3, 0.4],
-            'wType': [2, 7] }
+            # 'pWrong':    [0.1, 0.2, 0.3, 0.4],
+           'pWrong': [0],
+            'wType': [7] }
 
 plTestFlood  = {'numNests'  : [100],
 # plTest  = {'numNests'  : [30],
@@ -115,6 +116,20 @@ plDebug = {'numNests'  : [50],
            'obsFreq':   [3],
            'stormFate': [False],
            'hatchTime': [16, 28],
+           'pWrong':    [0.2],
+           'wType':     [7] }
+            
+plDefault = {'numNests'  : [50],
+# plTest  = {'numNests'  : [30],
+           'probSurv':  [0.96],
+           'pMortFl':   [0.75],
+           'stormDur':  [1],
+        #    'stormFrq'  : [1, 3],
+           'stormFrq':  [1],
+        #    'obsFreq'   : [3, 7],
+           'obsFreq':   [3],
+           'stormFate': [False],
+           'hatchTime': [16],
            'pWrong':    [0.2],
            'wType':     [7] }
             
