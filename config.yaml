@@ -1,24 +1,75 @@
-nreps: 500
-numOut: 11
-testing: "no"
-useWin: False
-fnUnique: False
-rngSeed: 102891
+default:
+  nreps: 1
+  numOut: 11
+  testing: "no"
+  useWin: False
+  fnUnique: False
+  rngSeed: 102891
+  stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
+  likeDir: "/home/wodehouse/Projects/sim_model/out"
+  debug: 0
+  debugLL: 0
+  debugNests: 0 
+  debugM: 0
+  debugObs: 0
+  debugFlood: 0
+  debugSummary: 0
 
-stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
-likeDir: "/home/wodehouse/Projects/sim_model/out"
-# likeFile: " "
-# colNames: " "
+full:
+  nreps: 500
+  numOut: 11
+  testing: "no"
+  useWin: False
+  fnUnique: False
+  rngSeed: 102891
+  stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
+  likeDir: "/home/wodehouse/Projects/sim_model/out"
+  # likeFile: " "
+  # colNames: " "
 
-# maybe debug should be somewhere else? since it is edited on the fly
-debug: 0
-debugLL: 0
-debugNests: 0
-debugM: 0
-debugObs: 0
-debugFlood: 0
-debugSummary: 1
+  # maybe debug should be somewhere else? since it is edited on the fly
+  debug: 0
+  debugLL: 0
+  debugNests: 0
+  debugM: 0
+  debugObs: 0
+  debugFlood: 0
+  debugSummary: 0
 
+test:
+  nreps: 3
+  numOut: 11
+  testing: "yes"
+  useWin: False
+  fnUnique: False
+  rngSeed: 102891
+  stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
+  likeDir: "/home/wodehouse/Projects/sim_model/out"
+  debug: 3
+  debugLL: 2
+  debugNests: 3 
+  debugM: 2
+  debugObs: 3
+  debugFlood: 1
+  debugSummary: 1
+
+# control:
+#   nreps: 10
+#   numOut: 11
+#   testing: "yes"
+#   useWin: False
+#   fnUnique: False
+#   rngSeed: 102891
+#   stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
+#   likeDir: "/home/wodehouse/Projects/sim_model/out"
+#   debug: 3
+#   debugLL: 0
+#   debugNests: 2 
+#   debugM: 1
+#   debugObs: 3
+#   debugFlood: 1
+#   debugSummary: 1
+#
 ## nesting??
 # debugging:
 #   debug: 
