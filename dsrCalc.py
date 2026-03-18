@@ -1,5 +1,6 @@
 import numpy as np
 from MCmatrix import logistic
+np.set_printoptions(precision=3)
 
 def calc_exp(inp, cn, expPercent=0.5): 
   """
@@ -30,7 +31,16 @@ def calc_exp(inp, cn, expPercent=0.5):
       > not calculating nestling exposure bc precocial/semi-precocial chicks
         leave the nest so early 
   """
-  if cn.debugM>=4: print(f"exp percent={expPercent} ; inp (ID, i, j, k, fate:)\n",inp)
+  # if cn.debugM>=4: print(f"exp percent={expPercent} ; inp (ID, i, j, k, fate:)\n",inp)
+  # if cn.debugM>=4: print(f"exp percent={expPercent} ; inp ( i, j, k:)\n")
+  if cn.debugM>=2:
+    np.save("out/inp.npy", inp)
+    # print( f"\t\t|> input to exposure function:\n")
+    # for n in range(5):
+    #   print(
+    #         f"\t\t\tnest {n}: first found={inp[n,0]}"
+    #         f"\tlast active={inp[n,1]} \tlast checked={inp[n,2]}"
+    #       )
   expo = np.zeros((len(inp), 3))
   for n in range(len(inp)-1): # want n to be the row NUMBER
     # alive_days = inp[n,1] - inp[n,0] # interval from first found to last active 
@@ -43,7 +53,15 @@ def calc_exp(inp, cn, expPercent=0.5):
     # exposure = sum(alive days) + days in final int * expPercent
     expo[n,2]   = expo[n,0] + (expo[n,1]*expPercent)
     # NOTE need nests to be alive for at least one interval
-  if cn.debugM>=3: print("output from exposure function:", expo)
+  # if cn.debugM>=4: print("output from exposure function:", expo)
+  if cn.debugM>=2:
+    np.save("out/exposure.npy", expo)
+    # print( f"\t\t|> output from exposure function:\n")
+    # for n in range(5):
+    #   print(
+    #         f"\t\t\tnest {n}: alive days={expo[n,0]}"
+    #         f"\tfinal_int={expo[n,1]} \texposure={expo[n,2]}"
+    #       )
   return(expo)
 # -----------------------------------------------------------------------------
 
@@ -174,7 +192,7 @@ def prog_mark(s, ndata, nocc, con):
   # prob, dof = probs
   # allp, alldof = mark_probs(s=s, ndata=ndata)
   # ALL IN ONE FUNCTION:
-  s    = s.item() # makes singleton array into scalar
+  s    = s.item() # EX makes singleton array into scalar
   allp   = np.array(range(1,len(ndata)), dtype=np.longdouble) # all nest probabilities 
   expo = calc_exp(inp=ndata[:,4:7], expPercent=0.4, cn=con)
   for n in range(len(ndata)-1): # want n to be the row NUMBER
@@ -189,6 +207,8 @@ def prog_mark(s, ndata, nocc, con):
   nll = sum(-np.log(allp))
   # NOTE these if statements take up lots of time, esp inside the optimizer
   if con.debugM>=4:
+    # printM = np.zeros(len(ndata))
+    np.save("out/MARK_print.npy", allp)
     print(">>>>> Program MARK >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     # print("> number of nests:", len(ndata), "discovered nests:", len(disc))
     print("> number of nests:", len(ndata), end=" ")
@@ -206,12 +226,18 @@ def prog_mark(s, ndata, nocc, con):
 
 def mark_wrapper(srn, ndata, nocc, conf):
   """
-  This function calls the program MARK function when given a random starting 
-  value (srn) and some nest data (ndata)
-    > values given to optimizer are transformed then passed to MARK function
-      > allows larger range of values for optimizer to work over w/o overflow
-      > but values given to the function are still between 0 and 1, as required
-    > Create vector to store the log-transformed values, then fill
+    This function calls the program MARK function when given a random starting 
+    value (srn), number of occasions (nocc), and some nest data (ndata)
+
+      > values given to optimizer are transformed then passed to MARK function
+        > allows larger range of values for optimizer to work over w/o overflow
+        > but values given to the function are still between 0 and 1, as required
+
+      > Create vector to store the log-transformed values, then fill
+
+    ---------
+    RETURNS:
+      output from prog_mark()
 
   """
   # s = np.ones(numNests, dtype=np.longdouble) # why is s an array?
