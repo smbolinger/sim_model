@@ -14,18 +14,33 @@ from typing import Dict, Generator
 import yaml
 # from datsim import config
 from getClass import Config
-from paramLists import staticPar, parLists, plNoStorm,plNSTest, parLists2, plTest, plTest2, plTestFlood, plDebug
+from paramLists import (
+  staticPar,
+  plDefault,
+  parLists,
+  plNoStorm,
+  plNSTest,
+  parLists2,
+  plTest, 
+  plTest2,
+  plTestFlood,
+  plDebug,
+)
 
 dtime = datetime.today().strftime('%d %b %Y @ %H:%M')
+now_long  = datetime.today().strftime('%m%d%Y_%H%M%S')
+now_short  = datetime.today().strftime('%Y%m%d')
+
 atype=""
 debug=False
 use_pwrong=False
+np.set_printoptions(precision=3) # NOTE this doesn't work outside np arrays?
 
 # print("\n\n<> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <>")
 print("\n\n+ + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + ")
 print(" + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + ")
 print(f"\n <> <> <> <> <> <> <> <> datsim.py - {dtime} <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <>")
-print("\n[*] [*] [*] [*] [*] [*] settings [*] [*] [*] [*] [*] [*] [*] [*] [*] ")
+print("\n\t[*] [*] [*] [*] [*] [*] settings [*] [*] [*] [*] [*] [*] [*] [*] [*] ")
 
 try:
   opts,args = getopt.gnu_getopt(sys.argv[1:],"ht:d",["Help", "Type", "Debug"])
@@ -33,13 +48,20 @@ except getopt.error as err:
   print(str(err))
   sys.exit(2)
 
-def load_config(fpath, debug=False):
+def load_config(fpath, ctype="default", debug=False):
+  """
+    load config from fpath (my_conf)
+    ctype = config type ('full', 'test', 'default')
+
+    will create Config from my_conf[ctype]
+  """
   with open(fpath, "r") as cfg:
       my_conf = yaml.safe_load(cfg) # if debug: print(">=> config:\n", my_conf)
-  my_conf = Config(**my_conf)
-  if debug: print("\t>=> config, converted to class:", my_conf)
+  my_conf = Config(**my_conf[ctype]) ## select correct config set
+  if debug: print(f"\t\t>=> config, type {atype}; converted to class:", my_conf)
   return my_conf
 
+atype="default" ## can be changed with CL args, below
 for arg, val in opts:
   if arg in ("-h", "--Help"):
       print("\n-------------------------------------------------------------------------------------------------------",
@@ -57,18 +79,23 @@ for arg, val in opts:
   elif arg in ("-d", "--Debug-general"):
       debug = True
 
-tests = ['control','test', 'storm', 'fixedtest', 'nstest']
+# tests = ['debug', 'control','testing', 'storm', 'fixedtest', 'nstest']
+tests = ['debug', 'control','norm', 'storm', 'fixedtest', 'nstest']
 if atype in tests:
-  config=load_config("/home/wodehouse/Projects/sim_model/test-config.yaml")
-  print("\t|>Config-TEST mode:", config.testing, end=" ")
+  config=load_config("/home/wodehouse/Projects/sim_model/config.yaml", "test")
+  print("\t\t|>Config-TEST mode:", config.testing, end=" ")
+elif atype == "full":
+  config=load_config("/home/wodehouse/Projects/sim_model/config.yaml", "full")
+  print("\t\t|>Config-FULL mode", end=" ")
 else:
-  print("\t|>using default config", end=" ")
-  config = load_config("/home/wodehouse/Projects/sim_model/config.yaml", debug=True)
+  print("\t\t|>using default config", end=" ")
+  # config = load_config("/home/wodehouse/Projects/sim_model/config.yaml", debug=True)
+  config = load_config("/home/wodehouse/Projects/sim_model/config.yaml")
 
 if debug:
   # config.debug = True
   config.debug = 2
-  print("\t|>Config-debug (using default val):", config.debug, end=" ")
+  print("\t\t|>Config-debug (using default val):", config.debug, end=" ")
 
 #--- OTHER SETTINGS ------------------------------------------------------------
 if config.useWin:
@@ -80,15 +107,15 @@ rng = np.random.default_rng(seed=config.rngSeed)
 # if config.testing == "norm":
 if atype == "":
   pLists = parLists # don't need to update any settings if not testing?
-  print("\t|>not testing; using full param lists",end="")
+  print("\t\t|>not testing; using full param lists",end="")
 elif atype == "norm":
   # config.nreps=400 # print("changed config values:",config.debug, config.nreps)
-  config.nreps=1 # print("changed config values:",config.debug, config.nreps)
+  # config.nreps=1 # print("changed config values:",config.debug, config.nreps)
   pLists = plTest
   # global debug 
   debug = True
   lf_suffix = "-test"
-  print("\t|>using test values. global debug = ", debug,end="")
+  print("\t\t|>using test values. global debug = ", debug,end="")
 elif atype=="storm":
   config.nreps=10
   config.debugFlood=True
@@ -96,9 +123,9 @@ elif atype=="storm":
   pLists = plTestFlood
   debug = True
   lf_suffix = "-flood"
-  print("\t|>using storm test values. global debug = ", debug,end="")
+  print("\t\t|>using storm test values. global debug = ", debug,end="")
 elif atype=="debug":
-  print("\t|>CHECK THE DEBUG VALUES!!",end="")
+  print("\t\t|>CHECK THE DEBUG VALUES!!",end="")
   config.nreps=10
   debug=True
   pLists=plDebug
@@ -111,34 +138,35 @@ elif atype=="debug":
 #   pLists=plTest2
 #   lf_suffix="-fixed-test"
 elif atype=="nstest":
-  print("\t|>no storms-TEST", end="")
+  print("\t\t|>no storms-TEST", end="")
   pLists=plNSTest
   lf_suffix="-nostorm-test"
 elif atype=="nostorm":
-  print("\t|>no storms", end=" ")
+  print("\t\t|>no storms", end=" ")
   pLists=plNoStorm
   lf_suffix="-nostorm"
 elif atype=="control":
-  print("\t|>control values", end=" ")
+  print("\t\t|>control values", end=" ")
   pLists=plTest2
   lf_suffix="-control"
 else:
-  pLists = parLists # don't need to update any settings if not testing?
-  print("\t|>testing val invalid; using full param lists")
+  # pLists = plDefault # <> don't need to update any settings if not testing?
+  # pLists = plDefault # EX: don't need to update any settings if not testing?
+  pLists = plDefault # ~ don't need to update any settings if not testing?
+  print("\t\t|>testing val invalid; using minimal param set")
 
 if use_pwrong == False:
-  print("\t|>not using pWrong")
+  print("\t\t|>not using pWrong")
   pLists["pWrong"]=[0]
   # del pLists["pWrong"]
 else:
-  print("\t|>using pWrong")
+  print("\t\t|>using pWrong")
 
 # print("\n\t|>output directory:", config.likeDir)
 
 #---- NEST MODEL PARAMETERS: ------------------------------------------------
 #region-----------------------------------------------------------------------
-# NOTE the main problem is that my fate-masking variable (storm activity) also 
-#    leads to certain nest fates
+# NOTE problem: fate-masking variable (storm activity) also leads to certain nest fates
 # NOTE 2: how many varying params is a reasonable number?
 # staticPar = {'nruns': 1,
 # These are the values that are passed to the Params class
