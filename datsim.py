@@ -33,8 +33,8 @@ from scipy import optimize
 from typing import Dict, Generator
 
 from getClass import Params, Config
-from settings import rng, config, staticPar, pLists
-from helpers import mk_param_list, mk_fnames
+from settings import rng, config, staticPar, pLists, now_short
+from helpers import mk_param_list, mk_outdir, mk_fnames, arrPrint, printLL
 from makeNests import stormGen
 from observer import make_obs, mk_surveys
 from dsrCalc import calc_dsr, mark_wrapper
@@ -43,8 +43,9 @@ from MCmatrix import like_smd, triangle, logistic
 # debugTypes = None # output = None verbose = False 
 # print("debug options:", debugTypes)
 # now    = datetime.today().strftime('%m%d%Y_%H%M%S')
+np.set_printoptions(precision=3)
 debug = config.debug
-print("\t|>|>|>debug value:", debug)
+print("\t\t|>|>|>debug value:", debug)
 
 
 def randArgs():
@@ -85,12 +86,12 @@ def run_optim(minimizer, fun, z, arg, met='Nelder-Mead'):
     ex = 0.0
   except decimal.InvalidOperation as error2:
     ex=-1.0
-    print(">> Error: invalid operation in decimal:", error2, "Go to next replicate.")
+    print("\t\t>> Error: invalid operation in decimal:", error2, "Go to next replicate.")
     return(ex)
   except OverflowError as error3:
     ex=-2.0
     print(
-      ">> Error: overflow error:", 
+      "\t\t>> Error: overflow error:", 
       error3, 
       "Go to next replicate."
       )
@@ -186,7 +187,7 @@ def rep_loop(par, nData, storm, survey, config):
             #  )
                 # args=( dat, obsFr, stMat, useSM, 1),
   if res[0] < 0.6:
-    if debug>=3: print(f"res={res[0]}; run optimizer again with basinhopping")
+    if debug>=3: print(f"\t\t\tres={res[0]}; run optimizer again with basinhopping")
     # run_optim(fun=like_smd, z=randArgs(), arg=(dat,par.obsFreq,par.useSMat,storm,survey,par.whichLike),met=))
     res = run_optim(minimizer="bh", fun=like_smd, z=randArgs(), arg=arg)
   # res = ansTransform(ans)
@@ -209,7 +210,7 @@ def rep_loop(par, nData, storm, survey, config):
   like_val = np.array([ mark_s,s2,mp2], dtype=np.longdouble)
   # if config.debugLL>=2: print(">> like_val:\n", like_val)
   # if debug>=2: print(">> like_val (MARK, MCMC-surv, MCMC-pred):", like_val)
-  if debug>=2: print(f">> like_val: MARK={like_val[0]}, MCMC-surv={like_val[1]}, MCMC-pred={like_val[2]}")
+  if debug>=2: print(f"\t\t>> like_val: MARK={like_val[0]}, MCMC-surv={like_val[1]}, MCMC-pred={like_val[2]}")
   # if config.debugLL: print(">> like_val:\n", like_val)
   return(like_val)
   
@@ -235,39 +236,45 @@ def main(fnUnique, testing, parLists, config=config, pStatic=staticPar):
   # # if hasattr(args,"")
   #   # set_debug(debugTypes)
   #   set_debug(debugOpt)
+  now_str = now_short
   # fname = mk_fnames(like_f_dir=like_f_dir) if fnUnique else mk_fnames(unique=False)
-  fname = mk_fnames(suf = lf_suffix) if fnUnique else mk_fnames(suf =lf_suffix, unique=False)
+  fname = mk_fnames(now_str,suf = lf_suffix) if fnUnique else mk_fnames(now_str,suf =lf_suffix)
   fdir  = fname[0].parent
   likeFile = fname[0]
   colNames = fname[1]
-  with open(likeFile, "wb") as f: # doesn't need to be 'a' bc file is open
+  with open(likeFile, "wb") as f: # NOTE doesn't need to be 'a' bc file is open
     paramsArray = mk_param_list(parList=pList, fdir=fdir)
     # if debug: print(f">>>> there will be {len(paramsArray)*config.nreps} total rows")
-    print(f"\n|>|>|>there will be {len(paramsArray)} param sets & {len(paramsArray)*config.nreps} total rows")
+    # print(f"\n\t|>|>|>there will be {len(paramsArray)} param sets & {len(paramsArray)*config.nreps} total rows")
+    print(
+        f"\n\t|>|>|>{len(paramsArray)} param sets x {config.nreps} reps ="
+        f" {len(paramsArray)*config.nreps} total rows"
+        )
     parID     = 0
-    for i in range(0, len(paramsArray)): # for each set of params
+    for i in range(0, len(paramsArray)): # +> for each set of params
       # if debug: print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
       par    = paramsArray[i] 
       par_merge  = {**par, **pStatic}
       par    = Params(**par_merge)
-      print("\n <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <>")
+      print("\n\t<> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <>")
       # print("\n>>>>>>>>> param set number:", parID, "and params in set:", par)
-      print("\n>>>>>> param set #",parID,"& params in set:\n\t",par)
+      print("\n>>>>>> param set #",parID,"& params in set:\n\t")
+      print("\t\t",par)
       # pprint.pprint(par, indent=4, width=90)
       stormDays  = stormGen(frq=par.stormFrq, dur=par.stormDur)
       survey   = mk_surveys(stormDays, par.obsFreq, par.brDays, conf=config)
       # surveyDays, surveyInts = survey
-      repID = numMC = nEx = 0 # number of nests misclassified, number of exceptions
+      repID = numMC = nEx = 0 # +> num nests misclassified, num exceptions
       # likeVal  = np.zeros(shape=(config.nreps,config.numOut))
       for r in range(config.nreps): 
         if config.testing:
-          print("\n>>>>>>>>>>>> replicate ID: >>>>>>>>>>>>>>>>>>>>>>>>>>", repID)
+          print(f"\n\t>---->----> replicate  {repID}: ")
         try:
           nestData1 = make_obs(par=par, storm=stormDays, survey=survey, conf=config) 
         # except:
         except IndexError as error:
           print(
-            ">> !!! IndexError in nest data:", 
+            "\t\t>> !!! IndexError in nest data:", 
             error,
             ". Go to next replicate")
           nEx = nEx + 1
@@ -280,32 +287,45 @@ def main(fnUnique, testing, parLists, config=config, pStatic=staticPar):
         hatched  = sum(nestData1[:,3]==0)
         # print_prop(nestData[:,7], nestData[:,3], )
         discover = nestData1[:,6]!=0
-        nestData = nestData1[(discover),:] # remove undiscovered nests
+        nestData = nestData1[(discover),:] # +> remove undiscovered nests
         exclude  = ((nestData[:,7] == 7) | (nestData[:,4]==nestData[:,5]))             
         unknown  = (nestData[:,7]==7)
         misclass = (nestData[:,7]!=nestData[:,3])
-        if debug>=1:
-          print(
-            f"\n |== discovered: {discover.sum()} |"
-            f" excluded: {exclude.sum()} |"
-            f" misclassified: {misclass.sum()} |"
-            f" true DSR: {trueDSR} ==| "
-            )
-        if debug>=2:
-          print(
-            f"\n |== (assigned)flooded: {sum(nestData[:,7]==2)} |"
-            f" (assigned)hatched: {sum(nestData[:,7]==0)} |"
-            f" unknown fate: {unknown.sum()} ==|"
-            )
-        if debug>=3:
-          print(
-            f"\n |== (true)flooded: {flooded.sum()} |"
-            f"(true)hatched: {hatched.sum()} ==|"
-            )
-        nestData  = nestData[~(exclude),:]  # remove excluded nests 
-        trueDSR_an   = calc_dsr(nData=nestData, nestType="analysis", calcType="true", conf=config) 
+        # if debug>=3:
+        #   print(
+        #     f"\n\t\t |== (true)flooded: {flooded.sum()} |"
+        #     f"(true)hatched: {hatched.sum()} ==|"
+        #     )
+        nestData  = nestData[~(exclude),:]  # +> remove excluded nests 
+        trueDSR_an   = calc_dsr(nData=nestData, nestType="analysis",
+                                calcType="true", conf=config) 
         lVal = rep_loop(par=par, nData=nestData, storm=stormDays,
                    survey=survey,config=config)
+        if config.debugLL>=2:
+          llArg = np.load('out/arg_PrintLL.npy') 
+          printLL(len(llArg), *llArg.T) # +> tranpose so it is unpacked colwise
+        if debug>=2:
+          print(
+            f"\n\t\t |== (true)flooded: {flooded.sum()} |"
+            f" (true)hatched: {hatched.sum()} |"
+            f" (obs)flooded: {sum(nestData[:,7]==2)} |"
+            f" (obs)hatched: {sum(nestData[:,7]==0)} |"
+            f" unk: {unknown.sum()} ==|"
+            )
+        if debug>=1:
+          print(
+            f"\n\t\t |== discovered: {discover.sum()} |"
+            f" excluded: {exclude.sum()} |"
+            f" misclassified: {misclass.sum()} |"
+            f" true DSR - analyzed nests: {trueDSR_an} ==| "
+            )
+        if debug>=2: 
+          print(
+              f"\n\t\t |== true DSR: {trueDSR} |"
+              f" assigned DSR: {par.probSurv} |"
+              f" calc DSR: {lVal[1]} |"
+              f" DSR bias: {(trueDSR-lVal[1])/trueDSR} ==| "
+              )
         # pars = np.array([par.probSurv, par.stormDur, par.stormFrq, par.numNests, 
         #          par.hatchTime,par.obsFreq]) 
         # nVal = np.array([trueDSR, trueDSR_an, sum(discover), sum(exclude), repID])  
@@ -315,8 +335,6 @@ def main(fnUnique, testing, parLists, config=config, pStatic=staticPar):
         colnames=colNames
         # if (trueDSR_an - lVal[1]) / trueDSR_an > 40:
         # if debug>=2: print("DSR bias:",(trueDSR-lVal[1])/trueDSR)
-        if debug>=2: 
-          print(f"calc DSR: {lVal[1]} | DSR bias: {(trueDSR-lVal[1])/trueDSR}")
         # newL = np.zeros((par.numNests, 2))
         # newL = np.zeros(2)
         # fdir  = fname[0].parent
