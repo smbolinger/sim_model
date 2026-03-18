@@ -1,5 +1,6 @@
 import numpy as np
 from helpers import printLL
+np.set_printoptions(precision=3)
 # from datsim import config ## in case anything was changed in place
 
 def triangle(x0, y0):
@@ -135,6 +136,9 @@ def nest_mat(argL, obsFreq, stormFin, useStormMat, config):
   # a_s, a_mp, a_mf, a_ss, a_mps, a_mfs, sM = argL
   a_s, a_mp, a_mf = argL
   # if config.debugLL>=2: print("observation interval, storm in final interval?, use storm matrix?\n",obsFreq, stormFin, useStormMat)
+  # if config.debugLL>=2:
+  #   print(f"obs interval={obsFreq} storm in final int? {stormFin}")
+  #   print(f" use storm matrix? {useStormMat}\n")
   trMatrix = np.array([[a_s,0,0], [a_mf,1,0], [a_mp,0,1]]) 
   pwr = np.linalg.matrix_power(trMatrix, obsFreq) # raise the matrix to the power of the number of days in obs int
   # storm matrix just has a longer observation interval
@@ -192,15 +196,15 @@ def interval(pwr, numNests, fl, pr, cn):
 
   finalInt[fl] = oneFinalSt
 
-  if cn.debugLL>=3:  
-    print(">>>> ")
+  if cn.debugLL>=4:  
+    print("\t>>>> ")
   #   print(">> end state of normal interval:\n", stateEnd)
   #   print(">> end state of final interval:\n",  stateLC)
-    print(">> likelihood of one normal interval:\n",
+    print("\t\t>> likelihood of one normal interval:\n",
     normalInt,
     normalInt.shape,
     normalInt.dtype)
-    print(">> likelihood of final interval:\n",
+    print("\t\t>> likelihood of final interval:\n",
     finalInt,
     finalInt.shape,
     finalInt.dtype)
@@ -287,15 +291,24 @@ def logL(numNests, intervals, numInt, config):
 
   logLike    = np.sum(logLikelihood)
   # logLike    = ne.evaluate('sum(logLikelihood)')
-  if config.debugLL:
+  if config.debugLL>=4:
   #   print("number of nests:", numNests, "\n hatched:", ha, "\n flooded:, fl") 
-    print("numInt excluding final interval:", numInt)
-    print(">> -log likelihood of 1 interval:", logLik)
-    print(">> -log likelihood final interval, updated with storms/hatch:\n", logLikFin)
-    print(">> -log likelihood of each nest history:", logLikelihood)
-    print(">>>> overall -log likelihood:", logLike)
-    printLL(numNests=numNests, logLik=logLik, logLikFin=logLikFin, 
-            numInt=numInt, logL=logLikelihood)
+    print("\t\tnumInt excluding final interval:", numInt)
+    print("\t\t>> -log likelihood of 1 interval:", logLik)
+    print("\t\t>> -log likelihood final interval, updated with storms/hatch:\n", logLikFin)
+    print("\t\t>> -log likelihood of each nest history:", logLikelihood)
+    print("\t>>>> overall -log likelihood:", logLike)
+  if config.debugLL>=2:
+    argPrLL = np.zeros(shape=(numNests, 4), dtype=np.longdouble)
+    argPrLL[:,0] = logLik
+    argPrLL[:,1] = logLikFin
+    argPrLL[:,2] = numInt
+    argPrLL[:,3] = logLikelihood
+    np.save('out/arg_PrintLL.npy', argPrLL) ## save numpy binary file
+    ## this way you can save only the last optimizer iteration
+    # store the necessary values for the print function to an array
+    # printLL(numNests=numNests, logLik=logLik, logLikFin=logLikFin, 
+    #         numInt=numInt, logL=logLikelihood)
   return(logLike) # this is what is being optimized
 # -----------------------------------------------------------------------------
 # try to keep these in numpy:
@@ -327,21 +340,22 @@ def like(argL, numN, obsFr, obsDat, useSM, con):
   # if con.debugLL: print("-------------------------------------------------------------------------------------")
   ff, la, lc, fate, nInt, sFinal = obsDat.T
   fl = fate==2 # are these necessary for more than print statements?
-  # ha = fate==0
+  ha = fate==0
   pr = fate==1
   # NOTE NOTE should this be the assigned fate or true fate?
   # NOTE these if .. print statements, esp inside the optimizer, take lots of time:
-  # if con.debugLL:
-  #   print("number of nests and observation interval:", numN, obsFr)
-  #   print("nest observation data - ff, la, lc, fate, nInt, sFinal\n", obsDat)
-  #   print("did nest hatch?\n", ha, "\ndid nest flood?\n", fl)
-  #   print(
-  #     ">>>> run likelihood function - ",
-  #     "num flooded:", sum(fl), "& hatched:", sum(ha),
-  #     "number of obs intervals:", nInt,
-  #     # "\n>> ijk:\n", [ff, la, lc]
-  #     "\n>> ijk:\n", np.column_stack((ff, la, lc))
-  #     )
+  if con.debugLL>=4:
+    like_outp = np.zeros(shape=(numN, ))
+    print("number of nests and observation interval:", numN, obsFr)
+    print("nest observation data - ff, la, lc, fate, nInt, sFinal\n", obsDat)
+    print("did nest hatch?\n", ha, "\ndid nest flood?\n", fl)
+    print(
+      ">>>> run likelihood function - ",
+      "num flooded:", sum(fl), "& hatched:", sum(ha),
+      "number of obs intervals:", nInt,
+      # "\n>> ijk:\n", [ff, la, lc]
+      "\n>> ijk:\n", np.column_stack((ff, la, lc))
+      )
   # stEnd, stFin = stMat 
   # pwrOut = nest_mat(argL=argL, obsFreq=obsFr, stormFin=sFinal, useStormMat=useSM)
   pwrOut = nest_mat(argL=argL, obsFreq=obsFr, stormFin=sFinal, useStormMat=useSM, config=con)
