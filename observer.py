@@ -10,7 +10,6 @@ from settings import config, rng
 from helpers import expDecay, arrPrint, searchSorted2
 np.set_printoptions(precision=3)
 
-# def mk_surveys(stormDays,sFreq, obsFreq, breedingDays, conf):
 def mk_surveys(stormDays, obsFreq, breedingDays, conf):
   """
     This function creates the list of survey days by taking a random start date 
@@ -124,18 +123,15 @@ def mk_surveys(stormDays, obsFreq, breedingDays, conf):
 
 def mk_per(start, end, con):
 
-  # nestPeriod = np.stack((nestData[:,1], (nestData[:,1]+nestData[:,2]))) # create array of tuples
   nestPeriod = np.stack((start, end)) # +> create array of tuples
   # NOTE need the double parentheses so it knows output is tuples
   nestPeriod = np.transpose(nestPeriod) # +> an array of start,end pairs 
   if con.debugNests>=5:
     print( f"\t\t\t>> start & end of nest period:\n")
-    # pprint.pprint(nestPeriod, indent=4, compact=True, width=90)
     arrPrint(nestPeriod)
   return(nestPeriod)
 
 # @profile
-# def assign_fate(assignVal, pWrong, fateCuesPresent, trueFate, numNests, obsFr, intFinal, stormFate, cn):
 def assign_fate(assignVal, pWrong, trueFate, numNests, obsFr, intFinal, stormFate, cn):
   """
   Observer assigns correct or incorrect fate based on some conditions:
@@ -160,7 +156,6 @@ def assign_fate(assignVal, pWrong, trueFate, numNests, obsFr, intFinal, stormFat
   assignedFate=np.empty(numNests)
   assignedFate.fill(7) # +> default=unk; fill w/ known fate if field cues allow
 
-  # fateCuesPresent   = expDecay(n0=0.9, k=0.15, t=intFinal)
   fateCuesPresent   = expDecay(n0=1, k=0.1, t=intFinal)
   # if cn.debugObs>=3: 
   #   timevals = np.arange(0,10)
@@ -186,20 +181,12 @@ def assign_fate(assignVal, pWrong, trueFate, numNests, obsFr, intFinal, stormFat
   if cn.debugObs >=4:
     print("\t\t\t|>random probs for fate:")
     arrPrint(np.round(fateProb,3))
-  # fateCuesPres = np.zeros(numNests)
-  # fateCuesPres.fill(fateCuesPresent)
-  # fateCuesPres[intFinal > obsFr] = 0.1 # nests with longer final interval have lower chance of cues
-    
-  # assignedFate[fateProb < fateCuesPres] = trueFate[fateProb < fateCuesPres] 
   assignedFate[fateProb < fateCuesPresent] = trueFate[fateProb < fateCuesPresent] 
-  # assignedFate[fateProb < pWrong] = assignVal # if fixed percentages turned off, pWrong == 0
 
   if cn.debugObs>=2:
     print("\t\t\t>-> true fates (all nests, not just discovered):")
-    # print(trueFate, len(trueFate))
     arrPrint(trueFate)
     print("\t\t\t>-> assigned fates before (all nests, not just discovered):")
-    # print(assignedFate, len(assignedFate))
     arrPrint(assignedFate)
   if stormFate: assignedFate[intFinal > obsFr] = 2
   if cn.debugObs>=2:
@@ -210,24 +197,17 @@ def assign_fate(assignVal, pWrong, trueFate, numNests, obsFr, intFinal, stormFat
         f"F:{sum(trueFate==2)}({sum(assignedFate==2)/numNests})"
         )
     print("\t\t\t>-> assigned fates after incorrect fates assigned(all nests):")
-    # print(assignedFate, len(assignedFate))
     arrPrint(assignedFate)
     
   if cn.debugObs>=4: 
     print("\t\t\t>-> compare random probs to fateCuesPresent:\n") 
-    # arrPrint( [fateProb,fateCuesPresent], )
     print("\t {[np.round(fateProb[f],3):np.round(fateCuesPresent[f],3) for f in 1:numNests]}")
 
-        # [fateProb,fateCuesPres], 
-        # [fateProb,fateCuesPresent], 
-        # fateProb.shape)
     # print(f"\t>-> or to pWrong: {pWrong} with fill value: {assignVal}")
   if cn.debugFlood>=4:
     print("\t\t\t>-> nests with storm in final interval:", np.where(intFinal>obsFr))
     print("\t\t\t>-> storm fate == True?", stormFate)
   # NOTE fate cues prob should affect all nest fates equally, not just failures
-  # if cn.debugObs: print(">> proportion of nests assigned hatch fate:", np.sum((assignedFate==0)[discovered==True])/(sum(discovered==True)),"vs period survival:", pSurv**hatchTime)
-  # print(">> assigned fate array & its shape:\n", assignedFate, assignedFate.shape)
   return(assignedFate)
 
 #-----------------------------------------------------------------------------
@@ -249,13 +229,15 @@ def svy_position(initiation, nestEnd, surveyDays, cn):
     print("\t\t>> survey days with index number:\n", surveyDays)
   
   return((position, position2)) # +> return a tuple
-  # position2
+
 # -----------------------------------------------------------------------------
-# def print_obs(nData, )
 
 # @profile
 #-----------------------------------------------------------------------------
-# def observer(nData, par, cues, surveys, out, conf):
+
+# -----------------------------------------------------------------------------
+# ---- NEST DISCOVERY & OBSERVATION ----------------------------------------
+# -----------------------------------------------------------------------------
 def observer(nData, par, surveys, out, conf):
   """
     The observer searches for nests on survey days.
@@ -280,13 +262,6 @@ def observer(nData, par, surveys, out, conf):
     print("nest data!")
     arrPrint(nData)
   initiation, end, fate = nData[:,1], nData[:,2], nData[:,3]
-  # if conf.debugObs>=4:
-    # print("initiation:")
-    # arrPrint(initiation)
-    # print("end:")
-    # arrPrint(end)
-    # print("fate:")
-    # arrPrint(fate)
   surveyDays, surveyInts = surveys
 
   pos = svy_position(initiation, end, surveys[0], cn=conf)
@@ -306,7 +281,6 @@ def observer(nData, par, surveys, out, conf):
     print("\t\t\t> total surveys while nest active:")
     arrPrint(num_svy)
 
-  # stormIntFinal  = surveyInts[pos[1]] > obsFreq  # was obs interval longer than usual? (== there was a storm)
   intFinal  = surveyInts[pos[1]] # +> actual length of final int for each nest
   kVal = surveyDays[pos[1]]
   jVal = surveyDays[pos[1]-1]
@@ -333,13 +307,9 @@ def observer(nData, par, surveys, out, conf):
         )
     print("\t\t\t>-> true fates (discovered nests):")
     arrPrint(trueFate[discovered])
-          # trueFate[discovered], len(trueFate[discovered]))
     print("\t\t\t>-> assigned fates (discovered nests):")
-          # assignedFate[discovered], len(assignedFate[discovered]))
-          # assignedFate, len(assignedFate))
     arrPrint(assignedFate)
   if conf.debugObs>=1: 
-    # print("\t\t>-> assigned fates:", assignedFate, len(assignedFate))
     print("\t\t>-> number discovered: ",
           np.sum(discovered==True),
           "\t\t>-> disc prob: ",
@@ -369,7 +339,6 @@ def observer(nData, par, surveys, out, conf):
     print(
         "\t\t|>surveys til discovery; discovered T/F; total obs days;"
         " total active days; assigned fate; true fate:")
-    # for i in range(len(out)):
     active = nData[:,2]-nData[:,1]
     obsLen = (out[:,2]-out[:,0])
     for i in range(5):
@@ -382,10 +351,8 @@ def observer(nData, par, surveys, out, conf):
     for i in range(-5,0):
       print(
           f"\t\t\t{i:03} : {svysTilDiscovery[i]:02} | {discovered[i]:>5} | {(obsLen[i]):>4} |"
-          # f" {((nData[:,2]-nData[:,1])[i]):>4} | {assignedFate[i]} | {trueFate[i]}"
           f" {round(active[i]):>4} | {assignedFate[i]} | {round(trueFate[i])}"
           )
-      # print(f"\t\t\t{i:02}: {svysTilDiscovery[i]} | {discovered[i]} | {(out[:,2]-out[:,0])[i]}:03 | {(nData[:,2]-nData[:,1])[i]}")
   if conf.debugObs>=3: 
     trueFate = nData[:,3]
     assignedFate = out[:,3]
@@ -401,14 +368,11 @@ def observer(nData, par, surveys, out, conf):
     print(
         "\t\t|>surveys til discovery; discovered T/F; total obs days;"
         " total active days; assigned fate; true fate:")
-    # print("\t|>surveys til discovery; discovered T/F, total obs days, total active days:")
     for i in range(len(out)):
       print(
           f"\t\t\t{i:03} : {svysTilDiscovery[i]:02} | {discovered[i]:>2} | {(obsLen[i]):>4} |"
-          # f" {((nData[:,2]-nData[:,1])[i]):>4} | {assignedFate[i]} | {trueFate[i]}"
           f" {round(active[i]):>4} | {assignedFate[i]} | {round(trueFate[i])}"
           )
-      # print(f"\t\t{i:02}: {svysTilDiscovery[i]} | {discovered[i]:03} | {(out[:,2]-out[:,0])[i]} | {(nData[:,2]-nData[:,1])[i]}")
   return(out)
 
 #-----------------------------------------------------------------------------
@@ -443,7 +407,6 @@ def make_obs(par, storm, survey, conf):
   nestPeriod   = mk_per(nData[:,1], (nData[:,2]), con=conf) # changed output of mk_nests 
   stormOut     = storm_nest(par.stormFrq, nestPeriod, storm, con=conf)
   stormDat     = mk_flood(storm, par.pMortFl, stormOut, numNests=par.numNests, con=conf)
-  # inclFlood    = mk_flood(nData, par.pMortFl, stormsPerNest, numNests=par.numNests)
   # flooded    = stormDat[:,2] # need more than just whether nest flooded; need date
   hatched    = (nData[:,2]-nData[:,1]) >= par.hatchTime # hatched before storms accounted for
   if conf.debugNests>=4: print("\t\t|>hatched (before storms)=", hatched, sum(hatched))
@@ -454,10 +417,8 @@ def make_obs(par, storm, survey, conf):
 
   # +> ---- concatenate to make data for the nest models: ---------------------
   nestData = np.concatenate((nData, 
-              #  np.zeros((par.numNests,4)),
                  obs
               #  stormOut[0][:,None] # storms per nest
-              #  np.zeros((par.numNests,2))
                  ), axis=1)
   # nestData[:,3] = (nestFate==0)
   # nestData[:,4] = (nestFate==2)
@@ -467,10 +428,7 @@ def make_obs(par, storm, survey, conf):
   # nestData[:,14] = 416 # exposure dayso
   # nestData[:,15] = nestData[:,2] - nestData[:,1]
   
-  # if config.debug: print("nestData:\n", nestData)
-  # if conf.debugNests>=1 & conf.debugNests<3: print("\nnestData:\n", nestData[0:5,:], ". . . . . . ", nestData[-5:,:])
   ndString = "\t\t\tID--init-end-fate---i---j---k---afate-nstm-fInt"
-  # if conf.debugObs==2: print(f"\nnestData:\n{ndString}\n", nestData[0:5,:], "\n. . . . . . \n", nestData[-5:,:])
   if conf.debugSummary>=2: print(f"\nnestData:\n{ndString}\n", nestData[0:5,:], "\n. . . . . . \n", nestData[-5:,:])
   if conf.debugSummary>=3: print(f"\nnestData:\n{ndString}\n", nestData)
   # np.savetxt("nestdata_afterflood.csv", nestData, delimiter=",")
@@ -478,6 +436,3 @@ def make_obs(par, storm, survey, conf):
   # np.save(nestfile, nestData)
   return(nestData)
 
-# -----------------------------------------------------------------------------
-#   MAYFIELD & JOHNSON
-# -----------------------------------------------------------------------------

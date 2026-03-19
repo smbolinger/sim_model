@@ -34,15 +34,12 @@ from typing import Dict, Generator
 
 from getClass import Params, Config
 from settings import rng, config, staticPar, pLists, now_short
-from helpers import mk_param_list, mk_outdir, mk_fnames, arrPrint, printLL
+from helpers import mk_param_list, mk_outdir, mk_fnames, arrPrint, printLL, print_all
 from makeNests import stormGen
 from observer import make_obs, mk_surveys
 from dsrCalc import calc_dsr, mark_wrapper
 from MCmatrix import like_smd, triangle, logistic
 
-# debugTypes = None # output = None verbose = False 
-# print("debug options:", debugTypes)
-# now    = datetime.today().strftime('%m%d%Y_%H%M%S')
 np.set_printoptions(precision=3)
 debug = config.debug
 print("\t\t|>|>|>debug value:", debug)
@@ -50,11 +47,11 @@ print("\t\t|>|>|>debug value:", debug)
 
 def randArgs():
   """
-  Choose random initial values for the optimizer.
-  These will be log-transformed before going through the likelihood function
-  
-  Returns:
-  array of s, mp, ss, mps (for like_smd) and srand (for mark_wrapper)
+    Choose random initial values for the optimizer.
+    These will be log-transformed before going through the likelihood function
+    
+    RETURNS:
+      array of s, mp, ss, mps (for like_smd) and srand (for mark_wrapper)
   """
   s   = rng.uniform(-10.0, 10.0)     
   mp  = rng.uniform(-10.0, 10.0)
@@ -68,7 +65,7 @@ def randArgs():
 # -----------------------------------------------------------------------------
 #   CREATE NEST DATA AND RUN THE OPTIMIZER 
 # -----------------------------------------------------------------------------
-## loop thru param combinations; within loop, unpack params & run optimizer
+## +>loop thru param combinations; within loop, unpack params & run optimizer
 # @profile
 def run_optim(minimizer, fun, z, arg, met='Nelder-Mead'):
   """
@@ -78,7 +75,7 @@ def run_optim(minimizer, fun, z, arg, met='Nelder-Mead'):
     logistic() for MARK model)
 
     Returns:
-    the transformed output.
+      the transformed output.
   """
   
   try:
@@ -153,8 +150,6 @@ def ansTransform(ans):
   
   # ansTransformed = np.array([s2, mp2, mf2, ss2, mps2, mfs2], dtype=np.longdouble)
   ansTransformed = np.array([s2, mp2, mf2], dtype=np.longdouble)
-  # print(">> results as an array:\n", ansTransformed)
-  # if debug: print(">> results (s, mp, mf, ss, mps, mfs, ex):\n", s2, mp2, mf2, ss2, mps2, mfs2, ex)
   return(ansTransformed)
 
 # -----------------------------------------------------------------------------
@@ -169,49 +164,25 @@ def rep_loop(par, nData, storm, survey, config):
     Returns: like_val (daily survival and mortality values)
       [0]: program MARK (DSR).....[1]: MCMC (DSR).....[2]: MCMC (DMR)......
   """
-  # ---- empty array to store data for this replicate: ---------
+  # +>---- empty array to store data for this replicate: ---------
   # like_val  = np.zeros(shape=(config.numOut), dtype=np.longdouble)
   # like_val  = np.zeros(shape=(3), dtype=np.longdouble)
   # perfectInfo = 0
   # whichL = par.whichLike
-  # ex = np.longdouble("0.0")
-  # stMat = state_vect(nNest=len(nData), fl=(nData[:,3]==2), ha=(nData[:,3]==0))
   dat = nData[:,4:10] # doesn't include column index 10
-  # ans    = run_optim(fun=like_smd, z=randArgs(), 
   arg=(dat, par.obsFreq, par.useSMat, storm, survey, par.whichLike, config)
   res    = run_optim(minimizer="norm", fun=like_smd, z=randArgs(), arg=arg)
-  # res    = run_optim(minimizer = optimize.minimize, fun=like_smd, z=randArgs(), 
-            #  arg=(dat, par.obsFreq, stMat, par.useSMat, storm, survey, 2))
-            #  arg=(dat, par.obsFreq, stMat, par.useSMat, storm, survey, 1))
-            #  arg=(dat, par.obsFreq, stMat, par.useSMat, storm, survey, par.whichLike))
-            #  )
-                # args=( dat, obsFr, stMat, useSM, 1),
   if res[0] < 0.6:
     if debug>=3: print(f"\t\t\tres={res[0]}; run optimizer again with basinhopping")
-    # run_optim(fun=like_smd, z=randArgs(), arg=(dat,par.obsFreq,par.useSMat,storm,survey,par.whichLike),met=))
     res = run_optim(minimizer="bh", fun=like_smd, z=randArgs(), arg=arg)
-  # res = ansTransform(ans)
   srand = rng.uniform(-10.00, 10.00)
-  # markProb = mark_probs(s=srand, ndata=nData)
-  # mark_s = run_optim(fun=mark_wrapper, z=srand, arg=(nData, markProb, par.brDays))
   mark_s = run_optim(minimizer="norm", fun=mark_wrapper, z=srand, arg=(nData, par.brDays, config))
   #NOTE ans2 is an "OptimizeResult" object; need to extract "x"
-  # Transform the MARK optimizer output so that it is between 0 and 1:
-  # mark_s = logistic(ans2.x[0]) # answer.x is a list itself - need to index
-  # print("> logistic of MARK answer:", mark_s)
-  # s2,mp2,mf2,ss2,mps2,mfs2 = res # unpack like() function output
   # NOTE scott was probably right - mps doesn't make sense. and DSR includes storms already
   # so check whether mort flood probability goes up with more intense storms?
   s2, mp2 = res[0], res[1]
-  # mp2 = res[1]
-
-  # s2,mp2,mf2,ss2,mps2,mfs2 = res2 # unpack like_old() function output
-  # like_val = [ mark_s,s2,mp2,mf2,ss2,mps2,mfs2]
   like_val = np.array([ mark_s,s2,mp2], dtype=np.longdouble)
-  # if config.debugLL>=2: print(">> like_val:\n", like_val)
-  # if debug>=2: print(">> like_val (MARK, MCMC-surv, MCMC-pred):", like_val)
-  if debug>=2: print(f"\t\t>> like_val: MARK={like_val[0]}, MCMC-surv={like_val[1]}, MCMC-pred={like_val[2]}")
-  # if config.debugLL: print(">> like_val:\n", like_val)
+  if config.debugLL>=2: print(f"\t\t>> like_val: MARK={like_val[0]}, MCMC-surv={like_val[1]}, MCMC-pred={like_val[2]}")
   return(like_val)
   
 def main(fnUnique, testing, parLists, config=config, pStatic=staticPar):
@@ -230,37 +201,25 @@ def main(fnUnique, testing, parLists, config=config, pStatic=staticPar):
   """
   lf_suffix=""
   pList = parLists
-  # these if-else statements only run once:
-  # if debugOpt != None:
-  # # if deb:
-  # # if hasattr(args,"")
-  #   # set_debug(debugTypes)
-  #   set_debug(debugOpt)
   now_str = now_short
-  # fname = mk_fnames(like_f_dir=like_f_dir) if fnUnique else mk_fnames(unique=False)
   fname = mk_fnames(now_str,suf = lf_suffix) if fnUnique else mk_fnames(now_str,suf =lf_suffix)
   fdir  = fname[0].parent
   likeFile = fname[0]
   colNames = fname[1]
   with open(likeFile, "wb") as f: # NOTE doesn't need to be 'a' bc file is open
     paramsArray = mk_param_list(parList=pList, fdir=fdir)
-    # if debug: print(f">>>> there will be {len(paramsArray)*config.nreps} total rows")
-    # print(f"\n\t|>|>|>there will be {len(paramsArray)} param sets & {len(paramsArray)*config.nreps} total rows")
     print(
         f"\n\t|>|>|>{len(paramsArray)} param sets x {config.nreps} reps ="
         f" {len(paramsArray)*config.nreps} total rows"
         )
     parID     = 0
     for i in range(0, len(paramsArray)): # +> for each set of params
-      # if debug: print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
       par    = paramsArray[i] 
       par_merge  = {**par, **pStatic}
       par    = Params(**par_merge)
       print("\n\t<> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <>")
-      # print("\n>>>>>>>>> param set number:", parID, "and params in set:", par)
       print("\n>>>>>> param set #",parID,"& params in set:")
       print(f"\t{par}\n")
-      # pprint.pprint(par, indent=4, width=90)
       stormDays  = stormGen(frq=par.stormFrq, dur=par.stormDur)
       survey   = mk_surveys(stormDays, par.obsFreq, par.brDays, conf=config)
       # surveyDays, surveyInts = survey
@@ -271,15 +230,12 @@ def main(fnUnique, testing, parLists, config=config, pStatic=staticPar):
           print(f"\n\t>---->----> replicate  {repID}: ")
         try:
           nestData1 = make_obs(par=par, storm=stormDays, survey=survey, conf=config) 
-        # except:
         except IndexError as error:
           print(
             "\t\t>> !!! IndexError in nest data:", 
             error,
             ". Go to next replicate")
           nEx = nEx + 1
-          # nestData = np.zeros((par.numNests, 11))
-          # return(nestData)
           continue
 
         trueDSR  = calc_dsr(nData=nestData1, nestType="all", calcType="true", conf=config)
@@ -291,74 +247,34 @@ def main(fnUnique, testing, parLists, config=config, pStatic=staticPar):
         exclude  = ((nestData[:,7] == 7) | (nestData[:,4]==nestData[:,5]))             
         unknown  = (nestData[:,7]==7)
         misclass = (nestData[:,7]!=nestData[:,3])
-        # if debug>=3:
-        #   print(
-        #     f"\n\t\t |== (true)flooded: {flooded.sum()} |"
-        #     f"(true)hatched: {hatched.sum()} ==|"
-        #     )
         nestData  = nestData[~(exclude),:]  # +> remove excluded nests 
         trueDSR_an   = calc_dsr(nData=nestData, nestType="analysis",
                                 calcType="true", conf=config) 
         lVal = rep_loop(par=par, nData=nestData, storm=stormDays,
                    survey=survey,config=config)
+
         if config.debugLL>=2:
           llArg = np.load('out/arg_PrintLL.npy') 
           printLL(len(llArg), *llArg.T) # +> tranpose so it is unpacked colwise
-        if debug>=2:
-          print(
-            f"\n\t\t |== (true)flooded: {flooded.sum()} |"
-            f" (true)hatched: {hatched.sum()} |"
-            f" (obs)flooded: {sum(nestData[:,7]==2)} |"
-            f" (obs)hatched: {sum(nestData[:,7]==0)} |"
-            f" unk: {unknown.sum()} ==|"
-            )
-        if debug>=1:
-          print(
-            f"\n\t\t |== discovered: {discover.sum()} |"
-            f" excluded: {exclude.sum()} |"
-            f" misclassified: {misclass.sum()} |"
-            f" true DSR - analyzed nests: {trueDSR_an} ==| "
-            )
-        if debug>=2: 
-          print(
-              f"\n\t\t |== true DSR: {trueDSR} |"
-              f" assigned DSR: {par.probSurv} |"
-              f" calc DSR: {lVal[1]} |"
-              f" DSR bias: {(trueDSR-lVal[1])/trueDSR} ==| "
-              )
-        # pars = np.array([par.probSurv, par.stormDur, par.stormFrq, par.numNests, 
-        #          par.hatchTime,par.obsFreq]) 
-        # nVal = np.array([trueDSR, trueDSR_an, sum(discover), sum(exclude), repID])  
+          # ha, fl,dsc, unk, mc, ex, dsr_c, dsr_a, dsr_t = sums #+> unpack vals
+          sum_list = [
+              hatched,
+              flooded,
+              discover,
+              unknown,
+              misclass,
+              exclude,
+              lVal[1],
+              trueDSR_an,
+              trueDSR,
+              ]
+          print_all(sum_list, nestData, par)
+
         nVal = np.array([trueDSR, trueDSR_an, sum(discover), sum(exclude), sum(unknown), sum(misclass), flooded, hatched, nEx, repID, parID])  
         like_val = np.concatenate((lVal, nVal))
-        # colnames=config.colNames
-        colnames=colNames
-        # if (trueDSR_an - lVal[1]) / trueDSR_an > 40:
-        # if debug>=2: print("DSR bias:",(trueDSR-lVal[1])/trueDSR)
-        # newL = np.zeros((par.numNests, 2))
-        # newL = np.zeros(2)
-        # fdir  = fname[0].parent
-        # if (trueDSR - lVal[1]) / trueDSR > 0.40:
+        colnames=colNames # colnames=config.colNames
 
-          # print("still high bias")
-          
-          # newLVal = rep_loop(par=par, nData=nestData, storm=stormDays, survey=survey, config=config)
-          # print("new psurv val:", newLVal[1])
-          # newL[0] = newLVal[1]
-          # newL[1] = newLVal[2]
-          # newL = newLVal[1:2]
-          # if (trueDSR - newLVal[1]) / trueDSR > 0.40:
-          #   print("high bias again, try new starting vals")
-          #   newLVal2 = rep_loop(par=par, nData=nestData, storm=stormDays, survey=survey, config=config)
-        #   np.save(f"{fdir}/nestdata_{parID:02}_{repID:02}_bias.npy", nestData1)
-        # else:
-        #   print("low bias")
-        #   np.save(f"{fdir}/nestdata_{parID:02}_{repID:02}.npy", nestData1)
-        # like_val = np.concatenate((lVal, nVal, newL))
-        # colnames=config.colNames
-
-        # if parID == 0 and like_val[17] == 0: # only the first line gets the header
-        if parID == 0 and like_val[12] == 0: # only the first line gets the header
+        if parID == 0 and like_val[12] == 0: #+> only 1st line gets the header
           np.savetxt(f, [like_val], delimiter=",", header=colnames)
           # if debug: print(">> ** saving likelihood values with header **")
         else:
@@ -367,21 +283,6 @@ def main(fnUnique, testing, parLists, config=config, pStatic=staticPar):
         # need to save it in the function where f was opened?
         # likeVal[r] = like_val
         repID = repID + 1
-      # like_val = param_loop(par=par, parID=parID, storm=stormDays, 
-      #             survey=survey, config=config)
-      # colnames=config.colNames
-      # if parID == 0 and repID == 0: # only the first line gets the header
-      # if parID == 0 and like_val[0,17] == 0: # only the first line gets the header
-      # # if firstLine == True: # only the first line gets the header
-      # # if parID == 0 : # only the first line gets the header
-      #   np.savetxt(f, [like_val], delimiter=",", header=colnames)
-      #   #np.savetxt(f, like_val, delimiter=",", header=colnames)
-      #   if debug: print(">> ** saving likelihood values with header **")
-      # else:
-      #   np.savetxt(f, [like_val], delimiter=",")
-      #   if debug: print(">> ** saving likelihood values **")
-          
-          #  nreps=settings.nreps)
         
       parID = parID + 1
 

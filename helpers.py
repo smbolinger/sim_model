@@ -11,17 +11,6 @@ from typing import Dict, Generator
 import yaml
 # from datsim import config
 from getClass import Config
-
-# def load_config(fpath, debug=False):
-#   with open(fpath, "r") as cfg:
-#     my_conf = yaml.safe_load(cfg)
-#   if debug: print(">=> config:\n", my_conf)
-#   my_conf = Config(**my_conf)
-#   if debug: print(">=> convert to class:", my_conf)
-#   return my_conf
-#
-# config=load_config("/home/wodehouse/Projects/sim_model/config.yaml", debug=True)
-# from datsim import config
 from settings import config, rng
 debug = config.debug
 # NOTE: maybe make an indent print function for strings? instead of typing \t all the time
@@ -52,7 +41,6 @@ def arrPrint(x, ind=8, comp=True, wd=90): #+> print arrays, indented
     x = np.array(x)
   xlen = len(x)
   x = np.array2string(x, precision=3, separator=" ", prefix="    ")
-  # print("    ", x, len(x))
   print("    ", x, xlen)
 
 def expDecay(n0, k, t):
@@ -66,41 +54,36 @@ def expDecay(n0, k, t):
   # return(n0 * (1-lam) ** t)
   return n0 * np.exp(-k * t) 
 
-# debug=False
 def mk_param_list(parList: Dict[str, list], fdir: str) -> list:
   """
-  Take the dictionary of lists of param values, then unpack the lists to a 
-  list of lists. Then feed this list of lists to itertools.product using *.
-  
-  Can also uncomment some code to write entire set of param lists to csv.
-  
-  Returns
-  -----
-  a list of dicts representing all possible param combos, with keys!
-  
-  Notes
-  -----
-  product takes any number of iterables as input;
-  input in the original is a bunch of lists;
-  output in the original is a list of tuples
+    Take the dictionary of lists of param values, then unpack the lists to a 
+    list of lists. Then feed this list of lists to itertools.product using *.
+    
+    Can also uncomment some code to write entire set of param lists to csv.
+    
+    Returns
+    -----
+    a list of dicts representing all possible param combos, with keys!
+    
+    Notes
+    -----
+    product takes any number of iterables as input;
+    input in the original is a bunch of lists;
+    output in the original is a list of tuples
 
   """
   print(f"\t\t>=> using the {parList} params lists")
-  # pprint.pprint(f"\t\t>=> using the {parList} params lists", width=90)
   listVal = [parList[key] for key in parList]
   p_List = list(itertools.product(*listVal))
-  # print(p_List)
-  # plfile = Path(fdir / "param-lists.csv")
-  # plfile = Path(fdir , "param-lists.csv")
   plfile = os.path.join(fdir, "param-lists.csv")
   with open(plfile, 'w', newline='') as f:
     writer = csv.writer(f)
     writer.writerows(p_List)
-  # make this list of lists into a list of dicts with the original keys 
+  # +> make this list of lists into a list of dicts with the original keys:
   paramsList = [dict(zip(parList.keys(), p_List[x])) for x in range(len(p_List))]
   
   return(paramsList)
-# def stormGen(frq, dur, wStart, pStorm):
+
 def searchSorted2(a, b):
   """Get the index of where b would be located in a
   If bis in a, then return the index of that value instead of the next value
@@ -212,9 +195,9 @@ def sprob_from_csv(file):
 
 def uniquify(path):
   """
-  from https://stackoverflow.com/questions/13852700/create-file-but-if-name-exists-add-number
-  
-  Adds a number to the end of duplicate filenames
+    from https://stackoverflow.com/questions/13852700/create-file-but-if-name-exists-add-number
+    
+    Adds a number to the end of duplicate filenames
   """
   filename, extension = os.path.splitext(path)
   counter = 1
@@ -228,19 +211,19 @@ def uniquify(path):
 # -----------------------------------------------------------------------------
 def mk_outdir(nowstr, suf="",con=config, unique=False):
   """
-  Create a directory w/ a unique name using datetime.today() & uniquify().
+    Create a directory w/ a unique name using datetime.today() & uniquify().
 
-  ----
-  OPTIONS:
-    unique - should the directory name be made unique using uniquify?
+    ----
+    OPTIONS:
+      unique - should the directory name be made unique using uniquify?
 
-  ----
-  RETURNS: 
-    the directory name
+    ----
+    RETURNS: 
+      the directory name
 
-  ----
-  NOTES:
-    > pass same nowstr to this function and mk_fnames so everything matches
+    ----
+    NOTES:
+      > pass same nowstr to this function and mk_fnames so everything matches
   """
   like_f_dir = con.likeDir
   if unique:
@@ -257,13 +240,13 @@ def mk_outdir(nowstr, suf="",con=config, unique=False):
 # def mk_fnames(fdir, nowstr, suf:str, con=config):
 def mk_fnames(nowstr, suf:str, con=config, uniq=False):
   """
-  1. Create likelihood filepath (& parent dir, if necessary)
+    1. Create likelihood filepath (& parent dir, if necessary)
 
-  2. Make a string out of the column names that can be used w/ np.savetxt()
-  
-  ------
-  RETURNS:
-  tuple of likelihood filepath & colnames string
+    2. Make a string out of the column names that can be used w/ np.savetxt()
+    
+    ------
+    RETURNS:
+      tuple of likelihood filepath & colnames string
   """
   fdir   = mk_outdir(nowstr, unique=uniq)
   fname  = "ml_val_" + nowstr + suf + ".csv"
@@ -352,6 +335,18 @@ def print_mark():
           f"\t\t\tnest {n}: alive days={expo[n,0]}"
           f"\tfinal_int={expo[n,1]} \texposure={expo[n,2]}"
         )
+  # print(">>>>> Program MARK >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+  # print("> number of nests:", len(ndata), end=" ")
+  # print("| s=", s, "| nocc=", nocc)
+  # # print("----------------------------")
+  # print(">> all nest cell probabilities:\n", allp)
+  # # print("> number of nests:", len(ndata), "discovered nests:", len(disc))
+  # # print("inp (ID, i, j, k, fate:)\n",inp)
+  # # print("l=", l, "| s=", s, "| nocc=", nocc)
+  # # print(">> all degrees of freedom:\n", alldof)
+  # # print("log of all nest cell probabilities:", lnp)
+  # print(
+  #     ">> sum log nest cell probs to get negative log likelihood of the data:", nll)
 
 
 def print_observer(svysTilDiscovery, discovered):
@@ -508,12 +503,67 @@ def printLL(numNests, logLik, logLikFin, numInt, logL):
 # def prog_mark(s, ndata, probs, nocc, con=config):
 # @profile
 
+def print_all(sums, nestData, par, debug=0):
+  """
+    ARGS:
+      nestData = nest data w/excluded removed
+  """
+  ha, fl,dsc, unk, mc, ex, dsr_c, dsr_a, dsr_t = sums #+> unpack vals
+  # if debug>=2:
+  print(
+    f"\n\t\t |== (true)flooded: {fl.sum()} |"
+    f" (true)hatched: {ha.sum()} |"
+    f" (obs)flooded: {sum(nestData[:,7]==2)} |"
+    f" (obs)hatched: {sum(nestData[:,7]==0)} |"
+    f" unk: {unk.sum()} ==|"
+    )
+  # if debug>=1:
+  print(
+    f"\n\t\t |== discovered: {dsc.sum()} |"
+    f" excluded: {ex.sum()} |"
+    f" misclassified: {mc.sum()} |"
+    f" true DSR - analyzed nests: {dsr_a} ==| "
+    )
+  # if debug>=2: 
+  print(
+    f"\n\t\t |== true DSR: {dsr_t} |"
+    f" assigned DSR: {par.probSurv} |"
+    f" calc DSR: {dsr_c} |"
+    f" DSR bias: {(dsr_t-dsr_c)/dsr_t} ==| "
+    )
+
+# def print_bias():
+        # if (trueDSR_an - lVal[1]) / trueDSR_an > 40:
+        # if debug>=2: print("DSR bias:",(trueDSR-lVal[1])/trueDSR)
+        # newL = np.zeros((par.numNests, 2))
+        # newL = np.zeros(2)
+        # fdir  = fname[0].parent
+        # if (trueDSR - lVal[1]) / trueDSR > 0.40:
+
+          # print("still high bias")
+          
+          # newLVal = rep_loop(par=par, nData=nestData, storm=stormDays, survey=survey, config=config)
+          # print("new psurv val:", newLVal[1])
+          # newL[0] = newLVal[1]
+          # newL[1] = newLVal[2]
+          # newL = newLVal[1:2]
+          # if (trueDSR - newLVal[1]) / trueDSR > 0.40:
+          #   print("high bias again, try new starting vals")
+          #   newLVal2 = rep_loop(par=par, nData=nestData, storm=stormDays, survey=survey, config=config)
+        #   np.save(f"{fdir}/nestdata_{parID:02}_{repID:02}_bias.npy", nestData1)
+        # else:
+        #   print("low bias")
+        #   np.save(f"{fdir}/nestdata_{parID:02}_{repID:02}.npy", nestData1)
+
 def print_nest_info(nestData, discover, exclude):
   if debug: print("nests not discovered:", nestData[:,0][~discover])
   if debug: print("nests to exclude from analysis:", nestData[:,0][exclude])
   if debug: print("nest data, analysis nests only:\n",
           "ID, init, survival, true fate, i, j, k, assigned fate, num normal obs, intFinal, num storms:\n",
            nestData[~discover and exclude])
+
+#--- OLD: ----------------------------------------------------------------------
+
 # def main(fnUnique, useWSL=False, testing=True, deb="none", debN="none", debS="none", config=config, pStatic=staticPar):
 # def main(fnUnique, testing=config.testing, deb="none", debN="none", debS="none", config=config, pStatic=staticPar):
 # def main(fnUnique, debugOpt, testing=config.testing, config=config, pStatic=staticPar): # calls config too early
@@ -521,8 +571,6 @@ def print_nest_info(nestData, discover, exclude):
 # def main(fnUnique, debugOpt, testing, pList, config=config, pStatic=staticPar):
 #def like_old(a_s, a_mp, a_mf, a_ss, a_mfs, a_mps, nestData, stormDays, surveyDays, obs_int):
 
-
-#--- OLD: ----------------------------------------------------------------------
 # def like_old(argL, obsFreq, nestData, surveyDays, stormDays, numNests):
 #   """
 #
