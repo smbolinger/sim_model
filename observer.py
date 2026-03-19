@@ -2,47 +2,99 @@
 import numpy as np
 import pprint
 # import matplotlib.pyplot as plt
+from itertools import groupby
+from operator import itemgetter
 import plotext as plt # plot ASCII plots in the terminal window
 from makeNests import mk_nests, mk_fates, mk_flood, storm_nest
 from settings import config, rng
 from helpers import expDecay, arrPrint, searchSorted2
 np.set_printoptions(precision=3)
 
+# def mk_surveys(stormDays,sFreq, obsFreq, breedingDays, conf):
 def mk_surveys(stormDays, obsFreq, breedingDays, conf):
   """
-  This function creates the list of survey days by taking a random start date 
-  from the first 5 breeding days and creating a range with step size determined
-  by observation frequency. Then remove storm days.
-  
-  surveyInts = interval between survey days. surveyInts[0]=0
+    This function creates the list of survey days by taking a random start date 
+    from the first 5 breeding days and creating a range with step size determined
+    by observation frequency. Then remove storm days.
+    
+    surveyInts = interval between survey days. surveyInts[0]=0
 
-  -------
-  RETURNS:
-  A tuple of surveyDays & surveyInts
+    -------
+    RETURNS:
+      A tuple of surveyDays & surveyInts
 
-  -----
-  NOTES:
-    no surveys should be <2 days after a storm day
+    -----
+    NOTES:
+      no surveys should be <2 days after a storm day
   """
   # +> first day of each week because the initiation probability is weekly 
   # +> the upper value should not be == to the total number of season days 
   # +> because then nests end after season is over 
 
+  # NOTE this function runs once per replicate; for loops shouldn't matter much
+
+  # stormDays   = stormDays.sort()
+  stormDays   = np.sort(stormDays)
+  # stormDays   = stormDays.tolist()
   start       = rng.integers(1,high=5) # +> random 1st svy from 1st 5 br days      
   end         = start + breedingDays
   surveyDays  = np.arange(start, end, step=obsFreq)
-  if conf.debug>=2:
-    print("\n\t\t\tsurvey days before alteration:")
-    arrPrint(surveyDays)
   stormSurvey = np.isin(surveyDays, stormDays) 
+  # print(f"\t\t{stormSurvey=}")
   # stormPos    = searchSorted2(surveyDays, stormDays)
-  stormPos    = np.searchsorted(surveyDays, stormDays)
+  # stormPos    = np.searchsorted(surveyDays, stormDays)
+  splits      = np.where(np.diff(stormDays)!=1)[0] +1
+  storms      = np.split(stormDays, splits)
   if conf.debug>=2:
-    print("\n\t\t|> position of storm days in survey days:")
-    arrPrint(stormPos)
-  for x in surveyDays[stormSurvey]:
-    print(f"\t\tstorm day= {x}", end=" ")
-    surveyDays[surveyDays>x] += 2 
+    print(f"\t\t-> {stormDays=}")
+    print("\t\t>-->survey days before alteration:")
+    arrPrint(surveyDays)
+    # d = {ind: v for ind,v in enumerate(surveyDays)}
+    # print(f"{d}")
+    print(f"\t\t{storms=}")
+  for s in storms:
+    lastDay = np.max(s)
+    stormPos    = np.searchsorted(surveyDays, lastDay)
+    sDiff   =  surveyDays[stormPos] - lastDay
+    # sDiff   = lastDay+2 - surveyDays[stormPos]
+    if conf.debug>=2:
+      print(f"\t|>{s=}", end=" ")
+      print(f"\t|>{surveyDays[stormPos]=}", end=" ")
+      # print(f"\t|>{(lastDay)=} ; {sDiff=}", end=" ")
+      print(f"\t|> add {int(sDiff)} to survey days >= {(int(lastDay))} ")
+      # print(f"\t|> ")
+    # if surveyDays[stormPos] < lastDay + 2:
+    if sDiff < 2:
+      # mask = surveyDays >= surveyDays[stormPos-1]
+      # mask = surveyDays >= lastDay
+      # surveyDays[surveyDays >= lastDay] += 2
+      surveyDays[surveyDays >= lastDay] += sDiff
+    # np.which()
+    # print(f"\t\t\t{stormPos=}")
+    
+
+  # print(f"{stormPos}")
+  # for pos in stormPos:
+    # print(f"{surveyDays[pos+1]}")
+    
+  #: stormSets   = []
+  #+> group by difference between index & value to get consecutive groupings
+  #+> for each group, jjh
+  # grp = groupby(enumerate(stormDays.tolist()), key=lambda x:x[0]-x[1])
+  # grp = groupby(enumerate(stormDays), key=lambda x: x[0] - x[1])
+  # print(f"\t\t{list(grp)=}")
+  # stormEnds = [i[-1] for i in grp]
+  # stormSets = ([i[1] for i in g] for _, g in grp)
+  # for k,g in groupby(enumerate(stormDays), lambda x:x[0]-x[1]):
+  #
+  #   grp = (map(itemgetter(1), g))
+  #   grp = list(map(int,grp)) # +> make all grp members into ints?
+  #   stormSets.append((grp[0],grp[-1])) # +> get start and end of subset
+
+  # print(f"\t\t{list(stormSets)=}")
+  # print(f"\t\t{list(stormEnds)=}")
+
+     
     # surveyDays = 
     # print("survey days:", end=" ")
     # for i, s in enumerate(surveyDays):
@@ -54,9 +106,10 @@ def mk_surveys(stormDays, obsFreq, breedingDays, conf):
   # surveyDays = [[s+2 if s > x else s for s in surveyDays] for x in surveyDays[stormSurvey]]
   # surveyDays[stormSurvey] 
   # +> keep only values that aren't in storm_days: 
+  # NOTE need to remove here bc for longer storm intervals, may not be removed
   surveyDays  = surveyDays[np.isin(surveyDays, stormDays) == False]
   if conf.debug>=2:
-    print("\n\t\t\tsurvey days after alteration:")
+    print("\n\t\t>-->survey days after alteration:") # NOTE: need \n bc of prev
     arrPrint(surveyDays)
   # surveyDays  = [s + 2 if s > x ]
   # survey interval for first obs is 0:
