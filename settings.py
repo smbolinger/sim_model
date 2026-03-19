@@ -103,11 +103,12 @@ if config.useWin:
   config.stormInit = "C:/Users/Sarah/Dropbox/Models/sim_model/storm_init3.csv" 
   config.fnUnique   = False
 
+print(f"\t\t|>{config.rngSeed=}", end=" ")
 rng = np.random.default_rng(seed=config.rngSeed)
 # if config.testing == "norm":
 if atype == "":
   pLists = parLists # don't need to update any settings if not testing?
-  print("\t\t|>not testing; using full param lists",end="")
+  print("\t\t|>not testing; using full param lists",end=" ")
 elif atype == "norm":
   # config.nreps=400 # print("changed config values:",config.debug, config.nreps)
   # config.nreps=1 # print("changed config values:",config.debug, config.nreps)
@@ -117,17 +118,17 @@ elif atype == "norm":
   lf_suffix = "-test"
   print("\t\t|>using test values. global debug = ", debug,end="")
 elif atype=="storm":
-  config.nreps=10
-  config.debugFlood=True
-  config.debugObs=True
+  # config.nreps=10
+  # config.debugFlood=True
+  # config.debugObs=True
   pLists = plTestFlood
-  debug = True
+  # debug = True
   lf_suffix = "-flood"
   print("\t\t|>using storm test values. global debug = ", debug,end="")
 elif atype=="debug":
   print("\t\t|>CHECK THE DEBUG VALUES!!",end="")
-  config.nreps=10
-  debug=True
+  # config.nreps=10
+  # debug=True
   pLists=plDebug
   lf_suffix="-debug"
 # elif config.testing=="fixed":
