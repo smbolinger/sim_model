@@ -29,7 +29,18 @@ debug = config.debug
 # -----------------------------------------------------------------------------
 #  HELPER FUNCTIONS
 # -----------------------------------------------------------------------------
-def arrPrint(x, ind=8, comp=True, wd=90):
+def indPrint(x:str, ntabs:int=2, nl=False): #+> print strings, indented
+  # ntabs = ind/2 ## +> turns it into a float, which doesn't multiply w/str
+  tabs = '\t' * ntabs
+  print('\n',tabs,x) if nl else print(tabs,x) 
+
+def objPrint(x, ntabs:int=2, nl=False): #+> print objects, indented
+  #+> dunno if this one will work; probably prints 'x' instead of name of obj
+  tabs = '\t' * ntabs
+  print("\n",tabs,f"{x=}") if nl else print(tabs,f"{x=}") 
+  # TODO: fix this
+
+def arrPrint(x, ind=8, comp=True, wd=90): #+> print arrays, indented
   """
   print arrays, indented by <ind> spaces.
   converts if not np.ndarray.
@@ -462,7 +473,8 @@ def printLL(numNests, logLik, logLikFin, numInt, logL):
   for x in range(numNests): ## range excludes end point
     # print(">> likelihood equation: (",logLik[x],"*",numIntNorm[x],")+(",logLikStm[x],"*",numIntStm[x],")+(",logLikFin[x],"**(1 -",stormDuringFin[x],")+(", logLikFinStm[x],"**",stormDuringFin[x])
     print(
-       f"\t\t\t>> likelihood equation for nest {x}: " 
+        f"\t\t>> likelihood equations [(numInt * logLik) + logLikFin]:"
+        f"\n\t\t\tnest {x}: " 
     #  f"{numInt[x]:.0f} * {logLik[x]:.5f} + "
        f"\t\t\t({numInt[x]:.0f} * {logLik[x]:.5f}) + {logLikFin[x]:.5f} ="
     #  f"{logLikFinStm[x]:.5f} * (1-{stormDuringFin[x]:.0f}) + " 
@@ -470,7 +482,7 @@ def printLL(numNests, logLik, logLikFin, numInt, logL):
     #  f"{logLikelihood[x]:.2f}")
        f"\t\t\t{logL[x]:.2f}"
        )
-  print( f"\n\t\t\t\t|> total log likelihood: {logL.sum():>50}"
+  print( f"\n\t\t\t\t|> total log likelihood: {logL.sum():>30.3f}"
       )
 # -----------------------------------------------------------------------------
 # def logL(numNests, normalInt, finalInt, numInt, ha, config=config):
