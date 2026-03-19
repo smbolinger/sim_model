@@ -4,7 +4,7 @@ default:
   testing: "no"
   useWin: False
   fnUnique: False
-  rngSeed: 102891
+  rngSeed: 71358
   stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
   likeDir: "/home/wodehouse/Projects/sim_model/out"
   debug: 0
@@ -21,7 +21,7 @@ full:
   testing: "no"
   useWin: False
   fnUnique: False
-  rngSeed: 102891
+  rngSeed: 11153
   stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
   likeDir: "/home/wodehouse/Projects/sim_model/out"
   # likeFile: " "
