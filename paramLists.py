@@ -68,7 +68,7 @@ plTest  = {'numNests'  : [100],
         #    'obsFreq'   : [3],
            'obsFreq'   : [3, 5],
            'stormFate': [False,True],
-           'pWrong'    : [0.1],
+           'pWrong'    : [0],
            'wType'     : [7],
            'hatchTime' : [20] 
            }
@@ -101,6 +101,8 @@ plTestFlood  = {'numNests'  : [100],
            'obsFreq'   : [3, 7],
            'stormFate': [False,True],
         #    'hatchTime' : [20, 28] }
+           'pWrong'    : [0],
+           'wType'     : [7],
            'hatchTime' : [16, 28],
             # 'useSMat'  : [True, False]
             }
@@ -130,7 +132,7 @@ plDefault = {'numNests'  : [50],
            'obsFreq':   [3],
            'stormFate': [False],
            'hatchTime': [16],
-           'pWrong':    [0.2],
+           'pWrong':    [0],
            'wType':     [7] }
             
 #endregion--------------------------------------------------------------------

@@ -19,16 +19,20 @@ def stormGen(frq, dur):
     # file="/mnt/c/Users/Sarah/Dropbox/Models/sim_model/storm_init3.csv"
     # )):
   """
-  generate a list of days where storms happened.
+    generate a list of days where storms happened.
 
-  the probabilities and week start dates used are read from csv outside the 
-  function to streamline it.
+    the probabilities and week start dates used are read from csv outside the 
+    function to streamline it.
 
-  for rng.choice: a=array of values to choose from, p=associated probabilities
+    for rng.choice: a=array of values to choose from, p=associated probabilities
+    ----
+    RETURNS:
+      a numpy array of values
   """
   # stormDat=sprob_from_csv(storm_init) # is evaluated later, can account for wsl filenames
   # out = rng.choice(a=weekStart, size=frq, replace=False, p=stormProb)
   out = rng.choice(a=[*stormDat], size=frq, replace=False, p=list(stormDat.values()))
+  # print(f"{out=}")
   dr = np.arange(0, dur, 1)
   stormDays = [out + x for x in dr] # add sequential storm days when dur>1
   stormDays = np.array(stormDays).flatten()
