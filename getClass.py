@@ -30,6 +30,7 @@ class Config:
     # rng:         Generator
     # args:        list[str]
     nreps:       int
+    saveNData:   bool
     debug:       bool
     debugLL:     bool
     debugNests:  bool
