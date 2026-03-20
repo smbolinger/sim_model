@@ -20,11 +20,15 @@ from paramLists import (
   parLists,
   plNoStorm,
   plNSTest,
-  parLists2,
+  plControl,
+  # parLists2,
   plTest, 
   plTest2,
   plTestFlood,
   plDebug,
+  plSmall,
+  plSupp,
+  plTestDaily,
 )
 
 dtime = datetime.today().strftime('%d %b %Y @ %H:%M')
@@ -80,13 +84,18 @@ for arg, val in opts:
       debug = True
 
 # tests = ['debug', 'control','testing', 'storm', 'fixedtest', 'nstest']
-tests = ['debug', 'control','norm', 'storm', 'fixedtest', 'nstest']
+
+# +> ANALYSIS TYPE - GROUPS:
+tests = ['test2','debug','daily', 'small','norm', 'xtrastorm', 'fixedtest', 'nstest']
+fullList  = ['nostorm', 'full', 'control', 'supp' ]
 if atype in tests:
   config=load_config("/home/wodehouse/Projects/sim_model/config.yaml", "test")
   print("\t\t|>Config-TEST mode:", config.testing, end=" ")
-elif atype == "full":
+# elif atype == "full":
+elif atype in fullList:
   config=load_config("/home/wodehouse/Projects/sim_model/config.yaml", "full")
   print("\t\t|>Config-FULL mode", end=" ")
+# elif atype == ""
 else:
   print("\t\t|>using default config", end=" ")
   # config = load_config("/home/wodehouse/Projects/sim_model/config.yaml", debug=True)
@@ -107,8 +116,16 @@ print(f"\t\t|>{config.rngSeed=}", end=" ")
 rng = np.random.default_rng(seed=config.rngSeed)
 # if config.testing == "norm":
 if atype == "":
-  pLists = parLists # don't need to update any settings if not testing?
+  pLists = plDefault # don't need to update any settings if not testing?
+  print("\t\t|> no type provided; using default param lists", end=" ")
+elif atype == "full":
+  # config.nreps=400 # print("changed config values:",config.debug, config.nreps)
+  # config.nreps=1 # print("changed config values:",config.debug, config.nreps)
+  pLists = parLists
   print("\t\t|>not testing; using full param lists",end=" ")
+  # global debug 
+  lf_suffix = "-full"
+  print("\t\t|>using test values. global debug = ", debug,end="")
 elif atype == "norm":
   # config.nreps=400 # print("changed config values:",config.debug, config.nreps)
   # config.nreps=1 # print("changed config values:",config.debug, config.nreps)
@@ -117,7 +134,11 @@ elif atype == "norm":
   debug = True
   lf_suffix = "-test"
   print("\t\t|>using test values. global debug = ", debug,end="")
-elif atype=="storm":
+elif atype=="daily":
+  pLists = plTestDaily
+  lf_suffix="testd"
+  print("\t\t|> using daily observations")
+elif atype=="xtrastorm":
   # config.nreps=10
   # config.debugFlood=True
   # config.debugObs=True
@@ -134,27 +155,42 @@ elif atype=="debug":
 # elif config.testing=="fixed":
 #   pLists=parLists2
 #   lf_suffix="-fixed"
-# elif config.testing=="fixedtest":
-#   config.nreps=50
-#   pLists=plTest2
-#   lf_suffix="-fixed-test"
+elif atype=="test2":
+  # config.nreps=50
+  pLists=plTest2
+  lf_suffix="-ctrl-test"
+  print("\t\t|> testing with control vals")
 elif atype=="nstest":
   print("\t\t|>no storms-TEST", end="")
   pLists=plNSTest
   lf_suffix="-nostorm-test"
+
 elif atype=="nostorm":
   print("\t\t|>no storms", end=" ")
   pLists=plNoStorm
   lf_suffix="-nostorm"
+
 elif atype=="control":
   print("\t\t|>control values", end=" ")
-  pLists=plTest2
+  # pLists=plTest2
+  pLists=plControl
   lf_suffix="-control"
+
+elif atype=="small":
+  print("\t\t|>small set of values", end=" ")
+  pLists=plSmall
+  lf_suffix="-small"
+
+elif atype=="supp":
+  print("\t\t|> run with supplemental param sets")
+  pLists=plSupp
+  lf_suffix="-supp"
 else:
   # pLists = plDefault # <> don't need to update any settings if not testing?
   # pLists = plDefault # EX: don't need to update any settings if not testing?
   pLists = plDefault # ~ don't need to update any settings if not testing?
   print("\t\t|>testing val invalid; using minimal param set")
+
 
 if use_pwrong == False:
   print("\t\t|>not using pWrong")
