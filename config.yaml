@@ -1,12 +1,13 @@
 default:
   nreps: 1
+  saveNData: False
   numOut: 11
   testing: "no"
   useWin: False
   fnUnique: False
   rngSeed: 71358
   stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
-  likeDir: "/home/wodehouse/Projects/sim_model/out"
+  likeDir: "/home/wodehouse/Projects/sim_model/out/default"
   debug: 0
   debugLL: 0
   debugNests: 0 
@@ -17,11 +18,13 @@ default:
 
 full:
   nreps: 500
+  saveNData: False
   numOut: 11
   testing: "no"
   useWin: False
   fnUnique: False
-  rngSeed: 11153
+  # rngSeed: 11153
+  rngSeed: 82985
   stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
   likeDir: "/home/wodehouse/Projects/sim_model/out"
   # likeFile: " "
@@ -38,13 +41,15 @@ full:
 
 test:
   nreps: 3
+  saveNData: False
   numOut: 11
   testing: "yes"
   useWin: False
   fnUnique: False
   rngSeed: 102891
   stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
-  likeDir: "/home/wodehouse/Projects/sim_model/out"
+  # likeDir: "/home/wodehouse/Projects/sim_model/out"
+  likeDir: "/home/wodehouse/Projects/sim_model/out/test"
   debug: 3
   debugLL: 2
   debugNests: 3 
