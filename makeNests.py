@@ -61,12 +61,6 @@ def mk_surv(numNests, hatchTime, pSurv, con):
   survival = survival - 1 # but since the last trial is when nest fails, need to subtract 1
   
   survival[survival > hatchTime] = hatchTime # add some amt of error?
-  if con.debugNests>=3:
-    print("\t\t\t>> survival in days:\n") 
-    arrPrint(survival)
-  # hatched = survival >= hatchTime # the hatched nests survived for >= hatchTime days 
-  # if con.debugNests: print("hatched (no storms):", hatched, hatched.sum())
-  ## NOTE THIS IS NOT THE TRUE HATCHED NUMBER; DOESN'T TAKE STORMS INTO ACCOUNT
   return(survival)
 # -----------------------------------------------------------------------------
 def mk_nests(par, nestData, conf): 
@@ -84,22 +78,12 @@ def mk_nests(par, nestData, conf):
   
   """
 
-  print("\n\t\t[*] [*] [*] [*] [*] making nests [*] [*] [*] [*] [*] [*] [*] [*] ")
   nestData[:,0] = np.arange(par.numNests) # column 1 = nest ID numbers 
   nestData[:,1] = mk_init(par.numNests)                # record to a column of the data array
-  # if conf.debug: print(">> end dates:\n", nestEnd, len(nestEnd)) 
   survival = mk_surv(par.numNests, par.hatchTime, par.probSurv, con=conf)
   nestData[:,2] = nestData[:,1] +survival
   ## NOTE THIS IS NOT THE TRUE HATCHED NUMBER; DOESN'T TAKE STORMS INTO ACCOUNT
   # NOTE Remember that int() only works for single values 
-  if conf.debugNests==2:
-    print("\n\t\t\t>> ID, init, & end:\n")
-    arrPrint(nestData[0:5,:])
-    print("\n\t\t\t\t. . . . . .\n")
-    arrPrint(nestData[-5:,:])
-  if conf.debugNests>=4:
-    print("\n\t\t\t>> ID, init, & end:\n")
-    arrPrint(nestData)
   return(nestData)
 # ---- FLOODING & SUCH -------------------------------------------------------
 def storm_nest(stormFreq, nestPeriod, stormDays, con):
@@ -160,12 +144,6 @@ def mk_flood( stormDays, pMortFl, stormIndex, numNests, con):
   # totStormDays = 
   # flP = rng.uniform(low=0, high=1, size=sum(numStorms>0)) # not quite right because prob of flooding stays the same or each nest in different storms
   flP = rng.uniform(low=0, high=1, size=sum(numStorms)) 
-  if config.debugFlood>=2:
-    print("\t\t\t|>prob of flooding:")
-    arrPrint(pMortFl)
-  if config.debugFlood>=4:
-    print("\t\t\t|>random probabilities, one per storm:")
-    arrPrint(flP)
   x=0
   # np.savetxt("storm_index.csv",stormIndex, delimiter=",")
   for n in range(numNests):
@@ -173,15 +151,11 @@ def mk_flood( stormDays, pMortFl, stormIndex, numNests, con):
     # for s in range(numStorms[n]):
     if numStorms[n] > 0:
       flood = np.zeros(len(stormDays), dtype=np.int32)
-      if config.debugFlood>=3:
-        print(f"\n\t\t\tnest {n} experienced >=1 storm", end=" ")
       for s in range(len(flood)): ##for each storm day when nest active:
         if config.debugFlood>=4: print("s=", s, end=" ")
         if stormIndex[n,s] == 1:
           flood[s] = flP[x] < pMortFl # I changed how pMortFL was defined.
           x=x+1 ##
-          if config.debugFlood>=3:
-            print(f"\t\tnest flooded day {s}?", flood[s], end=" ")
       if any(flood.astype(bool)):
         flooded[n] = 1 # but if default val is 0, could be confused for index 0...
         whichstorm = np.where(flood==1)[0] # first index where val==True
@@ -199,25 +173,7 @@ def mk_flood( stormDays, pMortFl, stormIndex, numNests, con):
   stormInfo[:,0] = numStorms
   stormInfo[:,1] = whichStorm # stormInfo[:,1] = stormDays[whichStorm]
   stormInfo[:,2] = flooded # true number flooded
-  if con.debugFlood>=1: 
-    print("\t\t\t|>prob of failure due to flooding:", pMortFl, end="")
-    print("\t\t\t|>storm nests:", sum(stormNest), end=" ")
-    if con.debugFlood>=3: print( stormNest[:10])
-    if con.debugFlood>=3: print( stormNest[-10:])
-    print("\t\t\t|>flooded & storm:", flooded.sum())
-    if con.debugFlood>=3: print(flooded[:10])
-    if con.debugFlood>=3: print(flooded[-10:])
-    if con.debugFlood>=1: print(f"\n\t\t\tID, num storms, which, fl, stormIndex 1-5:")
-    ## +> enumerate adds a counter to an iterable; can get index & value
-    if con.debugFlood>=1 & con.debugFlood<3:
-      for i,row in enumerate(np.concatenate((stormInfo[:5],stormIndex[:5]),axis=1)): 
-        print(f"\t\t\t\t{i}: {row}")
-      print("\t\t\t\t\t . . . . . . . ")
-      for i,row in enumerate(np.concatenate((stormInfo[-5:],stormIndex[-5:]),axis=1)): 
-        print(f"\t\t\t\t{i}: {row}")
-    if con.debugFlood>=3:
-      for i,row in enumerate(np.concatenate((stormInfo,stormIndex),axis=1)): 
-        print(f"\t\t\t\t{i}: {row}")
+
   return(stormInfo)
 # -----------------------------------------------------------------------------
 
@@ -241,18 +197,11 @@ def mk_fates(nestDat, numNests, hatched,stormInfo, stormDays, con):
   whichStorm = stormInfo[:,1].astype(int) # now this is the actual storm DAY, not the index
   trueFate[hatched == True] = 0 # was nest discovered?  
   trueFate[flooded == True] = 2  # should override the nests that "hatched" that were actually during storm
-  if con.debugNests>=4: print("\t\t\t|>|> end date before storms accounted for:\n", nestDat[:,2], end=" ")
   nestDat[:,2][flooded==True] = whichStorm[flooded==True]
-  if con.debugNests>=1: print("\t\t\t|>|> hatch?", sum(hatched), end=" ")
-  if con.debugNests>=3: arrPrint(hatched)
-  if con.debugNests>=1: print( "\t\t\t\t|>|> flood?", sum(flooded))
-  if con.debugNests>=3: arrPrint( flooded)
   
   nestDat = np.concatenate((nestDat, trueFate[:,None]), axis=1)
   #OH, but I don't ever return nestDat anyway. so maybe this should be a function that ADDS true fate to nestDat.
 
-  if con.debugNests>=2: print("\n\t\t>>>>> true final nest fates:\n")# # ---- TRUE DSR ------------------------------------------------------------
-  arrPrint(trueFate)
   return(nestDat)
 
 # +>old:
