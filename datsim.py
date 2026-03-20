@@ -33,7 +33,7 @@ from scipy import optimize
 from typing import Dict, Generator
 
 from getClass import Params, Config
-from settings import rng, config, staticPar, pLists, now_short
+from settings import rng,config,atype,staticPar, pLists, now_short, now_long
 from helpers import mk_param_list, mk_outdir, mk_fnames, arrPrint, printLL, print_all
 from makeNests import stormGen
 from observer import make_obs, mk_surveys
@@ -173,7 +173,7 @@ def rep_loop(par, nData, storm, survey, config):
   arg=(dat, par.obsFreq, par.useSMat, storm, survey, par.whichLike, config)
   res    = run_optim(minimizer="norm", fun=like_smd, z=randArgs(), arg=arg)
   if res[0] < 0.6:
-    if debug>=3: print(f"\t\t\tres={res[0]}; run optimizer again with basinhopping")
+    #~#if debug>=3: print(f"\t\t\tres={res[0]}; run optimizer again with basinhopping")
     res = run_optim(minimizer="bh", fun=like_smd, z=randArgs(), arg=arg)
   srand = rng.uniform(-10.00, 10.00)
   mark_s = run_optim(minimizer="norm", fun=mark_wrapper, z=srand, arg=(nData, par.brDays, config))
@@ -182,7 +182,7 @@ def rep_loop(par, nData, storm, survey, config):
   # so check whether mort flood probability goes up with more intense storms?
   s2, mp2 = res[0], res[1]
   like_val = np.array([ mark_s,s2,mp2], dtype=np.longdouble)
-  if config.debugLL>=2: print(f"\t\t>> like_val: MARK={like_val[0]}, MCMC-surv={like_val[1]}, MCMC-pred={like_val[2]}")
+  #~#if config.debugLL>=2: print(f"\t\t>> like_val: MARK={like_val[0]}, MCMC-surv={like_val[1]}, MCMC-pred={like_val[2]}")
   return(like_val)
   
 def main(fnUnique, testing, parLists, config=config, pStatic=staticPar):
@@ -199,15 +199,33 @@ def main(fnUnique, testing, parLists, config=config, pStatic=staticPar):
       [8] num misclassified [9] num flooded.....[10] num hatched
       [11] num exceptions caught [12] replicate ID [13] parameter set ID
   """
-  lf_suffix=""
+  # lf_suffix=""
   pList = parLists
   now_str = now_short
-  fname = mk_fnames(now_str,suf = lf_suffix) if fnUnique else mk_fnames(now_str,suf =lf_suffix)
-  fdir  = fname[0].parent
+  odir  = mk_outdir(now_str)
+  # dirs  = mk_outdir(now_str, suf=f"_{atype}")
+  # dirs  = mk_outdir(now_str)
+  # odir  = dirs[0]
+  # ndir  = dirs[1]
+  # if config.testing:
+  #   odir  = mk_outdir(now_str, suf=f"{atype}")
+  # else:
+  #   odir  = mk_outdir(now_str, suf=f"{atype}")
+  print(f"\t|> output directory = {odir}")
+  print(f"\tCONFIG: {config}")
+  if fnUnique:
+    fname = mk_fnames(now_str, fdir=odir, suf=f"{atype}", uniq=True) 
+  else:
+    fname = mk_fnames(now_str,fdir=odir,suf=f"{atype}")
+  # fdir  = fname[0].parent
   likeFile = fname[0]
+  if config.testing=="no":
+    if os.path.exists(likeFile):
+      print("filepath exists! Exiting scipt.")
+      return
   colNames = fname[1]
-  with open(likeFile, "wb") as f: # NOTE doesn't need to be 'a' bc file is open
-    paramsArray = mk_param_list(parList=pList, fdir=fdir)
+  with open(likeFile, "wb") as f: # NOTE not 'a' bc file stays open
+    paramsArray = mk_param_list(parList=pList, fdir=odir, suf=f"{config.rngSeed}{atype}")
     print(
         f"\n\t|>|>|>{len(paramsArray)} param sets x {config.nreps} reps ="
         f" {len(paramsArray)*config.nreps} total rows"
@@ -218,16 +236,17 @@ def main(fnUnique, testing, parLists, config=config, pStatic=staticPar):
       par_merge  = {**par, **pStatic}
       par    = Params(**par_merge)
       print("\n\t<> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <>")
-      print("\n>>>>>> param set #",parID,"& params in set:")
-      print(f"\t{par}\n")
+      print(f"\n>>>> param set #{parID} & {par=}\n")
       stormDays  = stormGen(frq=par.stormFrq, dur=par.stormDur)
       survey   = mk_surveys(stormDays, par.obsFreq, par.brDays, conf=config)
       # surveyDays, surveyInts = survey
       repID = numMC = nEx = 0 # +> num nests misclassified, num exceptions
       # likeVal  = np.zeros(shape=(config.nreps,config.numOut))
+      # ndMatrix  = np.zeros(shape=(config.nreps,par.numNests,11)) #+> 2nd dim = ncol(nData)+1
+      
+      ndMatrix  = np.zeros(shape=(config.nreps,par.numNests,10))
       for r in range(config.nreps): 
-        if config.testing:
-          print(f"\n\t>---->----> replicate  {repID}: ")
+        print(f"\t>---->----> replicate  {repID} >---->----> ")
         try:
           nestData1 = make_obs(par=par, storm=stormDays, survey=survey, conf=config) 
         except IndexError as error:
@@ -237,6 +256,15 @@ def main(fnUnique, testing, parLists, config=config, pStatic=staticPar):
             ". Go to next replicate")
           nEx = nEx + 1
           continue
+
+        # +> saves each rep as separate file:
+        # ndName = f"{odir}/nd_p{parID}_r{repID}.npy"
+        # np.save(ndName, nestData1)
+        # rep_col = np.full(len(nestData1), repID)
+        # rep_col = rep_col[:,np.newaxis]
+        # nd2 = np.hstack([nestData1, rep_col])
+        # ndMatrix[r,:,:] = nd2
+        ndMatrix[r,:,:] = nestData1 # +> now reps are a dimension, not a column
 
         trueDSR  = calc_dsr(nData=nestData1, nestType="all", calcType="true", conf=config)
         flooded  = sum(nestData1[:,3]==2)
@@ -254,8 +282,8 @@ def main(fnUnique, testing, parLists, config=config, pStatic=staticPar):
                    survey=survey,config=config)
 
         if config.debugLL>=2:
-          llArg = np.load('out/arg_PrintLL.npy') 
-          printLL(len(llArg), *llArg.T) # +> tranpose so it is unpacked colwise
+          #~#llArg = np.load('out/arg_PrintLL.npy') 
+          #~#printLL(len(llArg), *llArg.T) # +> tranpose so it is unpacked colwise
           # ha, fl,dsc, unk, mc, ex, dsr_c, dsr_a, dsr_t = sums #+> unpack vals
           sum_list = [
               hatched,
@@ -284,6 +312,12 @@ def main(fnUnique, testing, parLists, config=config, pStatic=staticPar):
         # likeVal[r] = like_val
         repID = repID + 1
         
+      # if debug>=2: arrPrint(ndMatrix)
+      if config.saveNData:
+        print("\t>--> saving nest data to file")
+        ndName = Path (f"{odir}/nests{config.rngSeed}_{atype}/nd_par{parID:03}.npy")
+        ndName.parent.mkdir(parents=True, exist_ok=True)
+        np.save(ndName, ndMatrix)
       parID = parID + 1
 
 main(fnUnique=config.fnUnique, parLists=pLists, testing=config.testing)
