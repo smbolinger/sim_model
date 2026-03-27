@@ -1,5 +1,5 @@
 import numpy as np
-from helpers import printLL
+from print_func import printLL
 np.set_printoptions(precision=3)
 # from datsim import config ## in case anything was changed in place
 
@@ -29,6 +29,11 @@ def logistic(x)->np.longdouble:
   # Trying out type hints (PEP 484) to keep output from overflowing
   #return 1.0/( 1.0 + math.exp(-x) )
   return 1.0/( 1.0 + np.exp(-x) )
+# -----------------------------------------------------------------------------
+def logit(x):
+  odds = x / (1-x)
+  logodds = np.log(odds)
+  return logodds  
 # -----------------------------------------------------------------------------
 
 def state_vect(nNest, fl, ha):# can maybe calculate these only once
@@ -70,6 +75,7 @@ def state_vect(nNest, fl, ha):# can maybe calculate these only once
   # nests always start alive, or they wouldn't be checked
   # TstateI = np.transpose(stillAlive)  # this is just one, not a vector?
   return([stateEnd, stateLC])
+  
   ##print(">> transpose of initial state vector:", TstateI, TstateI.shape)
   #                       this will depend on how many storms/when they are
   # NOTE need the transpose of each row, not entire matrix. 
@@ -90,6 +96,58 @@ def state_vect(nNest, fl, ha):# can maybe calculate these only once
 # ---------------------------------------------------------------------------------------------------
 # def nest_mat(argL, obsFreq, stormFin, useStormMat, config):
 # @profile
+def new_mat(argL, activeDays, finalInt, fate, numNests):
+  """
+  Purpose: test combining all intervals except final into 1 long interval
+  Like combining nest_mat & interval into 1 function
+  ----
+  ARGS:
+    argL = values from optimizr
+    activeDays = for each neest, last activ - first found
+    finalInt = num days in final int for each nest (0 for hatchd)
+    fate     = fate for each nest
+    numNests = total number of nsts
+  -----
+  NOTES:
+    allFinal for hatchd = 1 bc it is tr mat raisd to 0 powr
+    need to loop thru exponents & do matrix.power on each
+    kind of defeats the purpose of vectorizing...
+  """
+  stillAlive = np.array([1,0,0]) 
+  mortFlood  = np.array([0,1,0])
+  mortPred   = np.array([0,0,1])
+
+  a_s, a_mp, a_mf = argL
+  trMatrix = np.array([[a_s,0,0], [a_mf,1,0], [a_mp,0,1]]) 
+  TstateI = np.transpose(stillAlive)  # this is just one, not a vector? yes
+  # pwr = np.empty(numNests)
+  
+  # valu for all days bfore final interval:
+  # +> need to convert from float:
+  # pwr = np.linalg.matrix_power(trMatrix, activeDays.astype(int))
+  # finPwr = np.linalg.matrix_power(trMatrix, finalInt.astype(int))
+  # allNorm = stillAlive@pwr@TstateI
+  # allFinal[fate==1] = mortPred@finPwr@TstateI
+  # allFinal[fate==2] = mortFlood@finPwr@TstateI
+
+  #+> need to loop thru :/
+  allNorm = np.zeros(numNests)
+  for n in range(numNests):
+    pwr = np.linalg.matrix_power(trMatrix, int(activeDays[n]))
+    allNorm[n] = stillAlive@pwr@TstateI
+  allFinal = np.ones(numNests) # fill with hatch value
+  # nHatch = sum(fate==0)
+  for n in range(numNests):
+    pwr = np.linalg.matrix_power(trMatrix, int(finalInt[n]))
+    if fate[n]==1:
+      allFinal[n] = mortPred@pwr@TstateI
+    elif fate[n]==2:
+      allFinal[n] = mortFlood@pwr@TstateI
+    else:
+      allFinal[n] = allFinal[n]
+
+  return([allNorm, allFinal])
+
 
 def nest_mat(argL, obsFreq, stormFin, useStormMat, config):
   """
@@ -174,6 +232,11 @@ def interval(pwr, numNests, fl, pr, cn):
       [normalInt, stormInt, finalInt, stormFinal]
 
   """
+  # +> mayb stop breaking into normal/final int here, since this isn't MARK
+  #+> in this equation, leads to too many log(0) 
+  # +> faild nests w/ 1 obs have 0 normal ints; hatchd nsts hav final =0
+  # +> instead, rais tranition matrix to tru lngth of intreval?
+  #+> but actually, should b to power of 0, so shouldn't b leading to warnings
   stillAlive = np.array([1,0,0]) 
   mortFlood  = np.array([0,1,0])
   mortPred   = np.array([0,0,1])
@@ -196,20 +259,22 @@ def interval(pwr, numNests, fl, pr, cn):
 
   finalInt[fl] = oneFinalSt
 
-  if cn.debugLL>=4:  
-    print("\t>>>> ")
-  #   print(">> end state of normal interval:\n", stateEnd)
-  #   print(">> end state of final interval:\n",  stateLC)
-    print("\t\t>> likelihood of one normal interval:\n",
-    normalInt,
-    normalInt.shape,
-    normalInt.dtype)
-    print("\t\t>> likelihood of final interval:\n",
-    finalInt,
-    finalInt.shape,
-    finalInt.dtype)
+  # if cn.debugLL>=4:  
+  #   print("\t>>>> ")
+  # #   print(">> end state of normal interval:\n", stateEnd)
+  # #   print(">> end state of final interval:\n",  stateLC)
+  #   print("\t\t>> likelihood of one normal interval:\n",
+  #   normalInt,
+  #   normalInt.shape,
+  #   normalInt.dtype)
+  #   print("\t\t>> likelihood of final interval:\n",
+  #   finalInt,
+  #   finalInt.shape,
+  #   finalInt.dtype)
   # NOTE now pwr has storms incorporated
   # print("final interval:", normalFinal, "and -log likelihood:", -np.log(normalFinal))
+  # if cn.debugLL >=2:
+
 
   # return([normalInt, stormInt, finalInt, stormFinal])
   return([normalInt, finalInt])
@@ -229,7 +294,7 @@ def interval(pwr, numNests, fl, pr, cn):
       # --------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 
-def logL(numNests, intervals, numInt, config):
+def logL(numNests, intervals, numInt, ids, fate, config):
   """
     PURPOSE
     -------
@@ -291,21 +356,27 @@ def logL(numNests, intervals, numInt, config):
 
   logLike    = np.sum(logLikelihood)
   # logLike    = ne.evaluate('sum(logLikelihood)')
-  if config.debugLL>=4:
-  #   print("number of nests:", numNests, "\n hatched:", ha, "\n flooded:, fl") 
-    print("\t\tnumInt excluding final interval:", numInt)
-    print("\t\t>> -log likelihood of 1 interval:", logLik)
-    print("\t\t>> -log likelihood final interval, updated with storms/hatch:\n", logLikFin)
-    print("\t\t>> -log likelihood of each nest history:", logLikelihood)
-    print("\t>>>> overall -log likelihood:", logLike)
-  if config.debugLL>=2:
-    argPrLL = np.zeros(shape=(numNests, 4), dtype=np.longdouble)
-    argPrLL[:,0] = logLik
-    argPrLL[:,1] = logLikFin
-    argPrLL[:,2] = numInt
-    argPrLL[:,3] = logLikelihood
-    np.save('out/arg_PrintLL.npy', argPrLL) ## save numpy binary file
+  # if config.debugLL>=4:
+  # #   print("number of nests:", numNests, "\n hatched:", ha, "\n flooded:, fl") 
+  #   print("\t\tnumInt excluding final interval:", numInt)
+  #   print("\t\t>> -log likelihood of 1 interval:", logLik)
+  #   print("\t\t>> -log likelihood final interval, updated with storms/hatch:\n", logLikFin)
+  #   print("\t\t>> -log likelihood of each nest history:", logLikelihood)
+  #   print("\t>>>> overall -log likelihood:", logLike)
+
+  # ##+> save args to be printed after final iteration of optimizer:
+  #~----------------------------------------------------------------------------
+  # if config.debugLL>=2:
+  #   argPrLL = np.zeros(shape=(numNests, 6), dtype=np.longdouble)
+  #   argPrLL[:,0] = logLik
+  #   argPrLL[:,1] = logLikFin
+  #   argPrLL[:,2] = numInt
+  #   argPrLL[:,3] = logLikelihood
+  #   argPrLL[:,4] = ids
+  #   argPrLL[:,5] = fate
+  #   np.save('out/arg_PrintLL.npy', argPrLL) ## save numpy binary file
     ## this way you can save only the last optimizer iteration
+  #----------------------------------------------------------------------------
     # store the necessary values for the print function to an array
     # printLL(numNests=numNests, logLik=logLik, logLikFin=logLikFin, 
     #         numInt=numInt, logL=logLikelihood)
@@ -328,6 +399,12 @@ def like(argL, numN, obsFr, obsDat, useSM, con):
         b. Observation history values from nest data:
         ......fl, ha, ff, la, lc, nInt, sTrue = obsDat
         ......fl, ha, ff, la, lc, nInt = obsDat
+    2. Pass to logL:
+      a. IDs&fate for printing
+      b. num nests
+      c. num intervals befor final int 
+        for non-hatched, is nobs-2 (bc final interval is calculated separately)
+        for hatched, is nobs-1 (bc final interval is 0)
     ---------------------------------------------------------------------------------------------------
     NOTES:
     ----------
@@ -338,36 +415,43 @@ def like(argL, numN, obsFr, obsDat, useSM, con):
   # if con.debugLL: print("-------------------------------------------------------------------------------------")
   # if con.debugLL: print("------------------------- the MCMC ML function --------------------------------------")
   # if con.debugLL: print("-------------------------------------------------------------------------------------")
-  ff, la, lc, fate, nInt, sFinal = obsDat.T
+  # nid, ff, la, lc, fate, nInt, sFinal = obsDat.T
+  nid, ff, la, lc, fate, nInt, lenFin = obsDat.T
   fl = fate==2 # are these necessary for more than print statements?
   ha = fate==0
   pr = fate==1
+  actDay = la-ff
+
+  # nInt[fate!=0] = nInt[fate!=0] - 1
+  
   # NOTE NOTE should this be the assigned fate or true fate?
   # NOTE these if .. print statements, esp inside the optimizer, take lots of time:
-  if con.debugLL>=4:
-    like_outp = np.zeros(shape=(numN, ))
-    print("number of nests and observation interval:", numN, obsFr)
-    print("nest observation data - ff, la, lc, fate, nInt, sFinal\n", obsDat)
-    print("did nest hatch?\n", ha, "\ndid nest flood?\n", fl)
-    print(
-      ">>>> run likelihood function - ",
-      "num flooded:", sum(fl), "& hatched:", sum(ha),
-      "number of obs intervals:", nInt,
-      # "\n>> ijk:\n", [ff, la, lc]
-      "\n>> ijk:\n", np.column_stack((ff, la, lc))
-      )
+  # if con.debugLL>=4:
+  #   like_outp = np.zeros(shape=(numN, ))
+  #   print("number of nests and observation interval:", numN, obsFr)
+  #   print("nest observation data - ff, la, lc, fate, nInt, sFinal\n", obsDat)
+  #   print("did nest hatch?\n", ha, "\ndid nest flood?\n", fl)
+  #   print(
+  #     ">>>> run likelihood function - ",
+  #     "num flooded:", sum(fl), "& hatched:", sum(ha),
+  #     "number of obs intervals:", nInt,
+  #     # "\n>> ijk:\n", [ff, la, lc]
+  #     "\n>> ijk:\n", np.column_stack((ff, la, lc))
+  #     )
   # stEnd, stFin = stMat 
   # pwrOut = nest_mat(argL=argL, obsFreq=obsFr, stormFin=sFinal, useStormMat=useSM)
-  pwrOut = nest_mat(argL=argL, obsFreq=obsFr, stormFin=sFinal, useStormMat=useSM, config=con)
+  # pwrOut = nest_mat(argL=argL, obsFreq=obsFr, stormFin=sFinal, useStormMat=useSM, config=con)
   # pwr, pwrStm = pwrOut
   # inter  = interval(pwr=pwr, stateEnd=stEnd, stateLC=stFin)   
   # inter = interval(pwr=pwrOut, stateMat=stMat)   
   # inter = interval(pwr=pwrOut,ha=ha, fl=fl, numNests=numN)   
-  inter = interval(pwr=pwrOut, fl=fl, pr=pr, numNests=numN, cn=con)   
+  # inter = interval(pwr=pwrOut, fl=fl, pr=pr, numNests=numN, cn=con)   
+  inter = new_mat(argL, actDay, lenFin, fate, obsDat.shape[0])
   # norm, fin, sfin = inter
   # llVal = logL(normalInt=norm, normalFinal=fin, stormFinal=sfin, numInt=nInt)
   # llVal = logL(numNests=numN, intervals=inter, numInt=nInt, ha=ha, fl=fl)
-  llVal = logL(numNests=numN, intervals=inter, numInt=nInt, config=con)
+  # llVal = logL(ids=nid, fate=fate,numNests=numN, intervals=inter, numInt=nInt, config=con)
+  llVal = logL(ids=nid, fate=fate,numNests=numN, intervals=inter, numInt=1, config=con)
   # make sure numN is the number of analyzed nests, not the param value (total number)
   
   return(llVal)
