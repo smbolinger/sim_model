@@ -3,6 +3,10 @@ import csv
 import itertools
 import numpy as np
 import os
+import traceback
+import warnings
+import sys
+
 from pathlib import Path
 # import matplotlib.pyplot as plt
 import pprint
@@ -12,6 +16,7 @@ import yaml
 # from datsim import config
 from getClass import Config
 from settings import config, rng
+now = datetime.today().strftime('%H%M%S')
 debug = config.debug
 # NOTE: maybe make an indent print function for strings? instead of typing \t all the time
 
@@ -70,6 +75,31 @@ def in1d_sorted(A,B):
   idx = np.searchsorted(B, A)
   idx[idx==len(B)] = 0
   return A[B[idx] == A]
+
+def warn_with_traceback(message, category, filename, lineno, file=None, line=None):
+  """
+
+    USAGE:
+
+      Replace warnings.showwarning:
+        > warnings.showwarning = warn_with_traceback
+      
+      Also needed so repeated warnings not ignored: 
+        > warnings.simplefilter("always")
+
+    ----
+    INFO:
+
+      Source - https://stackoverflow.com/a/22376126
+      Posted by mgab, modified by community. See post 'Timeline' for change history
+      Retrieved 2026-03-24, License - CC BY-SA 4.0
+
+  """
+
+  log = file if hasattr(file,'write') else sys.stderr
+  traceback.print_stack(file=log)
+  log.write(warnings.formatwarning(message, category, filename, lineno, line))
+
 
 # -----------------------------------------------------------------------------
 
@@ -157,36 +187,44 @@ def uniquify(path):
 
   return path
 # -----------------------------------------------------------------------------
-def mk_param_list(parList: Dict[str, list], fdir: str, suf="") -> list:
+def mk_param_list(parList: Dict[str, list], fdir:str="", suf="", listRet=False) -> list:
   """
     Take the dictionary of lists of param values, then unpack the lists to a 
     list of lists. Then feed this list of lists to itertools.product using *.
     
-    Also, write entire set of param lists to csv.
-    
-    Returns
+      Also, write entire set of param lists to csv if **fdir** is specified.
+      Can add a suffix to filename using **suf**
     -----
-    a list of dicts representing all possible param combos, with keys!
-    
-    Notes
+    RETURNS: 
+      **if !listRet:**
+        list of dicts (1 per param combo), with keys!
+      **if listRet:**
+        the same but as a list of lists
     -----
-    product takes any number of iterables as input;
-    input in the original is a bunch of lists;
-    output in the original is a list of tuples
+    NOTES
+      - product() takes any number of iterables as input;
+      - input in the original is a bunch of lists;
+      - output in the original is a list of tuples
 
   """
+  # TODO: could add ** to surround for docstrings?
   print(f"\t\t>=> using the {parList} params lists")
   listVal = [parList[key] for key in parList]
   p_List = list(itertools.product(*listVal))
-  plfile = os.path.join(fdir, f"param-lists_{suf}.csv")
-  print(f"\t|> param list file: {plfile}")
-  with open(plfile, 'w', newline='') as f:
-    writer = csv.writer(f)
-    writer.writerows(p_List)
-  # +> make this list of lists into a list of dicts with the original keys:
-  paramsList = [dict(zip(parList.keys(), p_List[x])) for x in range(len(p_List))]
+  if fdir:
+    plfile = os.path.join(fdir, f"param-lists_{suf}.csv")
+    print(f"\t\t|> param list file: {plfile}")
+    with open(plfile, 'w', newline='') as f:
+      writer = csv.writer(f)
+      writer.writerows(p_List)
   
-  return(paramsList)
+  if listRet:
+    print('returning list of lists (not list of dicts)')
+    return(p_List)
+  else:
+    # +> make this list of lists into a list of dicts with the original keys:
+    paramsList = [dict(zip(parList.keys(), p_List[x])) for x in range(len(p_List))]
+    return(paramsList)
 
 def mk_outdir(nowstr, seed:str="", suf="",con=config, unique=False):
   """
@@ -218,7 +256,7 @@ def mk_outdir(nowstr, seed:str="", suf="",con=config, unique=False):
     fdir = Path(Path.home() / like_f_dir / (nowstr + suf)) # need the parens or get an error about concatenating string and Path?
     # ndir   = Path(Path.home()/ like_f_dir / ('nests_' +nowstr + suf))
   os.makedirs(fdir, exist_ok=True)
-  print("\t>> save directory name:", fdir)
+  print("\t\t>> save directory name:", fdir)
   # print("\t>> nest directory name:", ndir)
   # return((fdir,ndir))
   return(fdir)
@@ -237,11 +275,15 @@ def mk_fnames(nowstr,test=False,seed:str="",suf:str="",fdir=None,con=config,uniq
       tuple of likelihood filepath & colnames string
   """
   if fdir is None:
-    print("no fdir provided; using default")
-    fdir   = mk_outdir(nowstr, unique=uniq)
+    print("\t\tno fdir provided; using default")
+    # fdir   = mk_outdir(nowstr, unique=uniq)
+    fdir   = mk_outdir(nowstr)
   # print(f"{fdir=}")
   if not seed: seed=con.rngSeed
   seedStr = f"{seed}"
+  if uniq:
+    suf+=now
+
   if test:
     # lfname  = "ml_val_" + nowstr + suf + ".csv"
     full_suf =   suf + ".csv"
@@ -269,7 +311,7 @@ def mk_fnames(nowstr,test=False,seed:str="",suf:str="",fdir=None,con=config,uniq
   like_f_dir = con.likeDir
   # fpath = like_f_dir + "/" + nowstr + "/" + fname
   fpath = str(likeF)
-  print("\t\t> fpath (written to txt file):",fpath)
+  print("\t\t\t> fpath (written to txt file):",fpath)
   # with open('likeFile-name.txt', 'w' ) as f:
   lfname = Path(fdir / 'likeFile-name.txt')
   with open(lfname, 'w' ) as f:
@@ -279,7 +321,9 @@ def mk_fnames(nowstr,test=False,seed:str="",suf:str="",fdir=None,con=config,uniq
     # 'mark_s', 'psurv_est', 'ppred_est', 'pfl_est', 'ss_est', 'mps_est', 'mfs_est',
     'mark_s', 'psurv_est', 'ppred_est',
     # 'ps_given', 'dur', 'freq', 'n_nest', 'h_time', 'obs_fr',
-    'trueDSR', 'trueDSR_analysis', 'discovered', 'excluded', 'unknown', 'misclass','flooded','hatched',
+    'appDSR','appDSRdisc','mayfDSRdisc','mayfDSR_an',# ''
+    'discovered', 'excluded', 'unknown',
+    'misclass','flooded','hatched',
     # 'nExc', 'repID', 'parID','psurv_est2', 'ppred_est2'
     'nExc', 'repID', 'parID'
     # 'rep_ID', 'mark_s', 'psurv_est', 'ppred_est', 'pflood_est', 
