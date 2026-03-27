@@ -28,12 +28,14 @@ from paramLists import (
   plDebug,
   plSmall,
   plSupp,
-  plTestDaily,
+  plTestRange,
 )
 
 dtime = datetime.today().strftime('%d %b %Y @ %H:%M')
 now_long  = datetime.today().strftime('%m%d%Y_%H%M%S')
 now_short  = datetime.today().strftime('%Y%m%d')
+# mess = "" #+> message to be printed at beginning, explaining 
+#           #+> purpose of test or hwatever
 
 atype=""
 debug=False
@@ -86,12 +88,17 @@ for arg, val in opts:
 # tests = ['debug', 'control','testing', 'storm', 'fixedtest', 'nstest']
 
 # +> ANALYSIS TYPE - GROUPS:
-tests = ['test2','debug','daily', 'small','norm', 'xtrastorm', 'fixedtest', 'nstest']
-fullList  = ['nostorm', 'full', 'control', 'supp' ]
+tests = ['norm','range', 'test2','debug', 'small', 'xtrastorm', 'fixedtest', 'nstest']
+fullList  = ['nostorm', 'full', 'supp' ]
+ctrlList = ['control']
+#test2 is control vals; range is extremes at either end of param vals
+# ctrlList = ['control', 'test2']
 if atype in tests:
   config=load_config("/home/wodehouse/Projects/sim_model/config.yaml", "test")
   print("\t\t|>Config-TEST mode:", config.testing, end=" ")
 # elif atype == "full":
+elif atype in ctrlList:
+  config=load_config("/home/wodehouse/Projects/sim_model/config.yaml", "ctrl")
 elif atype in fullList:
   config=load_config("/home/wodehouse/Projects/sim_model/config.yaml", "full")
   print("\t\t|>Config-FULL mode", end=" ")
@@ -112,8 +119,11 @@ if config.useWin:
   config.stormInit = "C:/Users/Sarah/Dropbox/Models/sim_model/storm_init3.csv" 
   config.fnUnique   = False
 
-print(f"\t\t|>{config.rngSeed=}", end=" ")
+print(f"\t|>{config.rngSeed=}", end=" ")
 rng = np.random.default_rng(seed=config.rngSeed)
+
+print(f"\t|>{config.optimizer=}", end=" ")
+
 # if config.testing == "norm":
 if atype == "":
   pLists = plDefault # don't need to update any settings if not testing?
@@ -134,8 +144,8 @@ elif atype == "norm":
   debug = True
   lf_suffix = "-test"
   print("\t\t|>using test values. global debug = ", debug,end="")
-elif atype=="daily":
-  pLists = plTestDaily
+elif atype=="range":
+  pLists = plTestRange
   lf_suffix="testd"
   print("\t\t|> using daily observations")
 elif atype=="xtrastorm":
@@ -193,13 +203,31 @@ else:
 
 
 if use_pwrong == False:
-  print("\t\t|>not using pWrong")
+  print("\t\t|>not using pWrong", end=" ")
   pLists["pWrong"]=[0]
   # del pLists["pWrong"]
 else:
-  print("\t\t|>using pWrong")
+  print("\t\t|>using pWrong", end=" ")
 
 # print("\n\t|>output directory:", config.likeDir)
+
+
+if config.stormFate==0:
+  pLists["stormFate"] = [False]
+  print(f"\t\t>> override - using {pLists["stormFate"]} as storm fate", end=" ")
+elif config.stormFate==1:
+  pLists["stormFate"] = [True]
+  # print("using '2' as storm fate")
+  print(f"\t\t>> override - using {pLists["stormFate"]} as storm fate", end=" ")
+else:
+  print(f"\t\t\t|> using {pLists["stormFate"]} as storm fate", end=" ")
+
+print(f"\t|>saving nest data? {config.saveNData}")
+
+# print(
+#     f"\n\t\t<>DEBUG VALUES<>",
+#     f"\t {[]}"
+#     )
 
 #---- NEST MODEL PARAMETERS: ------------------------------------------------
 #region-----------------------------------------------------------------------
@@ -209,3 +237,4 @@ else:
 # These are the values that are passed to the Params class
 
 # initDat=init_from_csv(storm_init) # this will evaluate after storm_init has been changed for wsl
+
