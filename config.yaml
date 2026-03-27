@@ -1,13 +1,11 @@
 default:
   nreps: 1
   saveNData: False
-  numOut: 11
   testing: "no"
-  useWin: False
-  fnUnique: False
+  optimizer: "Nelder-Mead"
   rngSeed: 71358
-  stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
-  likeDir: "/home/wodehouse/Projects/sim_model/out/default"
+  mayfStart: True
+  stormFate: 0
   debug: 0
   debugLL: 0
   debugNests: 0 
@@ -15,22 +13,22 @@ default:
   debugObs: 0
   debugFlood: 0
   debugSummary: 0
+  msg: ""
+  numOut: 11 # only used when saving ml vals to matrix
+  useWin: False
+  fnUnique: False
+  likeDir: "/home/wodehouse/Projects/sim_model/out/default"
+  stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
 
 full:
   nreps: 500
   saveNData: False
-  numOut: 11
   testing: "no"
-  useWin: False
-  fnUnique: False
-  # rngSeed: 11153
+  optimizer: "Nelder-Mead"
+  #rngSeed: 11153
   rngSeed: 82985
-  stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
-  likeDir: "/home/wodehouse/Projects/sim_model/out"
-  # likeFile: " "
-  # colNames: " "
-
-  # maybe debug should be somewhere else? since it is edited on the fly
+  mayfStart: False
+  stormFate: 0 #0=false, 1=true, 2=use val from param list
   debug: 0
   debugLL: 0
   debugNests: 0
@@ -38,42 +36,63 @@ full:
   debugObs: 0
   debugFlood: 0
   debugSummary: 0
-
-test:
-  nreps: 3
-  saveNData: False
+  msg: ""
   numOut: 11
-  testing: "yes"
   useWin: False
   fnUnique: False
-  rngSeed: 102891
+  likeDir: "/home/wodehouse/Projects/sim_model/out"
   stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
-  # likeDir: "/home/wodehouse/Projects/sim_model/out"
-  likeDir: "/home/wodehouse/Projects/sim_model/out/test"
+
+test:
+  nreps: 5 
+  saveNData: False
+  testing: "yes"
+  #optimizer: "L-BFGS-B"
+  optimizer: "Nelder-Mead"
+  rngSeed: 82985
+  #rngSeed: 102891
+  #rngSeed: 10181988
+  mayfStart: False
+  stormFate: 2
   debug: 3
   debugLL: 2
-  debugNests: 3 
+  debugNests: 2 
   debugM: 2
-  debugObs: 3
+  debugObs: 2
   debugFlood: 1
-  debugSummary: 1
+  debugSummary: 2
+  msg: "NEW testing combining matrix equations for all normal intervals into 1 long interval; added new function (new_mat); numint=1 [line 427] ; ALSO getting inter from new_mat() now instead of othr functions; changed matrix_poewr to loop"
+  numOut: 11
+  useWin: False
+  fnUnique: False
+  likeDir: "/home/wodehouse/Projects/sim_model/out/test"
+  stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
 
-# control:
-#   nreps: 10
-#   numOut: 11
-#   testing: "yes"
-#   useWin: False
-#   fnUnique: False
-#   rngSeed: 102891
-#   stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
-#   likeDir: "/home/wodehouse/Projects/sim_model/out"
-#   debug: 3
-#   debugLL: 0
-#   debugNests: 2 
-#   debugM: 1
-#   debugObs: 3
-#   debugFlood: 1
-#   debugSummary: 1
+#####
+  # likeDir: "/home/wodehouse/Projects/sim_model/out"
+
+ctrl:
+  nreps: 100
+  saveNData: False
+  testing: "no"
+  # optimizer: "Powell"
+  optimizer: "Nelder-Mead"
+  rngSeed: 6131989
+  mayfStart: False
+  stormFate: 2
+  debug: 0
+  debugLL: 0
+  debugNests: 0 
+  debugM: 0
+  debugObs: 0
+  debugFlood: 0
+  debugSummary: 0
+  msg: ""
+  numOut: 11
+  useWin: False
+  fnUnique: True
+  likeDir: "/home/wodehouse/Projects/sim_model/out"
+  stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
 #
 ## nesting??
 # debugging:
