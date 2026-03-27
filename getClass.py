@@ -7,18 +7,19 @@ from dataclasses import dataclass
 class Params: # most importantly, Pylance recognizes the attributes, unlike 
               # dict keys
     numNests: int
-    stormDur: int
+    probSurv: np.float32
+    pMortFl  :np.float32
     stormFrq: int
+    stormDur: int
     obsFreq:  int
+    discProb: np.float32
     hatchTime:int
+    stormFate:bool
     brDays:   int
     whichLike:int
-    probSurv: np.float32
+    decayRate:np.float32
     SprobSurv:np.float32
-    pMortFl  :np.float32
-    discProb: np.float32
     # fateCues: np.float32
-    stormFate:bool
     useSMat:  bool
     pWrong:   np.float32 
     wType:    int   # type of incorrect fate value: 0, 2, 7
@@ -29,8 +30,13 @@ class Config:
     """
     # rng:         Generator
     # args:        list[str]
+    rngSeed:      int
+    optimizer:   str
     nreps:       int
+    stormFate:   int
     saveNData:   bool
+    testing:     str
+    mayfStart:    bool
     debug:       bool
     debugLL:     bool
     debugNests:  bool
@@ -39,14 +45,13 @@ class Config:
     debugM:      bool
     debugSummary: bool
     # useWSL:      bool
-    useWin:      bool
-    # testing:     bool
-    testing:     str
-    fnUnique:    bool
-    # likeFile:    str
     likeDir:     str
     stormInit:   str
-    # colNames:    str
     numOut:      int
-    rngSeed:      int
+    fnUnique:    bool
+    useWin:      bool
+    msg:         str
+    # testing:     bool
+    # likeFile:    str
+    # colNames:    str
 
