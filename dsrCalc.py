@@ -1,52 +1,85 @@
 import numpy as np
 from MCmatrix import logistic
-np.set_printoptions(precision=3)
+from print_func import arrPrint
+from settings import config
+np.set_printoptions(precision=3, legacy='1.25', linewidth=120)
+debug = config.debug
 
-def calc_exp(inp, cn, expPercent=0.5): 
+def calc_exp(inp, cn, expPercent=0.5, debug=0): 
   """
     Calculate the exposure period for a nest (number of days observed)
-      
-    Arguments
+      For each nest: 
+        - known alive days plus estimate of alive days in final interval
+        > alive days (before final int) + final int * expPercent
     ---------
-    inp = [i,j,k] for all nests in set\n
-    default expPercent is from Mayfield; Johnson recommended 0.4
-    
-    Returns
+    ARGUMENTS
+      :param inp: = [ i,j,k] for all nests in set\n
+      default expPercent is from Mayfield; Johnson recommended 0.4
     -------
-    ndarray. nrows=len(inp); cols=alive_days, final_int, exposure
-    
-    More info
+    RETURNS
+      ndarray. nrows=len(inp); cols=alive_days, final_int, exposure
     ----------
-      > the ijk values should tell you failed vs hatched
-      > I think I couldn't get it to work as vectorized, so I used a loop
+    MORE INFO
+      - the ijk values should tell you failed vs hatched
 
     For the basic case where psurv is constant across all nests and times:
       1. count the total number of alive days when nest was observed
       2. count the number of days in the final interval (for failed nests)
       3. calculate the exposure
-        > #days under obsbefore final int + (#days in final int * expPercent)
-          > expPercent = percent of final interval nest is assumed alive
-          > Mayfield used 50%, Johnson corrected it to 40%
-          > final interval assumed to be zero days for hatched nests, which
-           were found after hatching (exposure of incubation period is over)
-        > not calculating nestling exposure bc precocial/semi-precocial chicks
+        - days obs before final int + (final int * expPercent)
+      *expPercent* = percent of final interval nest is assumed alive
+        - Mayfield used 50%, Johnson corrected it to 40%
+        - final interval assumed to be 0 days for hatched nests, which
+           were found after hatch (exposure of incubation period is over)
+        - no nestling exposure bc precocial/semi-precocial chicks
           leave the nest so early 
+
+    *NOTES* added debug function so it only prints outside optimizer
+      > I think I couldn't get it to work as vectorized, so I used a loop
+    ----------
   """
-  if cn.debugM>=2:
-    np.save("out/inp.npy", inp)
+  # if cn.debugM>=2:
+  #   np.save("out/inp.npy", inp)
   expo = np.zeros((len(inp), 3))
+  # print(f"\t\t{expo.shape[0]=}")
+  # if debug>=2:
+  #   print("\t\t\t\tINP:  |> i:", end=" ")
+  #   arrPrint(inp[:,0],abbr=False)
+  #   print("\t\t\t\t\t\t\t|> j:", end=" ")
+  #   arrPrint(inp[:,1],abbr=False)
+  #   print("\t\t\t\t\t\t\t|> k:", end=" ")
+  #   arrPrint(inp[:,2],abbr=False)
+  #   # print("\t\t\t\t|>inp:")
+  #   # arrPrint(inp[0:5,:], ind=8)
+  #
   for n in range(len(inp)-1): # want n to be the row NUMBER
-    expo[n,0] = inp[n,1] - inp[n,0] #+> interval from first found - last active 
-                                    #+> all nests are KNOWN to be alive
+    #+> interval from first found - last active 
+    #   +> all nests are KNOWN to be alive
+    expo[n,0] = inp[n,1] - inp[n,0]
     # expo[n,0] = expo[n,0] - 1 # since this is essentially 1-day intervals, 
-                  # need 1 fewer than total number
-    expo[n,1] = inp[n,2] - inp[n,1] # interval from last active to last checked
-    # if expo[n,1]!=0: expo[n,1] = expo[n,1]- 1 # for hatched nests, stays 0
-    # exposure = sum(alive days) + days in final int * expPercent
+                  # need 1 fewer than total number? no?
+    #+>interval from last active - last checked
+    expo[n,1] = inp[n,2] - inp[n,1]
+    # expo[n,1] = expo[n,1] - 1
+    # +>if expo[n,1]!=0: expo[n,1] = expo[n,1]- 1 ; for hatched nests, stays 0
+
+    # +>exposure = sum(alive days) + days in final int * expPercent
     expo[n,2]   = expo[n,0] + (expo[n,1]*expPercent)
     # NOTE need nests to be alive for at least one interval
-  if cn.debugM>=2:
-    np.save("out/exposure.npy", expo)
+  # if debug>=2: 
+  #   print("\t\t\t\tEXPO:  |> aliv:", end=" ")
+  #   arrPrint(expo[:,0],abbr=False)
+  #   print("\t\t\t\t\t\t\t|> final int:", end=" ")
+  #   arrPrint(expo[:,1],abbr=False)
+  #   print("\t\t\t\t\t\t\t|> exposure:", end=" ")
+  #   arrPrint(expo[:,2],abbr=False)
+    # print("\t\t\t\tEXPO: |> alive days:", expo[:,0].T)
+    # print("\t\t\t\t\t\t\t|> final int:", expo[:,1].T)
+    # print("\t\t\t\t\t\t\t|> exposure:", expo[:,2].T)
+    # print("\t\t\t\t|>expo:")
+    # arrPrint(expo[0:5,:], ind=8)
+  # if cn.debugM>=2:
+  #   np.save("out/exposure.npy", expo)
   return(expo)
 # -----------------------------------------------------------------------------
 
@@ -61,14 +94,17 @@ def mayfield(num_fail, expo):
     
     Arguments:
       num_fail = count of failed nests (total-hatched)
-      expo   = just the exposure days output of calc_exp() (out[:,2])
+      expo   = sum of exposure days output of calc_exp() (out[:,2])
 
     Returns: the daily mortality 
     Note: I am assuming the nest data that is input has already been filtered to only discovered nests w/ known fate
+    expo needs to be a SUM
   """
   # print(expo, type(expo))
   # mayf = num_fail / (expo.sum())
   mayf = num_fail / (expo) # expo is already the sum?
+  # print(f"\t\t> mayfield DSR = ({num_fail=}) / ({expo=}) = {mayf}")
+  # print(f"\t\t> mayfield DSR = ({num_fail=}) / ({expo=}) =", end=" ")
   # if cn.debugM: print(">> Mayfield estimator of daily mortality (1-DSR) =", mayf) 
 
   return(mayf)
@@ -111,52 +147,88 @@ def johnson(ndata, srn):
 # -----------------------------------------------------------------------------
 
 # @profile
-def calc_dsr(nData, nestType, calcType, conf):
+def calc_dsr(nData, nestType, calcType, conf, incTime=0, psurv=0, debug=0):
   """ 
-  Calculate exposure and DSR for a given set of nests. 
+    Calculate exposure and DSR for a given set of nests. 
+    ------
 
-  pass i,j,k from nest data to calc_exp() and then run mayfield()
-  
-  Returns DSR value. 
+    - calculate daily mortality rate using Mayfield:
+      if calc type == 'true':
+        'exposure' = end - init
+         may cause bias in 'true' val
+
+      else:
+        calculate with actual exposure days
+        pass i,j,k from ndata to calc_exp()
+
+    - pass exp and num_fail to mayfield()
+    
+    -----
+    Returns DSR value (1-DMR). 
+    -----
+    NOTES
+    Use debug argument so it only prints when not optimizing
+    calc_exp doesn't work for all nests since many weren't discovered
   """
+
   nNests  = len(nData)
+  if calcType=="mayfield":
+    expDays = calc_exp(nData[:,4:7], expPercent=0.4, cn=conf, debug=debug)
   # hatched = len(nData[:,3] == 0)
   # failed  = nNests-hatched
   
   # expDays = exposure(nestData[:,6:9], numNests=numN, expPercent=0.4)
   # expDays = calc_exp(nData[:,6:9], expPercent=0.4)
   # if nestType=="all":
-  if calcType=="true":
-    if conf.debugM>=3: 
-      print("\t> exposure days calc type = 'true'")
-      print("\t> calculating exposure days from all nests")
+  ## +> calc type 'true' means ???
+  # if debug>=2: print(f"{nestType=} | {calcType=} |> ", end="   ")
+  # if debug>=2:
+    # print(f"\n\t\t\t|>{nestType=}|{calcType=}|{incTime=}|{psurv=}|>", end=" ")
+  if calcType=="apparent":
+    # if debug>=3: 
+    #   print("\t> exposure days calc type = 'true'")
+    #   print("\t> calculating exposure days from all nests")
 
-    expDays = sum((nData[:,2]-nData[:,1]))
+    allDays = sum((nData[:,2]-nData[:,1]))
+    avgExp  = allDays/nNests
     hatched = sum(nData[:,3] == 0)
+    apparent = hatched/nNests
+    appDSR   = 1-((nNests-hatched)/allDays)
+
+    # if debug>=2:
+      # print(
+          # f"\t\tapp. DSR (1-(true_num_fail/total_days)):{appDSR:.3f} "
+          # f"\t\t1 - (({nNests}-{hatched}) / {allDays}) = {appDSR:.3f} "
+          # # f"| expected DSR: {psurv}"
+          # )
+    # if debug>=3: 
+      # print(
+            # f"\n\t\t\tapparent nest success s (hatched/total): {apparent:.3f} "
+            # f"| expected PSR: {psurv ** incTime:.3f}"
+            # f"| nrows of nest data: {nData.shape[0]}"
+            # )
+      # for n in range(5):
+        # print(f"\t\t\t\texposure days: {nData[n,2]} - {nData[n,1]}")
+    return(appDSR)
   else:
-    expDays = calc_exp(nData[:,4:7], expPercent=0.4, cn=conf)
-    expDays = expDays[:,2]
+    # expDays = calc_exp(nData[:,4:7], expPercent=0.4, cn=conf, debug=0)
+    expDays = expDays[:,2].sum()
     hatched = sum(nData[:,7] == 0)
-  dmr   = mayfield(num_fail=nNests-hatched, expo=expDays)
-  return(1-dmr)
+    dmr   = mayfield(num_fail=nNests-hatched, expo=expDays)
+
+    ## +> now mayfield function prints instead..
+    # if debug>=2:
+    #   print(
+          # f"\t{expDays=:.3f}|{nNests-hatched=}|"
+          # f"{dmr=:.3f}|{1-dmr=:.3f} "
+          # # f"| expected DSR={psurv}"
+          # )
+    return(1-dmr)
 
 
-# -----------------------------------------------------------------------------
-#   PROGRAM MARK 
-# -----------------------------------------------------------------------------
-
-# It also has a wrapper function that transforms the initial optimizer values
-# using the logistic function.
-# This way, the optimizer can work over the range of -infinity:infinity, but
-# the values fed to the function are between 0 and 1 (probabilities)
-
-# Lastly, it has a function to generate the probabilities before running the optimizer 
-# on the MARK function, so I can take the for loop out of the function that is optimized.
-
-# -----------------------------------------------------------------------------
-# def prog_mark(s, ndata, probs, nocc, con=config):
-# @profile
-
+# if debug: 
+  ### duhhh, turn on if-else statements by defining a deparate dbug version,
+  # BUT still has same issue as separate debug file (need to keep both updated)
 def prog_mark(s, ndata, nocc, con):
   """
     Run the Program MARK algorithm
@@ -169,7 +241,9 @@ def prog_mark(s, ndata, nocc, con):
        observed as active for one day)
         > Model requires all nests to have at least two observations while active
     ----
-    NOTES:
+    NOTE
+      
+      **doesn't work** for obs_int=1
 
       The model used in Program MARK is based on Dinsmore (2002) -  
          allows for variance in DSR & use of covariates
@@ -182,22 +256,92 @@ def prog_mark(s, ndata, nocc, con):
   # allp, alldof = mark_probs(s=s, ndata=ndata)
   # ALL IN ONE FUNCTION:
   s    = s.item() # EX makes singleton array into scalar
-  allp   = np.array(range(1,len(ndata)), dtype=np.longdouble) # all nest probabilities 
+  # print(f"\t\t{s=}")
+  # allp   = np.array(range(1,len(ndata)), dtype=np.longdouble) # all nest probabilities 
+  allp   = np.array(range(0,len(ndata)), dtype=np.longdouble) # all nest probabilities 
   expo = calc_exp(inp=ndata[:,4:7], expPercent=0.4, cn=con)
+  # print(f"{expo.shape[0]=} | {allp.shape[0]=}")
   for n in range(len(ndata)-1): # want n to be the row NUMBER
-    alive_days = expo[n,0] - 1
-    final_int  = expo[n,1] - 1
+    # alive_days = expo[n,0] - 1
+    # final_int  = expo[n,1] - 1
+    alive_days = expo[n,0] 
+    final_int  = expo[n,1]
   
+    ##+> don't know why these equaations don't work when final_int = 1
     if final_int > 0: # final int for hatched nests == 0
       p   = (s**alive_days)*(1-(s**final_int)) 
     else:
       p   = s**alive_days
     allp[n]   = p # NOTE this line is throwing the Deprecation Warning
-  nll = sum(-np.log(allp))
+  nll = sum(-np.log(allp)) # +> sum of log = log of product & maybe faster
+  # nll = -np.log(np.prod(allp))
   # NOTE these if statements take up lots of time, esp inside the optimizer
-  if con.debugM>=4:
-    np.save("out/MARK_print.npy", allp)
+
+  #~----------------------------------------------------------------------------
+  # if con.debugM>=2:
+  #   s_arr = np.full(ndata.shape[0], s) ##+> length & fill value
+  #   id_arr = ndata[:,0]
+  #   fate_arr = ndata[:,7]
+  #   mark_out = np.column_stack((allp, expo, s_arr, id_arr, fate_arr))
+  #   np.save("out/MARK_print.npy", mark_out)
+  #----------------------------------------------------------------------------
   return(nll)
+# else:
+#   def prog_mark(s, ndata, nocc, con):
+#     """
+#       Run the Program MARK algorithm
+#       1. Grab the data for the input for MARK 
+#           > First, grab only discovered nests
+#           > Then, only the needed columns
+#           (nest ID, first found, last active, last checked, assigned fate)
+#            inp[0] = ID | inp[1] = i | inp[2] = j | inp[3] = k | inp[4] = fate `
+#       2. Extract rows where j minus i does not equal zero (nest wasn't only 
+#          observed as active for one day)
+#           > Model requires all nests to have at least two observations while active
+#       ----
+#       NOTE
+#
+#         **doesn't work** for obs_int=1
+#
+#         The model used in Program MARK is based on Dinsmore (2002) -  
+#            allows for variance in DSR & use of covariates
+#
+#         These functions are based on info in 'Program MARK: A Gentle Introduction' 
+#
+#     """
+#
+#     # prob, dof = probs
+#     # allp, alldof = mark_probs(s=s, ndata=ndata)
+#     # ALL IN ONE FUNCTION:
+#     s    = s.item() # EX makes singleton array into scalar
+#     # print(f"\t\t{s=}")
+#     # allp   = np.array(range(1,len(ndata)), dtype=np.longdouble) # all nest probabilities 
+#     allp   = np.array(range(0,len(ndata)), dtype=np.longdouble) # all nest probabilities 
+#     expo = calc_exp(inp=ndata[:,4:7], expPercent=0.4, cn=con)
+#     # print(f"{expo.shape[0]=} | {allp.shape[0]=}")
+#     for n in range(len(ndata)-1): # want n to be the row NUMBER
+#       # alive_days = expo[n,0] - 1
+#       # final_int  = expo[n,1] - 1
+#       alive_days = expo[n,0] 
+#       final_int  = expo[n,1]
+#
+#       ##+> don't know why these equaations don't work when final_int = 1
+#       if final_int > 0: # final int for hatched nests == 0
+#         p   = (s**alive_days)*(1-(s**final_int)) 
+#       else:
+#         p   = s**alive_days
+#       allp[n]   = p # NOTE this line is throwing the Deprecation Warning
+#     nll = sum(-np.log(allp)) # +> sum of log = log of product & maybe faster
+#     # nll = -np.log(np.prod(allp))
+#     # NOTE these if statements take up lots of time, esp inside the optimizer
+#
+#     if con.debugM>=2:
+#       s_arr = np.full(ndata.shape[0], s) ##+> length & fill value
+#       id_arr = ndata[:,0]
+#       mark_out = np.column_stack((allp, expo, s_arr, id_arr))
+#       np.save("out/MARK_print.npy", mark_out)
+#     return(nll)
+# # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 
 def mark_wrapper(srn, ndata, nocc, conf):
@@ -229,3 +373,19 @@ def mark_wrapper(srn, ndata, nocc, conf):
 #   THE LIKELIHOOD FUNCTION
 # -----------------------------------------------------------------------------
 #def like_old(a_s, a_mp, a_mf, a_ss, a_mfs, a_mps, nestData, stormDays, surveyDays, obs_int):
+# -----------------------------------------------------------------------------
+#   PROGRAM MARK 
+# -----------------------------------------------------------------------------
+
+# It also has a wrapper function that transforms the initial optimizer values
+# using the logistic function.
+# This way, the optimizer can work over the range of -infinity:infinity, but
+# the values fed to the function are between 0 and 1 (probabilities)
+
+# Lastly, it has a function to generate the probabilities before running the optimizer 
+# on the MARK function, so I can take the for loop out of the function that is optimized.
+
+# -----------------------------------------------------------------------------
+# def prog_mark(s, ndata, probs, nocc, con=config):
+# @profile
+
