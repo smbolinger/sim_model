@@ -1,8 +1,18 @@
 import numpy as np
 from MCmatrix import logistic
-from print_func import arrPrint
+import pandas as pd
+from print_func import arrPrint, dfPrint
 from settings import config
-np.set_printoptions(precision=3, legacy='1.25', linewidth=120)
+import itertools
+import statsmodels.formula.api as smf
+import statsmodels.api as sm
+import rpy2
+import rpy2.robjects as robj
+from rpy2.robjects.packages import importr, data
+
+
+
+np.set_printoptions(precision=5, legacy='1.25', linewidth=120)
 debug = config.debug
 
 def calc_exp(inp, cn, expPercent=0.5, debug=0): 
@@ -52,7 +62,8 @@ def calc_exp(inp, cn, expPercent=0.5, debug=0):
   #   # print("\t\t\t\t|>inp:")
   #   # arrPrint(inp[0:5,:], ind=8)
   #
-  for n in range(len(inp)-1): # want n to be the row NUMBER
+  # for n in range(len(inp)-1): # want n to be the row NUMBER
+  for n in range(len(inp)): # want n to be the row NUMBER
     #+> interval from first found - last active 
     #   +> all nests are KNOWN to be alive
     expo[n,0] = inp[n,1] - inp[n,0]
@@ -73,15 +84,15 @@ def calc_exp(inp, cn, expPercent=0.5, debug=0):
   #   arrPrint(expo[:,1],abbr=False)
   #   print("\t\t\t\t\t\t\t|> exposure:", end=" ")
   #   arrPrint(expo[:,2],abbr=False)
-    # print("\t\t\t\tEXPO: |> alive days:", expo[:,0].T)
-    # print("\t\t\t\t\t\t\t|> final int:", expo[:,1].T)
-    # print("\t\t\t\t\t\t\t|> exposure:", expo[:,2].T)
-    # print("\t\t\t\t|>expo:")
-    # arrPrint(expo[0:5,:], ind=8)
+  #   print("\t\t\t\tEXPO: |> alive days:", expo[:,0].T)
+  #   print("\t\t\t\t\t\t\t|> final int:", expo[:,1].T)
+  #   print("\t\t\t\t\t\t\t|> exposure:", expo[:,2].T)
+  #   print("\t\t\t\t|>expo:")
+  #   arrPrint(expo[0:5,:], ind=8)
   # if cn.debugM>=2:
   #   np.save("out/exposure.npy", expo)
   return(expo)
-# -----------------------------------------------------------------------------
+#-----------------------------------------------------------------------------
 
 def mayfield(num_fail, expo):
   """ 
@@ -144,9 +155,11 @@ def johnson(ndata, srn):
   """
   print("calculate Johnson estimator")
   # jEst = (1/srn) * sum()
+
 # -----------------------------------------------------------------------------
 
 # @profile
+
 def calc_dsr(nData, nestType, calcType, conf, incTime=0, psurv=0, debug=0):
   """ 
     Calculate exposure and DSR for a given set of nests. 
@@ -229,6 +242,7 @@ def calc_dsr(nData, nestType, calcType, conf, incTime=0, psurv=0, debug=0):
 # if debug: 
   ### duhhh, turn on if-else statements by defining a deparate dbug version,
   # BUT still has same issue as separate debug file (need to keep both updated)
+
 def prog_mark(s, ndata, nocc, con):
   """
     Run the Program MARK algorithm
@@ -284,8 +298,9 @@ def prog_mark(s, ndata, nocc, con):
   #   fate_arr = ndata[:,7]
   #   mark_out = np.column_stack((allp, expo, s_arr, id_arr, fate_arr))
   #   np.save("out/MARK_print.npy", mark_out)
-  #----------------------------------------------------------------------------
   return(nll)
+
+  #----------------------------------------------------------------------------
 # else:
 #   def prog_mark(s, ndata, nocc, con):
 #     """
@@ -369,7 +384,8 @@ def mark_wrapper(srn, ndata, nocc, conf):
   ret = prog_mark(s, ndata, nocc, con=conf)
   #@#print("ret=", ret)
   return ret
-# -----------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------
 #   THE LIKELIHOOD FUNCTION
 # -----------------------------------------------------------------------------
 #def like_old(a_s, a_mp, a_mf, a_ss, a_mfs, a_mps, nestData, stormDays, surveyDays, obs_int):
@@ -388,4 +404,158 @@ def mark_wrapper(srn, ndata, nocc, conf):
 # -----------------------------------------------------------------------------
 # def prog_mark(s, ndata, probs, nocc, con=config):
 # @profile
+
+
+def time_model():
+  """
+  """
+
+# def log_exp_r(nData, output='predict'):
+# def log_exp(expo, afate, date):
+def log_exp(nData, output='predict',outf="", predSave=False):
+  """
+    The logistic exposure model for an intercept-only model &
+    a model with effect of end date & a quadratic end date model
+    -----
+    ARGS: 
+      exposure days, assigned fate,
+        & date of fate assignment for each nest
+    -----
+    RETURNS:
+      
+    -----
+    NOTES:
+      Uses clog-log link function, and then adds an offset
+      to account for exposure
+
+      Date is centered
+  """
+  # print("\t nest data:")
+  # dfPrint(nData)
+  afate = nData[:,7]
+  # date  = nData[:,2]
+  ## +> center date to reduce multicollinearity
+  date  = nData[:,6] # +> k value
+  mndate = np.mean(date)
+  date = date - mndate
+  print("centered dates:\n", date)
+  expo = calc_exp(nData[:,4:7], cn=config, debug=2)
+  # print("\t nest data:")
+  # arrPrint(afate)
+  # arrPrint(date)
+
+
+
+  expDF = pd.DataFrame({'exposure': expo[:,2],
+                        'afate': afate,
+                        'date': date
+                        })
+
+  # print("\tdf:")
+  # dfPrint(expDF)
+  # print(expDF)
+  expDF['survive'] =  [0 if x in [1,2] else 1 for x in expDF['afate']]
+  expDF['log_expo'] = np.log(expDF['exposure'])
+  # TODO: fix something weird with dfPrint output? just shows NA
+  # print("\tdf with columns added:")
+  # dfPrint(expDF)
+  # print("\t\tsurvive column:")
+  # arrPrint(expDF['survive'])
+  # modForm = f"survive ~ {' + '.join(predictors)}"
+  fam = sm.families.Binomial(link=sm.families.links.CLogLog())
+  # modForm = ["survive ~ 1","survive ~ date", "survive ~ date * nstorm"]
+  # modForm = ["survive ~ 1","survive ~ date"]
+  # modForm = ["I(1-survive) ~ 1","I(1-survive) ~ date"]
+  modForm = ["I(survive) ~ 1",
+             "I(survive) ~ date",
+             "I(survive) ~ date + I(date**2)"]
+  out = {}
+  # pred = {}
+  pred = []
+  dateVal   = np.arange(1,181,1)
+  for f in modForm:
+    # mod = sm.GLM.from_formula(f, data=expDF, family=fam)
+    # # out[f] = mod.fit(offset=expDF['log_expo'])
+    # fit = mod.fit(offset=expDF['log_expo'])
+
+    # mod = sm.GLM.from_formula(f, data=expDF, family=fam, offset=expDF['log_expo'])
+    mod = smf.glm(f, data=expDF, family=fam, offset=expDF['log_expo'])
+    # out[f] = mod.fit(offset=expDF['log_expo'])
+    # fit = mod.fit(offset=expDF['log_expo'])
+    fit = mod.fit()
+    print("\tMODEL RESULTS:")
+    print(fit.summary()) 
+    
+    if f=='I(1-survive) ~ 1':
+      # out = fit.predict(survive)
+      # pred[f] = fit.predict(expDF) # +> produces a pd.Series
+      pre = fit.predict(expDF).to_numpy() # +> produces a pd.Series; convert to np
+      pred.append(pre)
+      # print(type(pred[f]))
+    else:
+      # dateVal   = np.arange(1,181,1)
+      # combo     = list(itertools.product(dateVal))
+      newDat    = pd.DataFrame({'date': dateVal})
+      # newDat  = pd.DataFrame(combo)
+      # newDat  = np.vstack(combo)
+      # print("new data: ")
+      # print(newDat)
+      pre = fit.predict(newDat).to_numpy()
+      pred.append(pre)
+    # print(fit.params.values)
+    # out[f] = [fit.params, fit.conf_int(alpha=0.05)]
+    # out[f] = [fit.params.values, fit.conf_int(alpha=0.05).values]
+    if output == 'coef':
+      coef = fit.params.values
+      confint = fit.conf_int(alpha=0.05).values
+      # print(confint.values)
+      # print(confint, confint.shape)
+      pval = fit.pvalues.values
+      lcl = confint[:,0] #+> indexing w/1 val returns 1d arr
+      # print("lcl:", lcl, lcl.shape)
+      ucl = confint[:,1]
+      # print(pval, pval.shape)
+      
+      # print(coef, coef.shape)
+      # print(confint, confint.shape)
+      # print(type(coef), type(confint))
+      # out[f] = [fit.params.values, fit.conf_int(alpha=0.05).values]
+      # out[f] = np.concatenate(coef,confint[0,:])
+      out[f] = np.concatenate((coef,lcl,ucl,pval)) 
+      # out[f] = np.concatenate((coef,lcl,pval)) 
+      # survVal = np.linspace(0.9,0.99,9)
+      # sfrqVal = np.array([1,2,3,4,5])
+      # sdurVal = np.array([1,2,3])
+      # pflVal  = np.linspace(0.6,0.95,7)
+      # combo   = list(itertools.product(survVal, sfrqVal, sdurVal, pflVal))
+      # dateVal   = np.linspace(0,180,181)
+      # if f=='survive ~ 1':
+    elif output == 'predict':
+      out[f] = fit.predict(newDat)
+
+  # print(out)
+  print("predictions:\n",pred, type(pred))
+  # print(type(pred[1]))
+  # print("dates:\n", dateVal, type(dateVal))
+  
+  # pred2 = np.vstack(pred)
+  # pred2 = np.column_stack((dateVal,pred))
+  pred2 = np.column_stack((dateVal,pred[0],pred[1]))
+  print(pred2)
+  np.save(outf, pred2)
+  if output == 'coef':
+    out = np.concatenate(list(out.values()))
+
+        # logexArr = np.concatenate(list(logex.values()))
+  return out #+> returns a 1D numpy array
+
+  # ret = [out[1].params]
+    # TODO save param vals?
+
+  
+  # expMod = [sm.GLM.from_formula(f, data=expDF, family=fam) for f in modForm]
+  # TODO decide on output
+
+
+
 
