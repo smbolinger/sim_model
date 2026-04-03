@@ -379,7 +379,8 @@ def make_logexp_df(nData):
 
 # def log_exp_r(nData, output='predict'):
 # def log_exp(expo, afate, date):
-def log_exp(nData,par,nSurvey, fname="", modSave=False, predSave=False):
+# def log_exp(nData,par,nSurvey, fname="", modSave=False, predSave=False):
+def log_exp(nData,par,svy,typ="daily",fname="", modSave=False, predSave=False):
   """
     The logistic exposure model for an intercept-only model &
     a model with effect of end date & a quadratic end date model
@@ -397,33 +398,51 @@ def log_exp(nData,par,nSurvey, fname="", modSave=False, predSave=False):
 
       Date is centered
   """
-  expDF = make_logexp_df(nData)
+  # +> PERIOD SURVIVAL
 
   nNest = nData.shape[0]
+  svyDays, svyInt, stormSvy = svy
+  # nSurvey = len(svyDays)
+  ffList = nData[:,4].astype(int)
+  lcList = nData[:,6].astype(int)
   #---BUILD TRUE NEST HISTORY:
-  initList = nData[:,1].astype(int) #+> true init date
-  endList = nData[:,2].astype(int)  #+> true end date
-  #+> convert fate to 0 = failed, 1 = hatched
-  fateList = np.array([0 if i in [1,2] else 1 for i in nData[:,3]])
-  trueHist = build_dsr_mat_old(nNest=nData.shape[0],
-                           init=initList,
-                           end=endList,
-                           fate=fateList,
-                           nDays=par.brDays)
+  # initList = nData[:,1].astype(int) #+> true init date
+  # endList = nData[:,2].astype(int)  #+> true end date
+  # #+> convert fate to 0 = failed, 1 = hatched
+  # fateList = np.array([0 if i in [1,2] else 1 for i in nData[:,3]])
+  # trueHist = build_dsr_mat_old(nNest=nData.shape[0],
+  #                          init=initList,
+  #                          end=endList,
+  #                          fate=fateList,
+  #                          nDays=par.brDays)
 
+  #+> DAILY SURVIVAL
   #---BUILD NEST OBSERVATION HISTORY:
-  initList = nData[:,4].astype(int) #+> discovery date
-  endList = nData[:,5].astype(int)  #+> date when last active
   #+> convert fate to 0 = failed, 1 = hatched
-  fateList = np.array([0 if i in [1,2] else 1 for i in nData[:,7]])
-  expo = calc_daily_expo(nNest, )
-  obsHist = build_dsr_mat(nNest=nData.shape[0],
-                           init=initList,
-                           end=endList,
-                           fate=fateList,
-                           # nDays=len(svydays))
-                           nDays=nSurvey)
-
+  if typ == "daily":
+    afateList = np.array([0 if i in [1,2] else 1 for i in nData[:,7]])
+    # expo = calc_daily_expo(nNest, svyDays, svyInts, initList, endList  )
+    expo = calc_daily_expo(numNests=nNest,
+                        surveyDays=svyDays,
+                        surveyInts=svyInt,
+                        firstDay=ffList,
+                        lastDay=lcList  )
+    # print(nData[:,np.r_[0,4:8]])
+    obsHist = build_dsr_mat( nestObs=nData[:,np.r_[0,4:9]],
+                            expos=expo,
+                            covar1=nData[:,4], #init date
+                            )
+    print(f"{obsHist=}")
+    expDF = obsHist
+  else:
+    expDF = make_logexp_df(nData)
+  # obsHist = build_dsr_mat(nNest=nData.shape[0],
+  #                          init=initList,
+  #                          end=endList,
+  #                          fate=fateList,
+  #                          # nDays=len(svydays))
+  #                          nDays=nSurvey)
+  #
   fam = sm.families.Binomial(link=sm.families.links.CLogLog())
   # modForm = ["survive ~ 1","survive ~ date", "survive ~ date * nstorm"]
   # modForm = ["I(1-survive) ~ 1",
@@ -458,11 +477,11 @@ def build_dsr_mat_old(nNest,init, end,fate, nDays ):
   end2d = end[:,np.newaxis]
   fate2d = fate[:,np.newaxis]
   # print(f"{nNest=} ; {len(init)=} ; {len(end)=} ; {len(fate)=}")
-  print(
-      f"{nNest=} ; {init2d.shape=} ; {end2d.shape=}"
-      f" ; {fate2d.shape=} ; {mat.shape=}"
-      )
-  print(f"{fate=}")
+  # print(
+      # f"{nNest=} ; {init2d.shape=} ; {end2d.shape=}"
+      # f" ; {fate2d.shape=} ; {mat.shape=}"
+      # )
+  # print(f"{fate=}")
   #+> make true nest history:
   #+> for each row in mat, at col value (axis 1) matching init, put "1"
   np.put_along_axis(mat, init2d, 1, axis=1)
@@ -471,52 +490,83 @@ def build_dsr_mat_old(nNest,init, end,fate, nDays ):
   for n in range(nNest):
     initInd = int(init[n])
     endInd  = int(end[n])
-    print(f"{initInd=} ; {endInd=}")
+    # print(f"{initInd=} ; {endInd=}")
     # mat[:,initInd:endInd-1] = 1 # NOTE this modifies all rows in array
     mat[n,initInd:endInd] = 1
-  print(f"{mat=}")
+  # print(f"{mat=}")
 
 
 
-def calc_daily_expo(numNests, surveyInts, surveyDays, init, end):
+# def calc_daily_expo(numNests, surveyInts, surveyDays, init, end):
+def calc_daily_expo(numNests, surveyInts, surveyDays, firstDay, lastDay):
   """
+    ARGS:
+      
     RETURNS:
       a list of lists of exposure days for each interval nest was observed
   """
-  svyInd = svy_position(init, end, surveyDays)
+  # svyInd = svy_position(init, end, surveyDays)
+  print(f"{surveyInts=}")
+  svyInd = svy_position(firstDay, lastDay, surveyDays)
   initPos, endPos = svyInd
-  expo = []
-  for n in numNests:
-    expo.append(svyInd[initPos:endPos])
+  print(f"{initPos=} ; {endPos=}")
+  # print(surveyInts)
 
-  print(expo)
+  # expo = [surveyInts[initPos[n]:endPos[n]] for n in range(numNests)]
+  expo = []
+  for n in range(numNests):
+    # NOTE becomes a list of arrays:
+    # expo.append(surveyInts[initPos[n]:endPos[n]]) #+> probably slow
+    #+> extend flattens the added arrays
+    expo.extend(surveyInts[(initPos[n]+1):endPos[n]+1].tolist()) #+> probably slow
+    # expo.append(surveyInts[(initPos[n]+1):endPos[n]+1].tolist()) #+> probably slow
+
+  print(f"{expo=} {len(expo)=}")
+  return expo
 
 
 # def build_dsr_mat(nNest, nObs, init, end, expo, fate, nDays, covars=True):
-def build_dsr_mat(nestObs, nDays, expos, covars=True):
+# def build_dsr_mat(nestObs, nDays, expos, covars=True):
+# def build_dsr_mat(nestObs, nDays, expos, covar1="date", covar2="datesq"):
+# def build_dsr_mat(nestObs, expos, covar1=[], covar2=[]):
+def build_dsr_mat(nestObs, expos, covar1=0):
   """
     Build a nest survival matrix with rows for each obs of each nest
     ----
     ARGS:
       nestObs = id, i, j, k, fate, nObs
-      expos = list of list of exposure intervals
+      expos = flattened list of exposure intervals for all obs for all nests
   """
-  if covars:
-    cols = ["id", "surv", "expo", "covar1", "covar2"]
-  else:
-    cols = ["id", "surv", "expo"]
+  # if len(covar2) > 0:
+  # cols = ["id", "surv", "expo", "covar1", "covar2"]
+  cols = ["id", "surv", "expo", "covar1"]
+  # else:
+    # cols = ["id", "surv", "expo"]
 
-  nestID, ff, la, lc, fate, nObs = nestObs
+  nestID, ff, la, lc, fate, nObs = nestObs.T
+  nObs = nObs.astype(int)
+  nObs[fate!=0] +=1
+  print(f"{nObs=}")
+
   nNest = nestObs.shape[0]
 
   nrows = np.sum(nObs)
   endDay = np.cumsum(nObs) -1 #+> zero-indexed
   # mat = np.empty((nNest*np.sum(nObs), len(cols) ))
-  mat = np.ones((np.sum(nObs), len(cols) ))
+  mat = np.ones((nrows, len(cols) ))
   # mat[:,0] = [np.repeat(i, nObs[i]) for i in range(nNest)]
   mat[:,0] = np.repeat(range(nNest), nObs) #+> repeat ID nObs times
   mat[:,1][endDay] = fate
-  mat[:,2] =  
+  mat[:,2] = expos
+  # if covar1 != 0:
+  mat[:,3] = np.repeat(covar1, nObs)
+  # mat[:,4] = np.repeat(covar2, nObs)
+  # print("matrix: \n")
+  print(f"{mat=}")
+
+  return mat
+
+
 
 def predict_daily(modForm, fam, expDF, ndays=180):
   """
@@ -526,10 +576,10 @@ def predict_daily(modForm, fam, expDF, ndays=180):
   dateVal   = np.arange(1,ndays+1,1) # dateVal   = np.arange(1,181,1)
   nNests = expDF.shape[0]
   like = []
-  for f in modForm:
-    for n in nNests:
-
-      like.append()
+  # for f in modForm:
+  #   for n in nNests:
+  #
+  #     like.append()
 
 
 def predict_vals(modForm, fam, expDF,ndays=180):
