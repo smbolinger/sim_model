@@ -78,8 +78,10 @@ print(length(paramsArray))
 print(length(pArrList))
 # print(class(staticPar$brDays))
 # print(staticPar$brDays)
-parr <- print(py_to_r(paramsArray))
+parr <- py_to_r(paramsArray)[[1]]
+# print(parr)
 preDays <- parr$brDays
+prDays <- seq(preDays)
 
 # paramsArray <- funs$mk_param_list_list(parList=sett$pLists, fdir=odir,suf=suff)
 # print(paramsArray)
@@ -90,34 +92,45 @@ nmod <- 3
 # coef_list <- c("_est", "_lcl", "_ucl")
 # preDays     <- as.numeric(staticPar$brDays)
 # preDays     <- py_to_r(staticPar$brDays)
-cat("\ndays for prediction:")
-print(preDays)
-dims <- c(preDays,3,length(pArrList),nmod)
-print(dims)
-dnames <- list(seq(preDays),seq(3), seq(length(pArrList)), seq(nmod))
-print(dnames)
-pred <- array(NA,
-               dim=c(preDays, 3, length(pArrList),nmod),
-               dimnames=list(seq(preDays),seq(3), seq(length(pArrList)), seq(nmod)) )
-if(debug) print(dimnames(pred))
+cat(sprintf("\n\tdays for prediction: %s \n",preDays))
+# print(preDays)
+dimss <- c(3,preDays,nmod,length(pArrList))
+# print(dimss)
+dnames <- list(c("est", "lcl", "ucl"), seq(preDays), c("m1","m2","m3"),seq(length(pArrList)))
+# print(dnames)
+pred <- array(NA, dim=dimss, dimnames=dnames )
+# pred <- array(NA,
+               # dim=c(3,preDays,nmod,length(pArrList)),
+               # # dimnames=list(seq(preDays),seq(3), seq(length(pArrList)), seq(nmod)) )
+               # dimnames=list(seq(preDays),seq(3), seq(length(pArrList)), c("m1","m2","m3")) )
+if(debug>=4) print(dimnames(pred))
+# coef_list <- c("est", "lcl", "ucl", "dsr", "psr")
 coef_list <- c("est", "lcl", "ucl")
 # coef_names <- paste0(c("dot", "date", "datesq"), coef_list)
 mod_names <- c("_dot", "_date_int", "_date_b1", "_datesq_int","_datesq_b1","_datesq_b2")
 # coef_names <- do.call(paste0, expand.grid(mod_names, coef_list))
 coef_names <- do.call(paste0, expand.grid(coef_list, mod_names))
+# c_names <- do.call(paste0, expand.grid(coef_list, mod_names))
+# coef_names <- c(c_names, "DSR", "PSR")
 # print(coef_names)
 coefs <- array(NA,
                dim=c(length(coef_names), nreps, length(pArrList)),
                dimnames=list(coef_names,seq(nreps), seq(length(pArrList))))
-if(debug) print(dim(coefs))
-if(debug) print(dimnames(coefs))
+if(debug>=4) print(dim(coefs))
+if(debug>=4) print(dimnames(coefs))
+
+nval_name <- c("parID","repID","fld", "hat", "dsc", "excl","unk","mc","avfint","avk","aDSR","aPSR","mDSR","mPSR","leDSR","lePSR")
+nValMat <- array(NA, dim=c(length(nval_name), nreps,length(pArrList)), dimnames=list(nval_name,seq(nreps), seq(length(pArrList))))
+    # cat("\nN VAL (flood,\thatch,\tdiscover,\texclude,\tunknown,\tmisclass,\navg final int,\tavg K,\tapp DSR,\tMARK DSR,\trepID,\tparID:\n)")
 
 # for(i in 1:nrow(pArrList)){
 # for(i in 0:length(pArrList)-1){
 ## should stay 1-indexed in R code and then subtract one when giving to python function/object
 # for(i in 1:length(pArrList)){
 for(i in seq(length(pArrList))){
-  if(debug) cat("\ni=",i)
+  if(debug) cat("\n,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:")
+  if(debug) cat("\n.....................................................i=",i, ".............................................................\n")
+  if(debug) cat("':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':':\n\n")
   # print(i)
 
   # print(sett$staticPar)
@@ -131,7 +144,7 @@ for(i in seq(length(pArrList))){
                   reticulate::py_last_error()
                   })
   print(par)
-  if(debug) print(par$stormFrq)
+  # if(debug) print(par$stormFrq)
   stormDays <- nest$stormGen(par$stormFrq, par$stormDur)
   survey    <- withCallingHandlers(
                                    {obs$mk_surveys(stormDays, par$obsFreq, par$brDays, conf=config)},
@@ -147,12 +160,12 @@ for(i in seq(length(pArrList))){
   predictions <- array(NA, 
                        dim=c(3, nreps,preDays,nmod),
                        # dimnames=list(c("term","est", "lcl","ucl"), seq(nreps), seq(preDays))
-                       dimnames=list(c("est", "lcl","ucl"), seq(nreps), seq(preDays), seq(nmod))
+                       dimnames=list(c("est", "lcl","ucl"), seq(nreps), seq(preDays), c("m1", "m2", "m3"))
   )
-  if(debug) print(dimnames(predictions))
+  # if(debug) print(dimnames(predictions))
   #------------------------------------------------------------------------------------------------------------------
   for(r in seq(nreps)){
-    cat("\nr=",r)
+    cat("\n:::::::::::::::::::::::::::::: rep=",r, " :::::::::::::::::::::::::::::::::::::::::::\n")
     skiptoNext <- FALSE
 
     # nestData1 <- tryCatch({
@@ -164,8 +177,8 @@ for(i in seq(length(pArrList))){
     },
     error=function(e){
       skiptoNext <<- TRUE # need to use super-assignment
-      message("error in nest data: ", e, "; go to next replicate.")
-      print(sys.calls())
+      message("error in nest data: ", e, "; go to next replicate. (turn on print(sys.calls) for more from R)")
+      # print(sys.calls())
       reticulate::py_last_error()
     })
 
@@ -189,7 +202,6 @@ for(i in seq(length(pArrList))){
     cat("\nN VAL (flood,\thatch,\tdiscover,\texclude,\tunknown,\tmisclass,\navg final int,\tavg K,\tapp DSR,\tMARK DSR,\trepID,\tparID:\n)")
     print(nVal)
 
-    # excl <- nVal
     # nestData <- subset(nestData1, )
     # nestData <- nestData1[nestData1[[11]]!=0] # remove undiscovered nests
     # nestData <- nestData1[nestData1$totobs!=0] # remove undiscovered nests
@@ -197,14 +209,14 @@ for(i in seq(length(pArrList))){
   
     # nestData <- nestData1 |> as.data.frame(col.names=colnames) |> filter(totobs!=0) # remove undiscovered nests
     nestData <- nestData1 |> as.data.frame() |> setNames(colnames) |> filter(totobs!=0) # remove undiscovered nests
-    print(nestData)
+    # print(nestData)
     # cat("\ndiscovered nests:\n")
     # print(nestData)
     # nestData <- nestData[nestData[[8]]!=7] # remove unknown fates
     # nestData <- nestData[nestData$afate!=7] # remove unknown fates
     nestData <- nestData |> filter(afate!=7) # remove undiscovered nests
-    if(debug) cat("\nanalyzed nests:\n")
-    if(debug) print(nestData)
+    if(debug>=2) cat("\nanalyzed nests:\n")
+    if(debug>=2) qvcalc::indentPrint(nestData)
     nNest <- nrow(nestData)
     # cat("\nnumber of nests:", nNest)
     nestObs <- nestData |> dplyr::select(ID, i, j, k, afate, totobs)
@@ -277,7 +289,10 @@ for(i in seq(length(pArrList))){
         coefs[,r,i] <- coefsArray
       })
 
-    if(excpt) {next}
+    if(excpt) {
+      print("exception")
+      next
+    }
 
     coefsArray = sapply(modOut, function(x){
                           # print(x)
@@ -302,12 +317,14 @@ for(i in seq(length(pArrList))){
                                             # coef_arr <- c(coef(x)[y], conf[y,])
                                             # coef_arr <- c(coef(x)[y], conf[y,])
                                             # coef_arr <- c(coef(x)[y], confint.default(x)[y,])
-                                              if (debug) print(c(coef(x)[y], confint.default(x)[y,]))
+                                              if (debug>=3) qvcalc::indentPrint(c(coef(x)[y], confint.default(x)[y,]))
                                               return(c(coef(x)[y], confint.default(x)[y,]))
+                                              # coeff <- (c(coef(x)[y], confint.default(x)[y,]))
+                                              # names(coeff) <- 
                                            } else {
                                            # coef_arr <- c(coef(x)[y], conf[y])
                                            # coef_arr <- c(coef(x)[y], confint.default(x)[y])
-                                             if (debug) print(c(coef(x)[y], confint.default(x)[y]))
+                                             if (debug>=3) qvcalc::indentPrint(c(coef(x)[y], confint.default(x)[y]))
                                              return(c(coef(x)[y], confint.default(x)[y]))
                                            }
                                            # cat("\ncoef_arr:\n")
@@ -315,19 +332,40 @@ for(i in seq(length(pArrList))){
                                            # return(coef_arr)
 
 
-                                           }
-                                   )
+                                           })
                    })
-    if (debug) cat("\ncoefs output:\n")
-    if (debug) print(coefsArray)
+    # coef_cols <- grepl("est|ucl|lcl", coef_names)
+    # cat("coef cols:")
+    # print(coef_cols)
+    if (debug>=3) cat("\n\tcoefs output:\n")
+    if (debug>=4) qvcalc::indentPrint(coefsArray)
     coefs[,r,i] = unlist(coefsArray)
+    # coefs[coef_cols,r,i] <- unlist(coefsArray)
     # if (debug) print(coefs[,repID,parID])
-    if (debug) print(coefs[,r,i])
+    if (debug>=3) qvcalc::indentPrint(coefs[,r,i])
+    # coefs[grepl("dsr", coef_names),r,i] <- sapply()
+    ## make dsr/psr a separate df
     # date_glm <- glm(Surv~poly(Date,2),
+    dsr1 <-  1/(1+exp(-coefsArray[[1]][1,1]))
+    psr1 <- dsr1 ^ par$hatchTime
+    nVal <- c(nVal, dsr1, psr1)
+    if (debug>=3) cat("\nnVal:", nVal)
+    nValMat[,r,i] <- nVal
+    # dsrArr1 <-  1/(1+exp(-(coefsArray[[2]][1,] + coefsArray[[2]][2] * dat2S$Date)))
+    dsrArr1 <-  1/(1+exp(-(coefsArray[[2]][1,1] + coefsArray[[2]][1,2] * prDays)))
+    if (debug>=3) cat("\ndsr & psr from model 1:\n")
+    if (debug>=3) print(dsrArr1)
+    psrArr1 <- dsrArr1 ^ par$hatchTime
+    if (debug>=3) print(psrArr1)
+    dsrArr2 <-  1/(1+exp(-(coefsArray[[3]][1,1] + coefsArray[[3]][1,2] * prDays + coefsArray[[3]][1,3] * prDays^2)))
+    psrArr2 <- dsrArr2 ^ par$hatchTime
+    if (debug>=3) cat("\ndsr & psr from model 2:\n")
+    if (debug>=3) print(dsrArr2)
+    if (debug>=3) print(psrArr2)
 
     #------------------------------------------------------------------------------------------------------------------
     # to get CIs for predictions, choose between ggpredict, ciTools, glm.predict, rockchalk 
-    newDat <- data.frame(Date=seq(180))
+    newDat <- data.frame(Date=seq(preDays))
     ..exposure <- mean(dat2S$Exposure)
     # pred <- predict(modOut[[1]], newdata=newDat, type="response")
     # print(predictions[,r,])
@@ -340,9 +378,14 @@ for(i in seq(length(pArrList))){
     # predictions[,r,] <- marginaleffects::predictions(modOut[[1]], newdata=newDat)[c("term", "estimate", "conf.low", "conf.high")] 
     # predictions[,r,] <- t(pre[c(2,5,6)])
     # print(predictions[,r,])
+    if (debug>=3) cat("\nPredictions:\n")
     for(m in 1:nmod){
+      # print(predictions[,r,,m])
+      if (debug>=2) cat(sprintf("\n\tmodel %s\n", m))
       pre <- marginaleffects::predictions(modOut[[m]], newdata=newDat)
-      predictions[,r,,m] <- t(pre[c(2,5,6)])
+      if (debug>=3) qvcalc::indentPrint(pre[,c(2,5,6)])
+      predictions[,r,,m] <- t(pre[,c(2,5,6)])
+      if (debug>=3) qvcalc::indentPrint(predictions[,r,,m])
     }
     rm(..exposure)
     # plot(x=seq(180), y=pre$Estimate)
@@ -354,21 +397,40 @@ for(i in seq(length(pArrList))){
 
   #------------------------------------------------------------------------------------------------------------------
   if(config$predSave=="mean"){
+    if (debug>=4) cat("|> all predictions:")
+    if (debug>=4) qvcalc::indentPrint(predictions)
+    if (debug>=3) cat("\n|>|> Average predictions:\n")
+    avg <- apply(predictions, c(1,3,4), mean, na.rm=TRUE)
+    if (debug>=4) qvcalc::indentPrint(dim(pred[,,,i]))
+    if (debug>=4) qvcalc::indentPrint(dim(avg))
+    if (debug>=4) qvcalc::indentPrint(avg)
+    # pred[,,i,] <- t(apply(predictions, c(1,3,4), mean, na.rm=TRUE))
+    pred[,,,i] <- (apply(predictions, c(1,3,4), mean, na.rm=TRUE))
+    qif (debug>=3) vcalc::indentPrint(pred[,,,i])
     for (m in 1:nmod){
-      pred[,,i,m] <- apply(predictions, c(1,3), mean)
+      # print(pred[,,i,m] )
+      # print(predictions)
+      # print(apply(predictions, c(1,3,4), mean), na.rm=TRUE)
+      # pred[,,i,m] <- apply(predictions, c(1,3,4), mean, na.rm=TRUE)
     }
-    print(pred[,,i,])
   }
   #------------------------------------------------------------------------------------------------------------------
 
+  ## saving vals to file incrementally
   if(config$coefSave=="mean"){
     coefname <- sprintf("%s/coefs_r_%03d.rds", outdir, as.numeric(parID))
-    print(coefname)
+    nvalname <- sprintf("%s/nval_r_%03d.rds", outdir, as.numeric(parID))
+    # print(coefname)
     saveRDS(coefs, coefname)
+    saveRDS(nValMat, nvalname)
   }
   parID = parID + 1
 }
-if (debug) print(coefs)
+if (debug>=2) cat("\nCoefficients:\n")
+if (debug>=2) qvcalc::indentPrint(coefs)
+
+if (debug>=2) cat("\nN Val:\n")
+if (debug>=2) qvcalc::indentPrint(nValMat)
 # coef_fname <- sprintf("%s/out/%s/coefs_r_%s%s.rds", homedir, sett$now_short, config$rngSeed, atype)
 # saveRDS(coefs, coef_fname)
 
