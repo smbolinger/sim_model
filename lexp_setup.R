@@ -36,29 +36,47 @@ if(TRUE){
   debug <- config$debug
 }
 cat("CONFIG:", paste(config,collapse=";"), "\n")
+if(config$testing=="yes") library(ggplot2)
 
 ##--------------- SET SOME VALUES: ----------------------------------------------
 # odir <- funs$mk_outdir(now)
-odir <- sett$odir
-homedir <- "/home/wodehouse/Projects/sim_model"
-dirName <- sprintf("%s%s", config$rngSeed, atype)
-outdir <- file.path(odir,dirName)
-if(!dir.exists(outdir)) dir.create(outdir, recursive=TRUE)
-suff <- sprintf("%s%s", config$rngSeed, atype)
-paramsArray <- sett$paramsArray
-staticPar <- sett$staticPar # this one IS a list
-pArrList <- sett$pArrList ## should be able to use in R?
+if(TRUE){
+  suff <- sprintf("%s%s", config$rngSeed, atype)
+  odir <- sett$odir
+  # homedir <- "/home/wodehouse/Projects/sim_model"
+  dirName <- sprintf("%s%s", config$rngSeed, atype)
+  outdir <- file.path(odir,dirName)
+  if(!dir.exists(outdir)) dir.create(outdir, recursive=TRUE)
+  
+  paramsArray <- sett$paramsArray
+  staticPar <- sett$staticPar # this one IS a list
+  pArrList <- sett$pArrList ## should be able to use in R?
+# if(debug>=2) print(pArrList)
 # +> automatic type conversion is NOT working for dicts. and neither is explicit conversion.
 # print(length(paramsArray))
 # print(length(pArrList))
-parr <- py_to_r(paramsArray)[[1]] # print(parr)
-preDays <- parr$brDays
-prDays <- seq(preDays)
-nparsets <- length(pArrList)
-cat(sprintf("\n\tnumber of days for prediction: %s \n",preDays))
-mList <- c("Surv~1", "Surv~Date", "Surv~Date+I(Date^2)", "Surv~Age", "Surv~Age+Date")
-mNames <- c("m1", "m2", "m3", "m4")
-nmod <- length(mList)
+  parr <- py_to_r(paramsArray)[[1]]
+  if(debug>=2) print(parr)
+# write.csv(parr,sprintf("param_sets%s.csv",config$rngSeed))
+  
+  preDays <- parr$brDays
+  prDays <- seq(preDays)
+  cat(sprintf("\n\tnumber of days for prediction: %s \n",preDays))
+
+  mList <- c("Surv~1", "Surv~Date", "Surv~Date+I(Date^2)", "Surv~Age", "Surv~Age+Date")
+  mNames <- c("m1", "m2", "m3", "m4")
+
+  nmod <- length(mList)
+  nparsets <- length(pArrList)
+}
+# initDateList <- as.data.frame(py_to_r(nest$initDat))
+
+if(config$testing=="yes"){
+  cat("\ntrue init date list:\n")
+  initDateList <- py_to_r(nest$initDat)
+  print(class(initDateList))
+  print(initDateList)
+}
 
 ##--------------- CREATE ARRAYS TO STORE DATA: ----------------------------------------------
 if (config$predict){
@@ -75,8 +93,24 @@ coefs <- array(NA,
                dimnames=list(coef_names,seq(nreps), seq(length(pArrList))))
 if(debug>=4) print(dimnames(coefs))
 
-nval_name <- c("parID","repID","fld", "hat", "dsc", "excl","unk","mc","avfint","avk","aDSR","aPSR","mDSR","mPSR","leDSR","lePSR1","lePSR2","lePSR3","lePSR4","lePSR5","rmDSR","rmPSR")
+# nval_name <- c("parID","repID","fld", "hat", "dsc", "excl","unk","mc","avfint","avk","aDSR","aPSR","mfDSR","appDSR","leDSR","lePSR1","lePSR2","lePSR3","lePSR4","lePSR5","mcmcDSR","mcmcPSR","mcmcDFR","markDSR","markPSR")
+nval_name <- c("parID","repID","fld", "hat", "dsc", "excl","unk","mc","avfint","avk","aDSR","aPSR","mfDSR","appDSR")
+# dsr_name <- c("leDSR","lePSR1","lePSR2","lePSR3","lePSR4","lePSR5","mcmcDSR","mcmcPSR","mcmcDFR","markDSR","markPSR")
+dsr_name <- c("leDSR","lePSR1","lePSR2","lePSR3","lePSR4","lePSR5")
+mcmc_name <- c("mcmcDSR","mcmcPSR","mcmcDFR")
+mark_name <- c("markDSR","markPSR")
+allval_name <- c(nval_name, dsr_name,mcmc_name,mark_name)
+# allval_name <- c(nval_name, dsr_name,mark_name)
+# nval_name <- c("parID","repID","fld", "hat", "dsc", "excl","unk","mc","avfint","avk","aDSR","aPSR","mDSR","mPSR","leDSR","lePSR1","lePSR2","lePSR3","lePSR4","lePSR5")
+# nval_name <- c("parID","repID","fld", "hat", "dsc", "excl","unk","mc","avfint","avk","aDSR","aPSR","mDSR","mPSR","leDSR","lePSR1","lePSR2","lePSR3","lePSR4","lePSR5","rmDSR","rmPSR")
 # nval_name <- c("parID","repID","fld", "hat", "dsc", "excl","unk","mc","avfint","avk","aDSR","aPSR","mDSR","mPSR","leDSR","lePSR1")
-nValMat <- array(NA, dim=c(length(nval_name), nreps,length(pArrList)), dimnames=list(nval_name,seq(nreps), seq(length(pArrList))))
+# nValMat <- array(NA, dim=c(length(nval_name), nreps,length(pArrList)), dimnames=list(nval_name,seq(nreps), seq(length(pArrList))))
+nValMat <- array(NA, dim=c(length(allval_name), nreps,length(pArrList)), dimnames=list(allval_name,seq(nreps), seq(length(pArrList))))
+
 pred2 <- array(NA, dim=c(2, preDays, nparsets), dimnames=list(c("m2","m3"),seq(preDays), seq(nparsets)) ) # print(pred2)
+
+# vnames <- c("trueDSR","discDSR","anDSR","lexpDSR", "diff1","diff2","diff3")
+vnames <- c("trueDSR","lexpDSR","mcmcDSR","markDSR","mayfDSR", "diff_lexp","diff_mcmc","diff_mark","diff_mayf")
+valMat <- array(NA, dim=c(length(vnames), nreps,nparsets), dimnames=list(vnames,seq(nreps), seq(nparsets)))
+# if(debug>=3) print(valMat)
 
