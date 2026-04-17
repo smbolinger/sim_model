@@ -4,10 +4,12 @@ from getClass import ExpLink
 from observer import svy_position
 import pandas as pd
 import matplotlib.pyplot as plt
+from dsrCalc import calc_exp
 from print_func import arrPrint, dfPrint
-from settings import config
+# from settings import config
+from rsettings import config
 import itertools
-from helpers import centerDat
+from helpers import centerDat,print
 import statsmodels.formula.api as smf
 import statsmodels.api as sm
 import rpy2
@@ -20,47 +22,164 @@ np.set_printoptions(precision=5, legacy='1.25', linewidth=999)
 debug = config.debug
 # NOTE previously part of dsrCalc (if you need git history)
 
-def make_daily_logex_df(nestObs,
+def build_dsr_mat(nestData,surveyDays,nDays,true=False,save=False,fname="",db=0 ):
+  """
+  """
+  #NOTE moved from build_dsr_mat_old
+  # mat = np.empty((par.numNests, par.hatchTime))
+  # mat = np.empty((par.numNests, par.brDays))
+  if db>=1:
+    # ind =np.arange(len(surveyDays))
+    print(
+        f"building obs history matrix with {nDays=} ;"
+        f" true DSR? {true} (if not, then obs DSR)"
+        # f"{[ind:day for ind,day in enumerate(surveyDays)]}"
+        f"\nsurvey days:\n"
+        f"{np.array2string(np.arange(len(surveyDays))):03}\n"
+        # f"{ind:03}\n"
+        f"{np.array2string(surveyDays):03}\n"
+        )
+
+    # [print( f"{ind}:{day}", end="|") for ind,day in enumerate(surveyDays)]
+
+  #+> number analyzed nests
+  nNest = nestData.shape[0]
+  # NOTE init & end can either = index w/in all br days or w/in survey days
+  if true:
+    init = nestData[:,1].astype(int)
+    end = nestData[:,2].astype(int)
+    fate = nestData[:,3].astype(int)
+  else:
+    init = nestData[:,4].astype(int)
+    end = nestData[:,6].astype(int)
+    fate= nestData[:,7].astype(int)
+  # mat = np.empty((nNest, par.brDays))
+  # +> create matrix with nNests rows and nDays columns
+  # +> nDays can be all days in nesting period or all obs days
+  mat = np.empty((nNest, nDays))
+  mat.fill(np.nan)
+  initInd = np.searchsorted(surveyDays, init)+1
+  endInd = np.searchsorted(surveyDays, end)+1
+  if db>=3:
+    print(f"{initInd=}")
+    print(f"{endInd=}")
+    print(f"{mat.shape=}")
+  # mat[:, ]
+  init2d = initInd[:,np.newaxis]
+  end2d = endInd[:,np.newaxis]
+  fate2d = fate[:,np.newaxis]
+  # print(f"{init2d=}")
+  # print(f"{end2d=}")
+  # print(f"{nNest=} ; {len(init)=} ; {len(end)=} ; {len(fate)=}")
+  # print(
+      # f"{nNest=} ; {init2d.shape=} ; {end2d.shape=}"
+      # f" ; {fate2d.shape=} ; {mat.shape=}"
+      # )
+  # print(f"{fate=}")
+  #+> make true nest history:
+  #+> for each row in mat, at col value (axis 1) matching init, put "1"
+  # NOTE this works if you have total breeding days, but not nObs days
+  # NOTE could probably make it work and have obs in rows corresponding to nests
+  # NOTE but might be easier to do one row per obs per nest? like shaffer
+  np.put_along_axis(mat, init2d, 1, axis=1) # set init val in row
+  np.put_along_axis(mat, end2d, fate2d, axis=1) # set end val
+  # mat[init:end-1] = 1
+  for n in range(nNest):                        # fill in between init & end
+    initX = int(initInd[n])
+    endX  = int(endInd[n])
+    # print(f"{initInd=} ; {endInd=}")
+    # mat[:,initInd:endInd-1] = 1 # NOTE this modifies all rows in array
+    mat[n,initX:endX] = 1
+  with np.printoptions(threshold=10000): # don't truncate
+    if db>=2: print(f"observations {mat=}")
+  if save:
+    print(f"{mat.shape=}")
+    mat = np.nan_to_num(mat, nan=-9999.0)
+    np.savetxt(fname, mat, delimiter=",")
+    # np.save(fname, mat)
+  return mat
+
+def make_daily_logex_df(nestData,
+                        nObs,
                         expos,
                         covar1,
                         # saveDF=False,
                         alldiff=True,
                         zeroInd=True,
                         multiFate=False,
+                        pandas=False,
+
+                        # exp1=False,
                         # ctr=False,
+                        db=0,
                         ):
   """
+    idate = date of initial obs
+    leave alldiff = True and get both columns
+    exp1 is for calculating true nest survival (exposure=1)
+    nestData = ID, init, i, j, k, afate
+    nObs = num obs (varies depening on which DSR is being calculated)
   """
   #NOTE 04-Apr: getting errors about length of column replacements,
   #NOTE   but only for stormFate==True
-  cols = ["id", "survive", "exposure", "date"]
-  nestID, ff, la, lc, afate, nObs = nestObs.T
-  nObs = nObs.astype(int)
-  # print(f"{np.sum(nObs)=} ; {nObs=}")
+  if db>=2: print("\t>-> making daily obs df",end=" ")
+  # cols = ["id", "survive", "exposure", "idate", "date"]
+  # cols = ["Nest.ID", "Surv", "Exposure", "ffDate", "Date", "Age", "propInit"]
+  cols = ["Nest.ID", "Surv", "Exposure", "avDate", "Date","avAge", "Age"]
+  if isinstance(nestData, pd.DataFrame):
+    if db>=3: print(f"\n\t{type(nestData)=}")
+    nestData = nestData.to_numpy()
+  elif not isinstance(nestData, np.ndarray):
+    if db>=3: print(f"\n\t{type(nestData)=}")
+    nestData = np.array(nestData)
+  if db>=3: print(f"\t{type(nestData)=}\n{nestData=}")
+  # nestID, init,ff, la, lc, afate, nObs = nestData.T
+  nestID, init,end,fate,ff, la, lc, afate = nestData.T
+  # nObs = nObs.astype(int) if exp1 else 
+  if db>=4: print(f"\t{np.sum(nObs)=} ; {nObs=}")
   # nObs[afate!=0] +=1
   # print(f"nrows = {np.sum(nObs)=} ; {nObs=} ")
-  nNest = nestObs.shape[0]
-  nrows = np.sum(nObs)
+  nNest = nestData.shape[0]
+  # nrows = np.sum(nObs)
+  nrows = int(np.sum(nObs))
+  initDay = np.repeat(init, nObs)
+  ageStart = ff-init 
+  ageEnd = lc-init
+  avAge = (ageEnd+ageStart)/2 
+  if db>=3: print(f"\t{nrows=}{type(nrows)=}")
+  if db>=3: print(f"\t{avAge=}")
+  if db>=3: print(f"\t{initDay=}")
   if zeroInd:
     endDay = np.cumsum(nObs) -1 #+> zero-indexed
   else:
     endDay = np.cumsum(nObs) 
-  # print(f"{endDay=}")
+  endDay = endDay.astype(int)
+  if db>=3: print(f"\t{endDay=}")
   if multiFate==False: # +> make all failures "0"
+    # afate = np.array([0 if i in [1,2,7] else 1 for i in afate])
     afate = np.array([0 if i in [1,2,7] else 1 for i in afate])
 
   mat = np.ones((nrows, len(cols) ))
-  # print(f"{mat.shape=} | {len(expos)=}")
+  if db>=3: print(f"\t{mat.shape=} | {len(expos)=}")
   mat[:,0] = np.repeat(range(nNest), nObs) #+> repeat ID nObs times
   mat[:,1][endDay] = afate
   mat[:,2] = expos
-  if alldiff:
-    mat[:,3] = covar1
-  else:
-    mat[:,3] = np.repeat(covar1, nObs)
+  # mat[:,3] = np.repeat(ff, nObs)
+  mat[:,3] = np.repeat((ff+lc)/2, nObs) # avg observation day
+  mat[:,4] = covar1
+  mat[:,5] = np.repeat(avAge,nObs)
+  mat[:,6] = covar1 - initDay
+  # if alldiff:
+  #   mat[:,3] = covar1
+  # else:
+  #   mat[:,3] = np.repeat(covar1, nObs)
 
   dfNew = pd.DataFrame(mat, columns=cols)
-  dfNew['log_expo'] = np.log(dfNew['exposure'])
+  dfNew['log_expo'] = np.log(dfNew['Exposure'])
+  if db>=2:
+    print(f"\t{dfNew.shape=}")
+    # print(f"{dfNew}")
+    dfPrint(dfNew)
 
   # NOTE save df in outer function
   # if saveDF:
@@ -69,6 +188,17 @@ def make_daily_logex_df(nestObs,
   #       prOut.parent.mkdir(parents=True, exist_ok=True)
 
   return dfNew
+
+def make_df(nestID, init, first, last, fate, nObs):
+  """
+  PURPOSE
+    calculate exposure, age, & date covariates for nest data
+
+    for true DSR:
+      first=init, last=end, fate=true fate,nObs=total days
+    for obs DSR:
+      first=i, last=k, fate=assigned fate, nObs=total observations
+  """
 
 def make_logexp_df(nData):
   afate = nData[:,7]
@@ -108,8 +238,6 @@ def make_logexp_df(nData):
     # print(expDF.loc[expDF['survive']==1, ['date']])
   return(expDF)
 
-# def log_exp_r(nData, output='predict'):# def log_exp(expo, afate, date):
-# def log_exp(nData,par,nSurvey, fname="", modSave=False, predSave=False):
 def log_exp(nData,
             par,
             svy,
@@ -179,7 +307,9 @@ def log_exp(nData,
     covar = date if alldiff else nData[:,4]
     covar = centerDat(covar) if ctr else covar
     # obsHist = make_daily_logex_df( nestObs=nData[:,np.r_[0,4:9]],
-    obsHist = make_daily_logex_df( nestObs=nData[:,np.r_[0,4:8,10]],
+    # obsHist = make_daily_logex_df( nestObs=nData[:,np.r_[0,4:8,10]],
+    obsHist = make_daily_logex_df( nestData=nData[:,np.r_[0:2,4:8]],
+                                  nObs = nData[:,10],
                                   expos=expo,
                                   covar1=covar,
                                   # saveDF=conf.obsSave,
@@ -199,17 +329,19 @@ def log_exp(nData,
   if link=="clog-log":
     fam = sm.families.Binomial(link=sm.families.links.CLogLog())
   else:
+    # fam = sm.families.Binomial(link=ExpLink(exposure=expo), check_link=False)
     fam = sm.families.Binomial(link=ExpLink(exposure=expo))
   # modForm = ["survive ~ 1","survive ~ date", "survive ~ date * nstorm"]
+  modForm = ["survive ~ 1","survive ~ date", "survive ~ date + I(date**2)"]
   # modForm = ["I(1-survive) ~ 1",
   #            "I(1-survive) ~ date",
   #            "I(1-survive) ~ date + I(date**2)",
-  modForm = ["I(survive) ~ 1",
-             "I(survive) ~ date",
-             # "I(survive) ~ week",
-             "I(survive) ~ date + I(date**2)",
-             # "I(survive) ~ date - I(date**2)",
-             ]
+  # modForm = ["I(survive) ~ 1",
+  #            "I(survive) ~ date",
+  #            # "I(survive) ~ week",
+  #            "I(survive) ~ date + I(date**2)",
+  #            # "I(survive) ~ date - I(date**2)",
+  #            ]
   out = predict_vals(modForm, fam, expDF,ctr=ctr, debug=debug) #
   coef, pred = out
   if obsSave:
@@ -219,8 +351,7 @@ def log_exp(nData,
   #   np.save(fname,coef)
   return out
 
-# def calc_daily_expo(numNests, surveyInts, surveyDays, init, end):
-def calc_daily_expo(numNests, surveyInts, surveyDays, firstDay, lastDay):
+def calc_daily_expo(numNests, surveyInts, surveyDays, firstDay, lastDay, db=0):
   """
     Calculate the daily exposure of each nest AND all survey days it's active
     ----
@@ -246,16 +377,23 @@ def calc_daily_expo(numNests, surveyInts, surveyDays, firstDay, lastDay):
     # expo.append(surveyInts[initPos[n]:endPos[n]]) #+> probably slow
     #+> extend flattens the added arrays
     expo.extend(surveyInts[(initPos[n]+1):endPos[n]+1].tolist()) #+> probably slow
-    sdays.extend(surveyDays[(initPos[n]+1):endPos[n]+1].tolist()) #+> probably slow
+    # sdays.extend(surveyDays[(initPos[n]+1):endPos[n]+1].tolist()) #+> probably slow
+    sdays.extend(surveyDays[(initPos[n]):endPos[n]].tolist()) #+> probably slow
     
     # expo.append(surveyInts[(initPos[n]+1):endPos[n]+1].tolist()) #+> probably slow
 
-  # print(f"{len(expo)=} {expo=} ")
-  # print(f"{len(sdays)=} {sdays=} ")
+  if db>=3:
+    # print(f"{numNests=} ")
+    print(f"\t{len(expo)=} {expo=} ")
+    print(f"\t{len(sdays)=} {sdays=} ")
   # return expo
-  return [expo, sdays]
+  return [np.array(expo), sdays]
 
-# def plot_predict(expDF,pred):
+# def calc_true(obsDat):
+#   """
+#   """
+#   out = log_exp()
+
 def plot_predict(modFit, newDat):
   """
     pass the model fit object & the new data points
@@ -319,7 +457,7 @@ def predict_vals(modForm, fam, expDF,plotfile="",ndays=180,ctr=False,debug=0):
     # preee = fit.predict(newDat).to_numpy()
     # print(f"{preee=}")
     # pre = fit.get_prediction(newDat).to_numpy()
-    pre = fit.get_prediction(newDat)
+    pre = fit.get_prediction(newDat, offset=expDF['log_expo'])
     mean = pre.predicted_mean
     # print(f"{mean=}")
     conf = pre.conf_int()
@@ -425,11 +563,7 @@ def time_model():
   """
   """
 
-# def build_dsr_mat(nNest, nObs, init, end, expo, fate, nDays, covars=True):
-# def build_dsr_mat(nestObs, nDays, expos, covars=True):
-# def build_dsr_mat(nestObs, nDays, expos, covar1="date", covar2="datesq"):
-# def build_dsr_mat(nestObs, expos, covar1=[], covar2=[]):
-def build_dsr_mat(nestObs, expos, covar1=0):
+def build_dsr_mat_blah(nestObs, expos, covar1=0):
   """
     Build a nest survival matrix with rows for each obs of each nest
     ----
@@ -480,41 +614,6 @@ def predict_daily(modForm, fam, expDF, ndays=180):
   #
   #     like.append()
 
-
-# def build_dsr_mat(nData, par):
-def build_dsr_mat_old(nNest,init, end,fate, nDays ):
-  """
-  """
-  # +> create matrix with nNests rows and nDays columns
-  # mat = np.empty((par.numNests, par.hatchTime))
-  # mat = np.empty((par.numNests, par.brDays))
-  #+> number analyzed nests
-  # nNest = nData.shape[0]
-  # mat = np.empty((nNest, par.brDays))
-  mat = np.empty((nNest, nDays))
-  mat.fill(np.nan)
-  # mat[:, ]
-  init2d = init[:,np.newaxis]
-  end2d = end[:,np.newaxis]
-  fate2d = fate[:,np.newaxis]
-  # print(f"{nNest=} ; {len(init)=} ; {len(end)=} ; {len(fate)=}")
-  # print(
-      # f"{nNest=} ; {init2d.shape=} ; {end2d.shape=}"
-      # f" ; {fate2d.shape=} ; {mat.shape=}"
-      # )
-  # print(f"{fate=}")
-  #+> make true nest history:
-  #+> for each row in mat, at col value (axis 1) matching init, put "1"
-  np.put_along_axis(mat, init2d, 1, axis=1)
-  np.put_along_axis(mat, end2d, fate2d, axis=1)
-  # mat[init:end-1] = 1
-  for n in range(nNest):
-    initInd = int(init[n])
-    endInd  = int(end[n])
-    # print(f"{initInd=} ; {endInd=}")
-    # mat[:,initInd:endInd-1] = 1 # NOTE this modifies all rows in array
-    mat[n,initInd:endInd] = 1
-  # print(f"{mat=}")
 
 
 
