@@ -20,6 +20,7 @@ import os
 import pprint
 import sys
 import time
+import traceback
 import yaml
 import warnings
 # warnings.simplefilter("always")
@@ -31,23 +32,36 @@ from decimal import Decimal
 # import line_profiler
 # import numexpr as ne
 # from os.path import exists
+# import matplotlib.pyplot as plt
+import pandas as pd
 from pathlib import Path
+import rpy2.robjects as robjects
 from scipy import optimize
+from scipy.stats.kde import gaussian_kde
+# from traceback import TracebackException
 from typing import Dict, Generator
 
 from getClass import Params, Config
-from settings import rng,config,atype,staticPar, pLists, now_short, now_long
-from helpers import mk_param_list, mk_outdir, mk_fnames 
+# from settings import rng,config,atype,staticPar, pLists, now_short, now_long
+from rsettings import rng,config,atype,staticPar, pLists, now_short, now_long
+from helpers import mk_param_list, mk_param_list_list, mk_outdir, mk_fnames,print
 from print_func import arrPrint,dfPrint,printLL, print_all, print_nestdata,print_mark
-from makeNests import stormGen
+from makeNests import stormGen,initDat
 from observer import make_obs, mk_surveys
 from dsrCalc import calc_dsr, mark_wrapper, mayfield
 from MCmatrix import like_smd, triangle, logistic
+from log_exposure import calc_daily_expo, make_daily_logex_df
 
-np.set_printoptions(precision=3)
+r = robjects.r
+np.set_printoptions(precision=5)
 debug = config.debug
 print("\t\t|>|>|>debug value:", debug, end=" ")
+#+> seearch for #\~ to find the dbug statements
+## TODO:  the MCMC matrix is giving a low answer bc it doesn't
 
+## TODO:   account for nsts that survivd storms.
+
+## TODO: mark "storm nsts" and add an xtra day to one intrval?
 
 def randArgs():
   """
@@ -193,8 +207,8 @@ def ansTransform(ans):
 
 # -----------------------------------------------------------------------------
 
-# @profile
-def rep_loop(par, nData, storm, survey, config, random=True):
+#@profile
+def rep_loop(par, nData, storm, survey, config, random=True,to_r=False):
   """
     For each data replicate, call this function, which:
       - takes the reduced nest data as input
@@ -209,9 +223,12 @@ def rep_loop(par, nData, storm, survey, config, random=True):
   # perfectInfo = 0
   # whichL = par.whichLike
   ## +> np.r_ allows r-like indexing
+  if isinstance(nData, pd.DataFrame):
+    nData = nData.to_numpy()
   dat = nData[:, np.r_[0,4:10]] # doesn't include column index 10
-  # print("check:")
-  # arrPrint(dat)
+  # if config.debug>=2:
+    # print("check:")
+    # arrPrint(dat)
   arg=(dat, par.obsFreq, par.useSMat, storm, survey, par.whichLike, config)
   # zargs = randArgs() if random==True else mayfInit()
   # TODO: integrate warning capture with function in helpers.py
@@ -234,8 +251,14 @@ def rep_loop(par, nData, storm, survey, config, random=True):
     # print(f"\t\t|>NEW {res[0]=:.4f}")
     if res[0] < 0.8:
       # discover = nData[nData[:,6]!=0]
-      discover = nData[nData[:,8]>0] ## +> n obs > 0
+      # discover = nData[nData[:,8]>0] ## +> n obs > 0 - obs before fail
+      # discover = nData[nData[:,6]>0] ## +> k > 0
+      #+> but nobs is now num obs while active, so some failed nests have nobs=0
+      ## but using total obs is somehoww leading to larger overestimate? or is it?
+      discover = nData[nData[:,10]>0] ## +> TOTAL obs > 0
       discovered = discover.shape[0]
+      print(f"discovered nests ({discover.shape=}):")
+      dfPrint(discover)
       # excl = ((discover[:,7] == 7) | (discover[:,4]==discover[:,5]))
       # excl = ((discover[:,7] == 7) | discover[:,8]>0)
       excl = (discover[:,7] == 7)
@@ -260,40 +283,112 @@ def rep_loop(par, nData, storm, survey, config, random=True):
       # res = np.max([res1,res2,res3])
       # print(f"\t\t\t\t\t|>NEW {res[0]=:.4f}")
   # srand = rng.uniform(-10.00, 10.00)
-  if config.mayfStart:
-        # mayfDSR_all  = calc_dsr(nData=nestData1,
-        #                     nestType="all",
-        #                     calcType="mayfield",
-        #                     conf=config,
-        #                     incTime=par.hatchTime,
-        #                     psurv=par.probSurv,
-        #                     debug=config.debugSummary)
-    srand = calc_dsr(nData, nestType="disc", calcType="mayfield", conf=config,
-                     incTime=par.hatchTime, psurv=par.probSurv)
-  else:
-    srand = rng.uniform(0.00, 10.00)
-  # mark_s = run_optim(minimizer="norm", fun=mark_wrapper, z=srand, arg=(nData, par.brDays, config))
-  if config.optimizer=="global":
-    res    = run_optim(minimizer="bh",
-                       fun=mark_wrapper,
-                       z=srand,
-                       arg=arg,
-                       )
-  else:
-    mark_s = run_optim(minimizer="norm",
-                       fun=mark_wrapper,
-                       z=srand,
-                       arg=(nData, par.brDays, config),
-                       met=config.optimizer
-                       )
+  s2, mp2 = res[0], res[1]
+  if config.debug>=3:
+    print(f"{s2=} {mp2=}")
+  psr = s2 ** par.hatchTime
+
+  if False:
+    if config.mayfStart:
+          # mayfDSR_all  = calc_dsr(nData=nestData1,
+          #                     nestType="all",
+          #                     calcType="mayfield",
+          #                     conf=config,
+          #                     incTime=par.hatchTime,
+          #                     psurv=par.probSurv,
+          #                     debug=config.debugSummary)
+      srand = calc_dsr(nData, nestType="disc", calcType="mayfield", conf=config,
+                       incTime=par.hatchTime, psurv=par.probSurv)
+    else:
+      srand = rng.uniform(0.00, 10.00)
+    # mark_s = run_optim(minimizer="norm", fun=mark_wrapper, z=srand, arg=(nData, par.brDays, config))
+    if config.optimizer=="global":
+      res    = run_optim(minimizer="bh",
+                         fun=mark_wrapper,
+                         z=srand,
+                         arg=arg,
+                         )
+    else:
+      mark_s = run_optim(minimizer="norm",
+                         fun=mark_wrapper,
+                         z=srand,
+                         arg=(nData, par.brDays, config),
+                         met=config.optimizer
+                         )
   #NOTE ans2 is an "OptimizeResult" object; need to extract "x"
   # NOTE scott was probably right - mps doesn't make sense. and DSR includes storms already
   # so check whether mort flood probability goes up with more intense storms?
-  s2, mp2 = res[0], res[1]
-  like_val = np.array([ mark_s,s2,mp2], dtype=np.longdouble)
+    like_val = np.array([ mark_s,s2,mp2], dtype=np.longdouble)
   #~#if config.debugLL>=2: print(f"\t\t>> like_val: MARK={like_val[0]}, MCMC-surv={like_val[1]}, MCMC-pred={like_val[2]}")
+  if to_r:
+    like_val = [s2,psr,mp2]
+  else:
+    like_val = np.array([s2,psr,mp2], dtype=np.longdouble)
+    # like_val = 
   return(like_val)
   
+def calc_nests(nestData1, par, repID, parID, db=0):
+  flooded  = sum(nestData1[:,3]==2)
+  hatched  = sum(nestData1[:,3]==0)
+  discover = nestData1[:,8]>0
+  nestData = nestData1[(discover),:] # +> remove undiscovered nests
+  exclude  = ((nestData[:,7] == 7))
+  unknown  = (nestData[:,7]==7)
+  misclass = (nestData[:,7]!=nestData[:,3]) #+> out of discovered nests
+  avgFInt  = (nestData[:,9].sum()/len(discover))
+  avgK     = nestData[:,6].sum()/len(discover)
+  srand = rng.uniform(0.00, 10.00) # +> random init val for MARK
+  # mark_s = run_optim(minimizer="norm",
+  #                    fun=mark_wrapper,
+  #                    z=srand,
+  #                    arg=(nestData, par.brDays, config),
+  #                    met=config.optimizer
+  #                    )
+  appDSR  = calc_dsr(nData=nestData1,
+                      nestType="all",
+                      calcType="apparent",
+                      conf=config,
+                      incTime=par.hatchTime,
+                      psurv=par.probSurv,
+                      debug=config.debugSummary)
+  # markPSR = mark_s ** par.hatchTime
+  appPSR = appDSR ** par.hatchTime
+  # lVal = rep_loop(par=par, nData=nestData, storm=stormDays,
+  #                survey=survey,config=config)
+  # # llDSR = lVal[0]
+  # llDSR,llPSR,llDFR = lVal
+
+
+  mayfDSR_an   =  calc_dsr(nData=nestData,
+                           nestType="analysis",
+                           calcType="mayfield",
+                           conf=config,
+                           incTime=par.hatchTime,
+                           psurv=par.probSurv,
+                           debug=config.debugSummary) 
+  appDSR_an   = calc_dsr(nData=nestData,
+                          nestType="analysis",
+                          calcType="apparent",
+                          conf=config,
+                          incTime=par.hatchTime,
+                          psurv=par.probSurv,
+                          debug=config.debugSummary) 
+  nestVals = np.array([
+    # flooded,hatched,discover.sum(),exclude.sum(),unknown.sum(),
+    # misclass.sum(), avgFInt, avgK, appDSR, mark_s, repID, parID])
+    parID,repID,flooded,hatched,discover.sum(),exclude.sum(),unknown.sum(),
+    misclass.sum(), avgFInt, avgK, appDSR,appPSR,mayfDSR_an,appDSR_an])
+    # misclass.sum(), avgFInt, avgK, appDSR,appPSR, mark_s,markPSR])
+  if db>=4: print(f"{nestVals=}")
+  return nestVals
+
+def r_logexp():
+  """
+  """
+  # r['source']('logexp.R')
+  # r.source('logexp.R')
+  r['pi']
+
 def main(fnUnique, testing, parLists, msg="", config=config, pStatic=staticPar):
   """
     If 'fnUnique'==True, filename is "uniquified" and includes H:M:S
@@ -312,15 +407,15 @@ def main(fnUnique, testing, parLists, msg="", config=config, pStatic=staticPar):
   # counters <- range
   pList = parLists
   now_str = now_short
-  odir  = mk_outdir(now_str)
+  odir  = mk_outdir(now_str, con=config)
   # print(f"\t|> output directory = {odir}")
   if len(msg) > 0:
     print("|> MSG: ", msg)
   print(f"\t\t<>CONFIG: {config}")
   if fnUnique:
-    fname = mk_fnames(now_str, fdir=odir, suf=f"{atype}", uniq=True) 
+    fname = mk_fnames(now_str, fdir=odir, suf=f"{atype}", uniq=True, con=config) 
   else:
-    fname = mk_fnames(now_str,fdir=odir,suf=f"{atype}")
+    fname = mk_fnames(now_str,fdir=odir,suf=f"{atype}", con=config)
   likeFile = fname[0]
   if config.testing=="no":
     if os.path.exists(likeFile):
@@ -331,14 +426,15 @@ def main(fnUnique, testing, parLists, msg="", config=config, pStatic=staticPar):
       return
   colNames = fname[1]
   with open(likeFile, "wb") as f: # NOTE not 'a' bc file stays open
-    paramsArray = mk_param_list(parList=pList, fdir=odir, suf=f"{config.rngSeed}{atype}")
+    paramsArray = mk_param_list_list(parL=pList, fdir=odir, suf=f"{config.rngSeed}{atype}")
     print(
         f"\n\t|>|>|>{len(paramsArray)} param sets x {config.nreps} reps ="
         f" {len(paramsArray)*config.nreps} total rows"
         )
     parID     = 0
-    summVars = ['dsc','ha','fl','unk','exc','mc','dsrT','dsrA','dsrD',
-                'dsrC','diffA','diffD','diffC']
+    # summVars = ['stfrq','obfrq','inc','sfate','dsc','ha','fl','unk','exc','mc',
+    summVars = ['dsc','ha','fl','unk','exc','mc',
+                'dsrT','dsrA','dsrD','dsrC','diffA','diffD','diffC']
     summMat   = np.zeros(shape=(len(paramsArray), config.nreps, len(summVars)))
     # summMat   = np.zeros(shape=(len(paramsArray), config.nreps, 14))
     # print(f"dimensions of summary matrix: {summMat.shape}")
@@ -363,43 +459,49 @@ def main(fnUnique, testing, parLists, msg="", config=config, pStatic=staticPar):
       #   ##+> 3d array (harder to load into R):
       #   ndMatrix  = np.zeros(shape=(config.nreps,par.numNests,10))
       #------------------------------------------------------------------------
+      nweek = np.round(par.brDays/7)-1 # for test w/ shorter season
       for r in range(config.nreps): 
         print(f"\t>---->----> replicate  {parID}.{repID} >---->----> ")
         try:
-          nestData1 = make_obs(par=par, storm=stormDays, survey=survey, conf=config) 
+          nestData1 = make_obs(par=par,storm=stormDays,survey=survey,nw=nweek,conf=config) 
         except IndexError as error:
           print(
             "\t\t>> !!! IndexError in nest data:", 
             error,
             ". Go to next replicate")
+          traceback.print_exc()
           nEx = nEx + 1
           continue
 
         #~----------------------------------------------------------------------
         # +> save each rep as separate file-useful for loading into R
-        # if config.saveNData:
-        #   print("\n\t\t!!!!! SAVING THIS REPLICATE'S NEST DATA TO FILE")
-        #   ndName = Path(f"{odir}/nd_{config.rngSeed}{atype}/nd_p{parID:02}_r{repID:02}.npy")
-        #   #   ndName = Path (f"{odir}/nests{config.rngSeed}_{atype}/nd_par{parID:03}.npy")
-        #   ndName.parent.mkdir(parents=True, exist_ok=True)
-        #   # np.save(ndName, nestData1)
-        #   # rep_col = np.full(len(nestData1), repID)
-        #   # rep_col = rep_col[:,np.newaxis]
-        #   # nd2 = np.hstack([nestData1, rep_col])
-        #   # np.save(ndName, nd2)
-        #   np.save(ndName, nestData1)
-        #   # ndMatrix[r,:,:] = nd2
+        if config.saveNData:
+          print("\n\t\t!!!!! SAVING THIS REPLICATE'S NEST DATA TO FILE")
+          ndName = Path(f"{odir}/nd_{config.rngSeed}{atype}/nd_p{parID:02}_r{repID:02}.npy")
+          #   ndName = Path (f"{odir}/nests{config.rngSeed}_{atype}/nd_par{parID:03}.npy")
+          ndName.parent.mkdir(parents=True, exist_ok=True)
+          # np.save(ndName, nestData1)
+          # rep_col = np.full(len(nestData1), repID)
+          # rep_col = rep_col[:,np.newaxis]
+          # nd2 = np.hstack([nestData1, rep_col])
+          # np.save(ndName, nd2)
+          np.save(ndName, nestData1)
+          # ndMatrix[r,:,:] = nd2
         #
+        #~----------------------------------------------------------------------
         ## +> print all nest data
         if config.debug>=2:
-          #   print("\t\t\t|> ALL NEST DATA"None)
-          nm = ["ID","init","end","fate"," i "," j "," k ","afate","nobs","fint","nstm"]
+          print("\t\t\t|> ALL NEST DATA")
+          nm = ["ID","init","end","fate"," i "," j "," k ","afate","nobs","fint"]
+          # nm = ["ID","init","end","fate"," i "," j "," k ","afate","nobs","fint","nstm"]
           # print_nestdata(nestData1, names=nm,nprint=50) 
+          # print("\nall nests:")
           print_nestdata(nestData1, names=nm, abbrv=False) 
 
-        # if config.debug>=1: 
-          # print("\n\t\t[*] [*] [*] [*] [*] calculating DSR [*] [*] [*] [*] [*] [*] [*] [*] ")
+        if config.debug>=1: 
+          print("\n\t\t[*] [*] [*] [*] [*] calculating DSR [*] [*] [*] [*] [*] [*] [*] [*] ")
 
+        #~----------------------------------------------------------------------
         ##+> matrix to store into about the nest data:
         # if config.nreps==1:
         #   ndMatrix[:,:] = nestData1 # +> now reps are a dimension, not a column
@@ -458,6 +560,12 @@ def main(fnUnique, testing, parLists, msg="", config=config, pStatic=staticPar):
 
         nestData  = nestData[~(exclude),:]  # +> remove excluded nests 
         # print("\n\t\tnest data length after excluding:",nestData.shape[0])
+        if config.obsSave:
+          nestObs = nestData[:,np.r_[0,1,4:8,11]]
+          nNest = nestData.shape[0]
+          expoList = calc_daily_expo(nNest, survey[1], survey[2], nestData[:,4], nestData[:,6],db=config.debugNests)
+          obsDat = make_daily_logex_df(nestObs,expos=expoList[1],covar1=expoList[2],db=config.debugNests)
+
         mayfDSR_an   =  calc_dsr(nData=nestData,
                                  nestType="analysis",
                                  calcType="mayfield",
@@ -474,7 +582,8 @@ def main(fnUnique, testing, parLists, msg="", config=config, pStatic=staticPar):
                                 debug=config.debugSummary) 
         lVal = rep_loop(par=par, nData=nestData, storm=stormDays,
                    survey=survey,config=config)
-        llDSR = lVal[1]
+        # llDSR = lVal[0]
+        llDSR,llPSR,llDFR = lVal
 
         #~----------------------------------------------------------------------
         # if config.debugM>=2: ## +> matches the level for saving the info to print
@@ -482,37 +591,44 @@ def main(fnUnique, testing, parLists, msg="", config=config, pStatic=staticPar):
         #   prExp = True if config.debugM>=3 else False
         #   print_mark(print_exp=prExp)
         #
-        # if config.debugLL>=2: ## +> matches the level for saving the info to print
+        #~----------------------------------------------------------------------
+        if config.debugLL>=2: ## +> matches the level for saving the info to print
         #   ##+> print LL equations for each nest:
         #   ##+> enable the saving inside hte logLike function definition
         #
-        #   llArg = np.load('out/arg_PrintLL.npy') 
-        #   printLL(len(llArg), *llArg.T) # +> tranpose so it is unpacked colwise
+          llArg = np.load('out/arg_PrintLL.npy') 
+          printLL(len(llArg), *llArg.T) # +> tranpose so it is unpacked colwise
         #
+        #~----------------------------------------------------------------------
         # if config.testing == "yes":
         #   print(f"\n\t\t\t\t{mayfDSR_all=:.3f}, {mayfDSR_disc=:.3f}, {mayfDSR_an=:.3f}")
         #   print(f"\t\t\t\t{appDSR=:.3f}, {appDSR_disc=:.3f}, {appDSR_an=:.3f}")
         #
-        # if config.debug>=2: ## +> matches the level for saving the info to print
-        #   ##+> print summary:
-        #   sum_list = [
-        #       hatched,
-        #       flooded,
-        #       discover,
-        #       unknown,
-        #       misclass,
-        #       exclude,
-        #       lVal[1],
-        #       lVal[0],
-        #       appDSR_an,
-        #       appDSR,
-        #       appDSR_disc,
-        #       ]
-        #   print_all(sum_list, nestData, par)
+
+        # #   ##+> print summary:
+        if config.debug>=2: ## +> matches the level for saving the info to print
+          sum_list = [
+              hatched,
+              flooded,
+              discover,
+              unknown,
+              misclass,
+              exclude,
+              llDSR,
+              llPSR,
+              # lVal[0],
+              # lVal[1],
+              mayfDSR_an,
+              appDSR_an,
+              appDSR,
+              appDSR_disc,
+              ]
+          print_all(sum_list, nestData, par)
         #----------------------------------------------------------------------
 
         nVal = np.array([appDSR,        #4
                          appDSR_disc,
+                         appDSR_an,
                          mayfDSR_disc,
                          mayfDSR_an,    #5
                          sum(discover),
@@ -528,7 +644,8 @@ def main(fnUnique, testing, parLists, msg="", config=config, pStatic=staticPar):
         like_val = np.concatenate((lVal, nVal))
         colnames=colNames # colnames=config.colNames
 
-        if parID == 0 and like_val[12] == 0: #+> only 1st line gets the header
+        # if parID == 0 and like_val[12] == 0: #+> only 1st line gets the header
+        if parID == 0 and repID == 0: #+> only 1st line gets the header
           np.savetxt(f, [like_val], delimiter=",", header=colnames)
           # if debug: print(">> ** saving likelihood values with header **")
         else:
@@ -539,28 +656,41 @@ def main(fnUnique, testing, parLists, msg="", config=config, pStatic=staticPar):
 
       #~----------------------------------------------------------------------
         ### +> save vals to summary matrix for printing:
-        # if config.testing=="yes":
-        #   # print("saving to matrix")
-        #   # summVars = ['dsc','ha','fl','unk','exc','mc','dsrT','dsrA','dsrD','dsrC']
-        #   # summVal =np.array([ discover, hatched, flooded, unknown, exclude, misclass, trueDSR, trueDSR_an, trueDSR_disc, lVal[1] ])
-        #   summVal =np.array([
-        #     discover.sum(),
-        #     hatched.sum(),
-        #     flooded.sum(),
-        #     unknown.sum(),
-        #     exclude.sum(),
-        #     misclass.sum(),
-        #     appDSR,
-        #     appDSR_an,
-        #     appDSR_disc,
-        #     llDSR,
-        #     llDSR-appDSR,
-        #     llDSR-appDSR_an,
-        #     llDSR-appDSR_disc,
-        #     ])
-        #   # print(f" {summMat[i,r,:].shape=} | {summVal.shape=}")
-          #
-          # summMat[i,r,:] = np.array(summVal)
+        if config.testing=="yes":
+          # print("saving to matrix")
+          # summVars = ['dsc','ha','fl','unk','exc','mc','dsrT','dsrA','dsrD','dsrC']
+          # summVal =np.array([ discover, hatched, flooded, unknown, exclude, misclass, trueDSR, trueDSR_an, trueDSR_disc, lVal[1] ])
+          summVal =np.array([
+            # par.stormFrq,
+            # par.obsFreq,
+            # par.hatchTime,
+            # par.stormFate,
+
+            discover.sum(),
+            hatched.sum(),
+            flooded.sum(),
+            unknown.sum(),
+            exclude.sum(),
+            misclass.sum(),
+            appDSR,
+            appDSR_an,
+            appDSR_disc,
+            llDSR,
+            llDSR-appDSR,
+            llDSR-appDSR_an,
+            llDSR-appDSR_disc,
+            ])
+          # print(f" {summMat[i,r,:].shape=} | {summVal.shape=}")
+
+          summMat[i,r,:] = np.array(summVal)
+
+          ##+> also, plot initiation dates:
+
+          # plt.hist(nestData[:,1])
+          # kde = gaussian_kde(nestData[:,1])
+          # distr = np.linspace(np.min(nestData[:,1]), np.max(nestData[:,1]),100)
+          # plt.plot(distr,kde(distr),alpha=0.5)
+          # plt.title("initiation dates")
       #----------------------------------------------------------------------
 
         ##NOTE don't comment! need to increment the repID
@@ -568,6 +698,16 @@ def main(fnUnique, testing, parLists, msg="", config=config, pStatic=staticPar):
         
       #~----------------------------------------------------------------------
       # if debug>=2: arrPrint(ndMatrix)
+      # if config.testing=="yes":
+
+        #+> save initiation dates plot to file
+        # figName = f"figs/{parID}inits_density.png"
+        # initDates = pd.DataFrame([initDat])
+        # kde = gaussian_kde(initDates)
+        # distr = np.linspace(np.min(initDates), np.max(initDates),100)
+        # plt.plot(distr,kde(distr),alpha=0.8,color='blue')
+        # plt.savefig(figName)
+        # plt.close()
 
       ##+> save nest data - takes up lots of disk space
       # if config.saveNData:
@@ -582,46 +722,77 @@ def main(fnUnique, testing, parLists, msg="", config=config, pStatic=staticPar):
 
     #~----------------------------------------------------------------------
     ##+> print the means from the matrix:
-    # if config.testing=="yes":
-    #   ## +> get means of summary matrix:
-    #   meanMat = summMat.mean(axis=1)
-    #   svars = ', '.join([str(x) for x in summVars]) # needs to be string
-    #   pListN = mk_param_list(pList, listRet=True)
+    if config.testing=="yes":
+      ## +> get means of summary matrix:
+      meanMat = summMat.mean(axis=1)
+      svars = ', '.join([str(x) for x in summVars]) # needs to be string
+      pListN = mk_param_list_list(pList, listRet=True)
     #   # NOTE probably could make df out of a list of dicts anyway
-    #   print(pListN)
+      print(pListN)
     #   # pListNew = [pl[0,1,5,9] for pl in pListNew] #+> doesn't work!
     #   # pListNew = [pl[i] for pl in pListNew for i in [0,1,5,9]]
     #   # for pl in pListNew:
-    #   pListNew = [[pl[0], pl[1], pl[5], pl[9]] for pl in pListN]
+      # pListNew = [[pl[0], pl[1], pl[5], pl[9]] for pl in pListN]
+      pListNew = [[pl[0], pl[1], pl[8], pl[12]] for pl in pListN]
     #
-    #   print(pListNew)
+      print(pListNew)
     #   # pnames = list(dir(Params)) ##+> this one gives all components of class
     #   # pnames = list(vars(par).keys()) ##+> this one includes staticPar
     #   # pnames = list(paramsArray[0].keys()) ##+> get the names from the dict?
     #   # pnames = [pnames[i] for i in [0,1,5,9]]
     #   # print(pnames)
-    #   pnames = ["nNest", "pSurv", "obsInt", "hTime"]
+      pnames = ["nNest", "pSurv", "obsInt", "hTime"]
     #
-    #   fname_mean = f"out/mean_mat_{config.rngSeed}{atype}.csv"
-    #   np.savetxt(fname_mean, meanMat, fmt='%.5f', delimiter=",", header=svars)
-    #   # if config.debug>=2: arrPrint(summMat) ## +> print entire matrix
-    #   print("==>> mean values for each param set: ")
+      fname_mean = f"out/mean_mat_{config.rngSeed}{atype}.csv"
+      np.savetxt(fname_mean, meanMat, fmt='%.5f', delimiter=",", header=svars)
+      # if config.debug>=2: arrPrint(summMat) ## +> print entire matrix
+      print("==>> mean values for each param set: ")
     #   # arrPrint(meanMat)
     #   # dfPrint([meanMat,pListNew], names=[summVars,pnames])
-    #   dfPrint([meanMat,pListNew], concat="cwise", names=[summVars,pnames])
+      dfPrint([meanMat,pListNew],abbr=False, concat="cwise", names=[summVars,pnames])
     #----------------------------------------------------------------------
 
-# startTime = time.perf_counter()
-
-main(fnUnique=config.fnUnique, parLists=pLists, msg=config.msg, testing=config.testing)
-
-# endTime = time.perf_counter()
-
-# elapsed_time = endTime - startTime 
-
-# if elapsed_time < 60:
-    # print(f"Runtime: {elapsed_time:.2f} seconds") #
-# elif elapsed_time < 3600:
-    # minutes = elapsed_time / 60
-    # print(f"Runtime: {minutes:.2f} minutes") #
-
+# def make_nestdat(par, stormDays, survey, config, nWeeks, initFromFile):
+#     nEx =0
+#
+#     try:
+#       nestData1 = make_obs(par=par,
+#                            storm=stormDays,
+#                            survey=survey,
+#                            conf=config,
+#                            nw = nWeeks,
+#                            inff = initFromFile
+#                            ) 
+#     except IndexError as error:
+#       print(
+#         "\t\t>> !!! IndexError in nest data:", 
+#         error,
+#         ". Go to next replicate")
+#       nEx = nEx + 1
+#       # continue
+#       return 1
+#
+#     # +> calculate true DSR (apparent DSR w/ real numbers):
+#     appDSR  = calc_dsr(nData=nestData1,
+#                         nestType="all",
+#                         calcType="apparent",
+#                         conf=config,
+#                         incTime=par.hatchTime,
+#                         psurv=par.probSurv,
+#                         debug=config.debugSummary)
+#
+#     flooded  = sum(nestData1[:,3]==2)
+#     hatched  = sum(nestData1[:,3]==0)
+#     discover = nestData1[:,8]>0
+#
+#     nestData = nestData1[(discover),:] # +> remove undiscovered nests
+#     exclude  = ((nestData[:,7] == 7))
+#     unknown  = (nestData[:,7]==7)
+#     misclass = (nestData[:,7]!=nestData[:,3]) #+> out of discovered nests
+#     avgFInt  = (nestData[:,9].sum()/len(discover))
+#     avgK     = nestData[:,6].sum()/len(discover)
+#
+#     nestData  = nestData[~(exclude),:]  # +> remove excluded nests 
+#     nestVals = np.array([
+#       flooded,hatched,discover.sum(),exclude.sum(),unknown.sum(),
+#       misclass.sum(), avgFInt, avgK, appDSR, mark_s, repID, parID])
