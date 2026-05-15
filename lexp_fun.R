@@ -3,13 +3,23 @@
 ## logistic exposure model, following the Example in ?family. See,
 ## Shaffer, T. 2004. Auk 121(2): 526-540.
 # Definition of the link function
-logexp_brglm <- function(days = 1) {
-  linkfun <- function(mu) qlogis(mu^(1/days))
-  linkinv <- function(eta) plogis(eta)^days
-  mu.eta <- function(eta) days * plogis(eta)^(days-1) *
-  binomial()$mu.eta(eta)
+logexp_brglm <- function(exposure = 1) {
+  get_exposure <- function() {
+    if (exists("..exposure", env=.GlobalEnv))
+      return(get("..exposure", envir=.GlobalEnv))
+    exposure
+  }
+  linkfun <- function(mu) qlogis(mu^(1/get_exposure()))
+  linkinv <- function(eta) plogis(eta)^get_exposure()
+  logit_mu_eta <- function(eta) {
+    ifelse(abs(eta)>30,.Machine$double.eps,
+           exp(eta)/(1+exp(eta))^2)
+  }
+  mu.eta <- function(eta) get_exposure() * plogis(eta)^(get_exposure()-1) *
+    logit_mu_eta(eta)
+  # binomial()$mu.eta(eta)
   valideta <- function(eta) TRUE
-  link <- paste("logexp(", days, ")", sep="")
+  link <- paste("logexp(", deparse(substitute(exposure)), ")", sep="")
   structure(list(linkfun = linkfun, linkinv = linkinv,
           mu.eta = mu.eta, valideta = valideta, name = link),
           class = "link-glm")
@@ -20,7 +30,6 @@ br.custom.family <- function(p) {
   list(ar=0.5*p/p, # so that to fix the length of ar
   at=0.5+exp(etas)*(1-p)/(2*p*.days))
 }
-
 
 logexp <- function(exposure = 1) {
   ## hack to help with visualization, post-prediction etc etc
@@ -50,19 +59,167 @@ logexp <- function(exposure = 1) {
             class = "link-glm")
 }
 
+mk_logex_data <- function(nestData,survey,pyconfig,exposure=0){
+  config = py_to_r(pyconfig)
+  debug <- config$debugLogEx
+  # cat(sprintf("debug: %s ; type: %s ; length: %s", debug, class(debug), length(debug)))
+  nNest <- nrow(nestData) # cat("\nnumber of nests:", nNest)
+  # nestObs <- nestData |> dplyr::select(ID, init, i, j, k, afate, totobs) # print(head(nestObs))
+  nestObs <- nestData |> dplyr::select(ID, init,end,fate, i, j, k, afate) # print(head(nestObs))
+  if(debug>=3) cat("\n\n\t<*><*> Logistic exposure ")
+  if(exposure==1){
+    # svyDays = as.matrix(seq(max(survey[[1]])))
+    # svyInts = as.matrix(rep(1, length(svyDays)))
+    if(debug>=2) cat("- exposure=1 <*><*><*><*>\n")
+    #NOTE: should this be up until the final active day of any nest?
+    svyDays <- np_array(seq(max(survey[[1]])))
+    svyInts <- np_array(rep(1, length(svyDays)))
+    # numObs <- sum(nestData[,"k"] - nestData[,"i"])
+    ## sum happens inside function
+    # numObs <- nestData[,"k"] - nestData[,"i"]
+    ## also needs to be all nests, not just discovered:
+    numObs  <- nestData[,"end"] - nestData[,"init"]
+    first   <- nestData[,"init"]
+    last    <- nestData[,"end"]
+    exp1    <- TRUE
+  } else {
+    if(debug>=2) cat("- exposure=exposure <*><*><*><*>\n")
+    svyDays <- survey[[1]]
+    svyInts <- survey[[2]]
+    first   <- nestData[,"i"]
+    last    <- nestData[,"k"]
+    numObs  <- nestData[, "totobs"]
+    exp1    <- FALSE
+  }
+  if(debug>=3){
+    cat("\n\t>->num obs:", numObs)
+    cat(sprintf("\n\t>-> survey days (len %s) & survey ints (len %s) to pass to logexp functions:\n",length(svyDays),length(svyInts)))
+    qvcalc::indentPrint(svyDays)
+    qvcalc::indentPrint(svyInts)
+  }
+  if(debug>=3) cat("\n\t\t>>> calculating daily exposure\n")
+  # expoList   <- logex$calc_daily_expo(numNests=nNest, surveyDays=svyDays,
+  #                                  surveyInts=svyInts, firstDay=nestData$i,
+  #                                  lastDay=nestData$k, db=config$debugLL)
+  expoList   <- logex$calc_daily_expo(numNests=nNest, surveyDays=svyDays,
+                                   surveyInts=svyInts, firstDay=first,
+                                   lastDay=last, config=pyconfig,db=config$debugLogEx)
+  if(debug>=3) cat("\n\tmaking log exp dataframe\n")
+  dat2S <-  withCallingHandlers(
+    {logex$make_daily_logex_df(obsData=nestObs,
+                                     nObs=numObs,
+                                     expos=expoList[[1]],
+                                     covar1=expoList[[2]], # all survey dates for all nests
+                                     exp1 = exp1,
+                                     db=config$debugLogEx) },
+    error = function(e) { reticulate::py_last_error() } )
+  # return(list(expoList,dat2S))
+  if(debug>=3) cat("\n\t>-> dat2S:\n")
+  if(debug>=3) qvcalc::indentPrint(head(dat2S))
+  return(dat2S)
+}
+
+# calc_logexp <- function(modList,nestData,survey,exposure=0,config,debug=F){
+calc_logexp <- function(modList,dat2S,exp=0,config){
+
+  debug <- config$debugLogEx
+  if(debug>=3) cat("\n\t>>> calculating logistic exposure\n")
+
+  excpt <- FALSE
+  warn  <- FALSE
+  if (exp==1) {modList=modList[c(1,2)]}
+    # cat("\n|> made obs data\n") print(obsDat)
+  # tryCatch({ modOut <- fit_glm(modList,dat=dat2S,debug=config$debugLL) },
+  # withCallingHandlers({ modOut <- fit_glm(modList,dat=dat2S,debug=config$debugLL) },
+   # modOut <- tryCatch({
+  if(debug>=3) cat("\n\t>-> modList = ", modList)
+  tryCatch({
+
+    modOut <- withCallingHandlers({
+      fit_glm(modList,dat=dat2S,debug=config$debugLogEx) },
+
+      error = function(e) { 
+      message("\t!! error in glm:", e) 
+      # tryCatch({modOut <- fit_glm})
+      # message("!! error in glm:", e, "go to next") 
+      # excpt <<- TRUE
+      # coefsArray <- rep(-999, length(coef_names))
+      # coefs[,r,i] <- coefsArray
+      # coefsArray <- -999
+      # coefs[,r,i] <- -999
+      },
+
+      warning = function(w) { 
+        # message("!! warning in glm:", w, "go to next") 
+        message("\t!! warning in glm:", w) 
+        # if (modOut$converged==FALSE){
+        # excpt <<- TRUE
+        warn <<- TRUE
+        # coefsArray <- rep(-999, length(coef_names))
+        # coefs[,r,i] <- coefsArray
+        # coefs[,r,i] <- -999
+        # coefsArray <- -999
+    })
+   },
+
+   error=function(e){
+      cat("\n\t~~ exception - error ~~")
+      excpt <<- TRUE
+      # return("exception")
+   })
+  if(warn) {
+    message("~~ exception - warning but no error ~~")
+    # if(length(modOut>0)){
+    # if(is.list(modOut) & length(modOut>0)){
+    tryCatch({
+      if (modOut$converged==FALSE){
+        cat("\n\t~~ exception - model did not converge ~~")
+        return("exception")
+      # conv <- modOut$converged
+      }
+      },
+      error=function(e){
+        cat("unclear if converged - go to next")
+        excpt <<- TRUE
+        # return("exception")
+      })
+  }
+      # if (modOut$converged==FALSE){
+      # if (conv==FALSE){
+      #   # message("~~ exception ~~")
+      #   cat("\n\t~~ exception - model did not converge ~~")
+      #   return("exception")
+      #   }
+  if(excpt) return("exception")
+  coefsArray <- get_coef(modOut, debug=config$debugLogEx)
+  if(debug>=3) cat(sprintf("\n\t|> coefsArray <class:%s> =\n", class(coefsArray)))
+  if(debug>=3) qvcalc::indentPrint(coefsArray)
+  return(coefsArray)
+}
+
 fit_glm <- function(modList, dat, exposure = 1, debug=F){
   ## modList contains the formulas for the models
   # modList <- rlang::parse_exprs(modList)
-  if(debug>=3) cat("\n\t\tFITTING MODEL\n")
+  if(debug>=3) cat("\n\t\t>>> FITTING MODELS\n")
   out <- list()
-  # for(m in seq_along(modList)){
-  #   form <- as.formula(modList[m])
-  #   start <- c(1, rep(0,m-1))
-  #   if(debug) print(start)
-  #   if(debug) print(form)
-  #   # out[[m]] <- glm(modList[m], data=dat,
-  #   out[[m]] <- glm(form, data=dat, start=start,
-  #                   family=binomial(link=logexp(dat$Exposure)))
+  for(m in seq_along(modList)){
+    vars         <- stringr::str_extract_all(modList[m], "[\\w()^]{2,}")
+    vars         <- vars[[1]][-1]
+    # if(debug>=4) qvcalc::indentPrint(c("vars:",vars))
+    if(debug>=4) cat("\n\t\t\tvars: ",paste(vars, collapse=","))
+    form <- as.formula(modList[m])
+    # if(debug>=4) qvcalc::indentPrint(form)
+    # if(debug>=4) qvcalc::indentPrint(modList[m])
+    if(debug>=4) cat("\t\tmodel: ",modList[m])
+    # start <- c(1, rep(0,m-1))
+    start <- c(1, rep(0,length(vars)))
+    # if(debug>=4) qvcalc::indentPrint(start)
+    if(debug>=4) cat("\t\tstart: ",start)
+    # out[[m]] <- glm(modList[m], data=dat,
+    out[[m]] <- glm(form, data=dat, start=start,
+                    family=binomial(link=logexp(dat$Exposure)))
+    if(debug>=4) qvcalc::indentPrint(summary(out[[m]]),indent=8)
+  }
 
     ## move trycatch outside of function so you can skip entire iteration
 
@@ -105,25 +262,31 @@ fit_glm <- function(modList, dat, exposure = 1, debug=F){
   # if(debug) print(summary(out[[3]]))
 
   # just explicitly specify the formulas, since it doesn't like anything else...
-  out[[1]] <- glm(Surv~1, data=dat,
-                  family=binomial(link=logexp(dat$Exposure)))
-  if(debug>=4) qvcalc::indentPrint(summary(out[[1]]))
-
-  out[[2]] <- glm(Surv~Date, data=dat,
-                  family=binomial(link=logexp(dat$Exposure)))
-  if(debug>=4) qvcalc::indentPrint(summary(out[[2]]))
-
-  out[[3]] <- glm(Surv~Date+I(Date^2), data=dat,
-                  family=binomial(link=logexp(dat$Exposure)))
-  if(debug>=4) qvcalc::indentPrint(summary(out[[3]]))
-
-  out[[4]] <- glm(Surv~Age, data=dat,
-                  family=binomial(link=logexp(dat$Exposure)))
-  if(debug>=4) qvcalc::indentPrint(summary(out[[4]]))
-
-  out[[5]] <- glm(Surv~Date+Age, data=dat,
-                  family=binomial(link=logexp(dat$Exposure)))
-  if(debug>=4) qvcalc::indentPrint(summary(out[[5]]))
+  # dat <- na.omit(dat)
+  # out[[1]] <- glm(Surv~1, data=dat, start=c(1),control=glm.control(maxit=1000),
+  # # out[[1]] <- glm2(Surv~1, data=dat, start=c(1),control=glm.control(maxit=1000),
+  #                 family=binomial(link=logexp(dat$Exposure)))
+  # if(debug>=4) qvcalc::indentPrint(summary(out[[1]]),indent=8)
+  #
+  # out[[2]] <- glm(Surv~Date, data=dat, start=c(1,0),control=glm.control(maxit=1000),
+  #                 family=binomial(link=logexp(dat$Exposure)))
+  # if(debug>=4) qvcalc::indentPrint(summary(out[[2]]),indent=8)
+  #
+  # out[[3]] <- glm(Surv~Date+I(Date^2), data=dat, start=c(1,0,0),control=glm.control(maxit=1000),
+  #                 family=binomial(link=logexp(dat$Exposure)))
+  # if(debug>=4) qvcalc::indentPrint(summary(out[[3]]),indent=8)
+  #
+  # out[[4]] <- glm(Surv~Age, data=dat,start=c(1,0),control=glm.control(maxit=1000),
+  #                 family=binomial(link=logexp(dat$Exposure)))
+  # if(debug>=4) qvcalc::indentPrint(summary(out[[4]]),indent=8)
+  #
+  # out[[5]] <- glm(Surv~Date+Age, data=dat,start=c(1,0,0),control=glm.control(maxit=1000),
+  #                 family=binomial(link=logexp(dat$Exposure)))
+  # if(debug>=4) qvcalc::indentPrint(summary(out[[5]]),indent=8)
+  #
+  # out[[6]] <- glm(Surv~avDate, data=dat,start=c(1,0),control=glm.control(maxit=1000),
+  #                 family=binomial(link=logexp(dat$Exposure)))
+  # if(debug>=4) qvcalc::indentPrint(summary(out[[5]]),indent=8)
 
   return(out)
 }
@@ -146,7 +309,7 @@ get_logex <- function(nestData,coefsArray,mList,dat){
     qvcalc::indentPrint(propInit)
     qvcalc::indentPrint(propInitScl)
   }
-  dsrList <- make_pred(coefsArray, nmod, mList, newDat=dat2S,hTime=par$hatchTime, db=config$debugSummary)
+  dsrList <- make_pred(coefsArray, nmod, mList, newDat=dat2S,hTime=par$hatchTime, db=config$debugLogEx)
   dsrList <- dsrList[-1]
   psrList <- lapply(dsrList, function(x) x^par$hatchTime)
   if(debug>=4){
@@ -158,19 +321,23 @@ get_logex <- function(nestData,coefsArray,mList,dat){
 }
 
 get_coef <- function(modOut, debug=0){
+  if(debug>=3) cat("\n\t\t>>> getting coefficients from models\n")
   coefsArray = sapply(modOut, function(x){
-                        if(debug>=4) qvcalc::indentPrint(x)
+                        if(debug>=5) cat("\n\t\t\tcoefs input:\n")
+                        if(debug>=5) qvcalc::indentPrint(x,indent=8)
                         # print(coef(x))
                                 sapply(seq_along(coef(x)), function(y){
+                                # sapply(seq_along(x), function(y){
                                          ## R STILL trying to return conf instead of coef_arr?
                                          # print(y)
                                          if (is.matrix(confint.default(x))){ 
-                                            if (debug>=4) cat("\n\t\tcoefs&confint:\n")
-                                            if (debug>=4) qvcalc::indentPrint(c(coef(x)[y], confint.default(x)[y,]))
+                                            if (debug>=5) cat(sprintf("\n\t\t\t\t|>%s-coefs&confint:\n",y))
+                                            if (debug>=5) qvcalc::indentPrint(c(coef(x)[y], confint.default(x)[y,]),indent=8)
                                             return(c(coef(x)[y], confint.default(x)[y,]))
                                          } else {
-                                            if (debug>=4) cat("\n\t\tcoefs&confint:\n")
-                                           if (debug>=4) qvcalc::indentPrint(c(coef(x)[y], confint.default(x)[y]))
+                                            if (debug>=5) cat(sprintf("\n\t\t\t\t|>%s-coefs&confint:\n",y))
+                                            # if (debug>=4) cat("\n\t\tcoefs&confint:\n")
+                                           if (debug>=5) qvcalc::indentPrint(c(coef(x)[y], confint.default(x)[y]),indent=8)
                                            return(c(coef(x)[y], confint.default(x)[y]))
                                          }
                                          })
@@ -179,6 +346,9 @@ get_coef <- function(modOut, debug=0){
   if (debug>=4) qvcalc::indentPrint(coefsArray)
   return(coefsArray)
 }
+
+# get_trueDSR <- function(nestData){
+# }
 
 make_pred <- function(coefArr,nmod,mods,newDat,hTime,db=0){
   # intercepts <- array(NA, dim=c(nmod))
@@ -192,10 +362,14 @@ make_pred <- function(coefArr,nmod,mods,newDat,hTime,db=0){
   # for(m in 2:nmod){
   if(db>=3) cat("\n\t\tnewDat:\n")
   if(db>=3) qvcalc::indentPrint(head(newDat))
-  for(m in seq(2,nmod)){
+  for(m in seq(2,nmod)){# why get rid of the first one when already starting at 2??
     # vars         <- stringr::str_extract_all(mods, "\\w{2,}")[-1]
     # vars         <- stringr::str_extract_all(mods, "(?<=~)[\\w()^]{2,}")
     vars         <- stringr::str_extract_all(mods[m], "[\\w()^]{2,}")
+    # cat("\n\t\tcoefArr: ")
+    # qvcalc::indentPrint(coefArr)
+    # cat("\n\t\tVARS: ")
+    # qvcalc::indentPrint(vars)
     # vars         <- sapply(vars, function(x) x[-1])
     vars         <- vars[[1]][-1]
     if(db>=2) cat(sprintf("\n\t\tMODEL %s: %s ; VARS: %s",m, mods[m], vars))
@@ -212,7 +386,7 @@ make_pred <- function(coefArr,nmod,mods,newDat,hTime,db=0){
     # mod_eq       <- make_pr_eq(int,betas,vars,db)
     # mod_eq       <- str2expression(make_pr_eq(int,betas,newD,db))
     mod_eq       <- str2expression(make_pr_eq(int,betas,vars,db))
-    if(db>=3) cat("\n\t\tas expression:\n")
+    if(db>=3) cat("\n\t\tas expression:")
     if(db>=3) qvcalc::indentPrint(mod_eq)
     dsrList[[m]] <- eval(mod_eq, envir=newDat)
     if(db>=3) qvcalc::indentPrint (dsrList[[m]])
@@ -253,19 +427,21 @@ make_pr_eq <- function(intercept, betas, x,db){
   return(eq)
 }
 
-make_psr <- function(psrList, prop_nests){
+make_psr <- function(psrList, prop_nests,db=0){
   ## Make weighted PSR values 
   ## psrList is dsrList ^ hatchTime; prop_nests is proportion of nests initiated on day j
   ## this could either be the true number or some estimate by the observer
   ## for now, stick with the true number
   psrOut <- lapply(psrList, function(x) sum(x*prop_nests))
-  # print(psrList)
-  # print(prop_nests)
-  # cat("\ncalculate for first psr list:\n", length(psrList[[1]]), length(prop_nests))
-  # print(sum(psrList[[1]]*prop_nests))
-  # return(sum(psrList*prop_nests))
-  # cat("\noutput of make_psr:\n")
-  # print(psrOut)
+  if(db>=3){
+    cat(sprintf("\n\t>>> calculate for first psr list (lengths= %s, %s):\n", length(psrList[[1]]), length(prop_nests)))
+    qvcalc::indentPrint(psrList)
+    qvcalc::indentPrint(prop_nests)
+    # print(sum(psrList[[1]]*prop_nests))
+    # return(sum(psrList*prop_nests))
+    cat("\n\t|>output of make_psr:\n")
+    qvcalc::indentPrint(psrOut)
+  }
   return(psrOut)
 }
 
@@ -277,10 +453,11 @@ real_MARK <- function(nData, more=F , db=0){
   if(db>=5) qvcalc::indentPrint(inp)
   ## should output a list of arrays of DSR values & CIs:
   ret <- make_outp(inp, noc,more, db)
-  if (db>=1) cat("\nMARK: returning model results for ", names(ret))
+  if (db>=1) cat("\n\toooo|> MARK: returning model results for ", paste(names(ret),collapse=" ; "))
   return(ret)
 
 }
+
 make_inp <- function(dat,db=0){
   inp <- dat %>%
   mutate(Name        = sprintf("/*sim_%s*/", nest),
@@ -298,13 +475,26 @@ make_inp <- function(dat,db=0){
 
 make_outp <- function(inp, nocc,more=F,db=0){
   # res <- invisible(run_mark_models(inp,nocc, more))
+  if(db>=2) cat("\n<*><*><*> Run RMark <*><*><*><*><*>\n")
   res <- invisible(make_mark_models(inp,nocc,db))
-  if(db>=4) cat("\n\t\tRMark OUTPUT:\n")
-  if(db>=4) qvcalc::indentPrint(res)
+  if(db>=3) cat(sprintf("\n\t\tRMark OUTPUT <type: %s> :\n",class(res)))
+  if(db>=3) qvcalc::indentPrint(res)
+  # if(db>=3) cat("\n\t\tAICc scores:\n") ## outputs a list
+  # if(db>=3) print(sapply(res,function(x) x$results$AICc))
+  top <- which.min(unlist(sapply(res,function(x) x$results$AICc)))
+  # print(top)
+  # expre <- paste("res",names(top),sep="$")
+  expre <- paste(c("res",names(top),"results","real[,1:4]"),collapse="$")
+  # print(expre)
+  # print(rlang::expr(expre))
+  # dsr <- eval(parse(text=expre))
+  # print(res[top])
   dsrVals <- list()
-  dsrVals[["dot"]] <- res$S.dot$results$real[,1:4]
-  dsrVals[["date"]] <- res$S.date$results$real[,1:4]
+  dsrVals[["dot"]]   <- res$S.dot$results$real[,1:4]
+  dsrVals[["date"]]  <- res$S.date$results$real[,1:4]
   dsrVals[["dsAge"]] <- res$S.dsAge$results$real[,1:4]
+  dsrVals[["top"]]   <- eval(parse(text=expre))
+  dsrVals[["topname"]] <- top
   # dsrVals[["dot"]] <- res$Dot$results$real[,1:4]
   # if(more){
   #   dsrVals[["age"]] <- res$Age$results$real[,1:4]
@@ -404,3 +594,22 @@ run_mark_models <- function(dat,noc,runMore=F,inv=T,mod=NULL){
   return(RMark::collect.models())
 }
 
+# logexp_brglm_old <- function(days = 1) {
+#   linkfun <- function(mu) qlogis(mu^(1/days))
+#   linkinv <- function(eta) plogis(eta)^days
+#   mu.eta <- function(eta) days * plogis(eta)^(days-1) *
+#   binomial()$mu.eta(eta)
+#   valideta <- function(eta) TRUE
+#   link <- paste("logexp(", days, ")", sep="")
+#   structure(list(linkfun = linkfun, linkinv = linkinv,
+#           mu.eta = mu.eta, valideta = valideta, name = link),
+#           class = "link-glm")
+# }
+#
+#
+# br.custom.family.old <- function(p) {
+#   etas <- binomial(logexp(.days))$linkfun(p)
+#   list(ar=0.5*p/p, # so that to fix the length of ar
+#   at=0.5+exp(etas)*(1-p)/(2*p*.days))
+# }
+#
