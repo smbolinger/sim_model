@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from dsrCalc import calc_exp
 from print_func import arrPrint, dfPrint
 # from settings import config
-from rsettings import config
+# from rsettings import config
 import itertools
 from helpers import centerDat,print
 import statsmodels.formula.api as smf
@@ -19,7 +19,7 @@ from rpy2.robjects.packages import importr, data
 # from marginaleffects import *
 
 np.set_printoptions(precision=5, legacy='1.25', linewidth=999)
-debug = config.debug
+# debug = config.debug
 # NOTE previously part of dsrCalc (if you need git history)
 
 def build_dsr_mat(nestData,surveyDays,nDays,true=False,save=False,fname="",db=0 ):
@@ -60,14 +60,16 @@ def build_dsr_mat(nestData,surveyDays,nDays,true=False,save=False,fname="",db=0 
   mat.fill(np.nan)
   initInd = np.searchsorted(surveyDays, init)+1
   endInd = np.searchsorted(surveyDays, end)+1
-  if db>=3:
-    print(f"{initInd=}")
-    print(f"{endInd=}")
-    print(f"{mat.shape=}")
   # mat[:, ]
   init2d = initInd[:,np.newaxis]
   end2d = endInd[:,np.newaxis]
   fate2d = fate[:,np.newaxis]
+  #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  # if db>=3:
+  #   print(f"{initInd=}")
+  #   print(f"{endInd=}")
+  #   print(f"{mat.shape=}")
+  #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # print(f"{init2d=}")
   # print(f"{end2d=}")
   # print(f"{nNest=} ; {len(init)=} ; {len(end)=} ; {len(fate)=}")
@@ -90,96 +92,178 @@ def build_dsr_mat(nestData,surveyDays,nDays,true=False,save=False,fname="",db=0 
     # print(f"{initInd=} ; {endInd=}")
     # mat[:,initInd:endInd-1] = 1 # NOTE this modifies all rows in array
     mat[n,initX:endX] = 1
-  with np.printoptions(threshold=10000): # don't truncate
-    if db>=2: print(f"observations {mat=}")
-  if save:
-    print(f"{mat.shape=}")
-    mat = np.nan_to_num(mat, nan=-9999.0)
-    np.savetxt(fname, mat, delimiter=",")
+  #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  # with np.printoptions(threshold=10000): # don't truncate
+    # if db>=2: print(f"observations {mat=}")
+  # if save:
+  #   print(f"{mat.shape=}")
+  #   mat = np.nan_to_num(mat, nan=-9999.0)
+  #   np.savetxt(fname, mat, delimiter=",")
     # np.save(fname, mat)
+  #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   return mat
 
-def make_daily_logex_df(nestData,
+# def calc_daily_expo(numNests, surveyInts, surveyDays, firstDay, lastDay, config,db=0):
+def calc_daily_expo(numNests,surveyInts,surveyDays,firstDay,lastDay,config):
+  """
+    Calculate the daily exposure of each nest AND all survey days it's active
+    ----
+    ARGS:
+      
+    RETURNS:
+      a list containing:
+      1. a list of all exposure days across all nests
+      2. a list of all survey days across all nests
+  """
+  # svyInd = svy_position(init, end, surveyDays)
+  # print(f"{surveyInts=}")
+  db=config.debugLogEx
+  svyInd = svy_position(firstDay, lastDay, surveyDays,cn=config)
+  initPos, endPos = svyInd
+  # print(f"{initPos=} ; {endPos=}")
+  # print(surveyInts)
+
+  # expo = [surveyInts[initPos[n]:endPos[n]] for n in range(numNests)]
+  expo = []
+  sdays = []
+  # if(db>=3): print(f"\n\tSurvey ints that are zero: {surveyInts[surveyInts==0]}")
+  for n in range(numNests):
+    # NOTE becomes a list of arrays:
+    # expo.append(surveyInts[initPos[n]:endPos[n]]) #+> probably slow
+    #+> extend flattens the added arrays
+    # expo.extend(surveyInts[(initPos[n]+1):endPos[n]+1].tolist()) #+> probably slow
+    expo.extend(surveyInts[(initPos[n]):endPos[n]].tolist()) #+> probably slow
+    # sdays.extend(surveyDays[(initPos[n]+1):endPos[n]+1].tolist()) #+> probably slow
+    sdays.extend(surveyDays[(initPos[n]):endPos[n]].tolist()) #+> probably slow
+    
+    # expo.append(surveyInts[(initPos[n]+1):endPos[n]+1].tolist()) #+> probably slow
+
+  #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  # if db>=3:
+  #   # print(f"{numNests=} ")
+  #   print(f"\t\t{len(initPos)=} {initPos=} "
+  #         f"\n\t\t{len(endPos)=} {endPos=}"
+  #         )
+  #   print(f"\t\t{len(surveyDays[initPos])=} {surveyDays[initPos]=} "
+  #         f"\n\t\t{len(surveyDays[endPos])=} {surveyDays[endPos]=}"
+  #         )
+  #   print(f"\t{len(expo)=} {expo=} ")
+  #   print(f"\t{len(sdays)=} {sdays=} ")
+  #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  # if db>=3:
+  #   print(f"\t{surveyInts[initPos+1:endPos+1]=} ")
+    # print(f"\t{len(sdays2)=} {sdays2=} ")
+
+  ## These don't work:
+  # sdays2 = np.concatenate([surveyDays[initPos:endPos]])
+  # if db>=3: print(f"\t{len(sdays2)=} {sdays2=} ")
+  # expo2 = np.concatenate([surveyInts[(initPos+1):(endPos+1)]])
+  # if db>=3: print(f"\t{len(expo2)=} {expo2=} ")
+
+  # return expo
+  return [np.array(expo), sdays]
+
+def make_daily_logex_df(obsData,
                         nObs,
-                        expos,
-                        covar1,
+                        # expos,
+                        survey,
+                        config,
+                        # covar1,
                         # saveDF=False,
                         alldiff=True,
                         zeroInd=True,
                         multiFate=False,
                         pandas=False,
 
-                        # exp1=False,
+                        exp1=False,
                         # ctr=False,
-                        db=0,
+                        
+                        # db=0,
                         ):
   """
     idate = date of initial obs
     leave alldiff = True and get both columns
     exp1 is for calculating true nest survival (exposure=1)
-    nestData = ID, init, i, j, k, afate
+    obsData = ID, init, i, j, k, afate
     nObs = num obs (varies depening on which DSR is being calculated)
+
+    calls make_df 
+    ----
+    RETURNS:
+      pandas dataframe with 7 columns
+        [ID, surv, expo, avDate, Date, avAge, Age]
   """
   #NOTE 04-Apr: getting errors about length of column replacements,
   #NOTE   but only for stormFate==True
+  db = config.debugLogEx
   if db>=2: print("\t>-> making daily obs df",end=" ")
   # cols = ["id", "survive", "exposure", "idate", "date"]
   # cols = ["Nest.ID", "Surv", "Exposure", "ffDate", "Date", "Age", "propInit"]
   cols = ["Nest.ID", "Surv", "Exposure", "avDate", "Date","avAge", "Age"]
-  if isinstance(nestData, pd.DataFrame):
-    if db>=3: print(f"\n\t{type(nestData)=}")
-    nestData = nestData.to_numpy()
-  elif not isinstance(nestData, np.ndarray):
-    if db>=3: print(f"\n\t{type(nestData)=}")
-    nestData = np.array(nestData)
-  if db>=3: print(f"\t{type(nestData)=}\n{nestData=}")
+
+  ## CONVERT TO NUMPY ARRAY IF NOT ALREADY:
+  if isinstance(obsData, pd.DataFrame):
+    # if db>=3: print(f"\n\t\t\t{type(obsData)=}", end=" ")
+    # if db>=3: print(f"\t\t{obsData=}")
+    obsData = obsData.to_numpy()
+  elif not isinstance(obsData, np.ndarray):
+    # if db>=3: print(f"\n\t\t\t{type(obsData)=}", end=" ")
+    # if db>=3: print(f"\t\t{obsData=}")
+    obsData = np.array(obsData)
+  # svyDay, svyInt = survey[1:2]
+  svyDays, svyInts,stormSvy = survey
+  # if db>=4: print(f"\t\t{svyDay=}\n\t\t{svyInt=}")
+    
+  # if db>=4:
+    # print(f"\t\t\t{type(obsData)=}\n\t\t{obsData=}")
+    # print(f"\t\t >>> \t\t{obsData.shape=} {type(obsData)=}")
+    # dfPrint(obsData, names=cols)
+    # print(f"\t\t{cols=}")
   # nestID, init,ff, la, lc, afate, nObs = nestData.T
-  nestID, init,end,fate,ff, la, lc, afate = nestData.T
+  # nestID, init,end,fate,ff, la, lc, afate = nestData.T
+  ID, init,end,tfate,ff, la, lc, afate = obsData.T
+  
+  # if db>=4: print(f"\t\t|>{ID=}")
+  nNest = obsData.shape[0]
   # nObs = nObs.astype(int) if exp1 else 
-  if db>=4: print(f"\t{np.sum(nObs)=} ; {nObs=}")
+  # if db>=4: print(f"\t\t{np.sum(nObs)=} ; {nObs=}")
+  if exp1:
+    first,last,fate = init,end,tfate
+  else:
+    first,last,fate = ff,la,afate
+  # if db>=4: print(f"\tpass to make_df:")
+  # if db>=4: print(f"\t\t|>{first=}\n\t\t|>{last=}\n\t\t|>{fate=}")
   # nObs[afate!=0] +=1
   # print(f"nrows = {np.sum(nObs)=} ; {nObs=} ")
-  nNest = nestData.shape[0]
-  # nrows = np.sum(nObs)
-  nrows = int(np.sum(nObs))
-  initDay = np.repeat(init, nObs)
-  ageStart = ff-init 
-  ageEnd = lc-init
-  avAge = (ageEnd+ageStart)/2 
-  if db>=3: print(f"\t{nrows=}{type(nrows)=}")
-  if db>=3: print(f"\t{avAge=}")
-  if db>=3: print(f"\t{initDay=}")
-  if zeroInd:
-    endDay = np.cumsum(nObs) -1 #+> zero-indexed
-  else:
-    endDay = np.cumsum(nObs) 
-  endDay = endDay.astype(int)
-  if db>=3: print(f"\t{endDay=}")
-  if multiFate==False: # +> make all failures "0"
-    # afate = np.array([0 if i in [1,2,7] else 1 for i in afate])
-    afate = np.array([0 if i in [1,2,7] else 1 for i in afate])
-
-  mat = np.ones((nrows, len(cols) ))
-  if db>=3: print(f"\t{mat.shape=} | {len(expos)=}")
-  mat[:,0] = np.repeat(range(nNest), nObs) #+> repeat ID nObs times
-  mat[:,1][endDay] = afate
-  mat[:,2] = expos
-  # mat[:,3] = np.repeat(ff, nObs)
-  mat[:,3] = np.repeat((ff+lc)/2, nObs) # avg observation day
-  mat[:,4] = covar1
-  mat[:,5] = np.repeat(avAge,nObs)
-  mat[:,6] = covar1 - initDay
   # if alldiff:
   #   mat[:,3] = covar1
   # else:
   #   mat[:,3] = np.repeat(covar1, nObs)
+  # obsDay    = svyDay[(svyDay>=first)&(svyDay<=last)]
+  # expos    = np.diff(obsDay)
+  # expos = [expo1, expo2]
+  # if db>=4: print(f"\t\t{obsDay=}\n\t\t{expos=}")
+  if multiFate==False: # +> make all failures "0"
+    # afate = np.array([0 if i in [1,2,7] else 1 for i in afate])
+    fate = np.array([0 if i in [1,2,7] else 1 for i in fate])
 
+  expoList   = calc_daily_expo(numNests=nNest, surveyDays=svyDays,
+                                   surveyInts=svyInts, firstDay=first,
+                                   lastDay=last, config=config,)
+  # mat = make_df(ID,init,first,last,fate,nObs,nNest,expos,covar1,cols,db=db)
+  # mat = make_df(ID,init,first,last,fate,nObs,nNest,expos,obsDay,cols,db=db)
+  mat = make_df(ID,init,first,last,fate,nObs,nNest,expoList,cols,db=db)
+  # mat = make_df(ID,init,first,last,fate,nObs,nNest,survey,cols,db=db)
+  # if db>=2: print(f"\t\t{mat.shape=}")
   dfNew = pd.DataFrame(mat, columns=cols)
+  # if db>=4: print(f"\t\tBEFORE: {dfNew.shape=}, AFTER:", end=" ")
   dfNew['log_expo'] = np.log(dfNew['Exposure'])
-  if db>=2:
-    print(f"\t{dfNew.shape=}")
-    # print(f"{dfNew}")
-    dfPrint(dfNew)
+  cols = ["Nest.ID", "Surv", "Exposure", "avDate", "Date","avAge", "Age", "log_expo"]
+  # if db>=3:
+    # print(f"\t\t{dfNew.shape=}")
+    # dfPrint(dfNew, names=cols)
+    # print(f"\t\t\t{dfNew=}")
+  # if db>=2: dfPrint(dfNew)
 
   # NOTE save df in outer function
   # if saveDF:
@@ -189,7 +273,10 @@ def make_daily_logex_df(nestData,
 
   return dfNew
 
-def make_df(nestID, init, first, last, fate, nObs):
+# def make_df(ID,init, first, last, fate, nObs, nNest, expos, covar, cols, db=0):
+# def make_df(ID,init, first, last, fate, nObs, nNest, expos, obsDay, cols, db=0):
+def make_df(ID,init, first, last, fate, nObs, nNest, expo, cols, db=0):
+# def make_df(ID,init, first, last, fate, nObs, nNest,survey, cols, db=0):
   """
   PURPOSE
     calculate exposure, age, & date covariates for nest data
@@ -199,8 +286,49 @@ def make_df(nestID, init, first, last, fate, nObs):
     for obs DSR:
       first=i, last=k, fate=assigned fate, nObs=total observations
   """
+  # nrows = np.sum(nObs)
+  # svyDay, svyInt,stormSvy = survey
+  # if db>=4: print(f"\t\t{svyDay=}\n\t\t{svyInt=}")
+  nrows    = int(np.sum(nObs))
+  initDay  = np.repeat(init, nObs)
+  ageStart = first-init 
+  ageEnd   = last-init
+  avAge    = (ageEnd+ageStart)/2 
+  # obsDay    = np.repeat(0,nObs)
+  # obsDay    = svyDay[(svyDay>=first)&(svyDay<=last)]
+  # expos    = np.diff(obsDay)
+  expos,obsDay=expo
+  if db>=3: print(f"\t{expos=}{obsDay=}")
+  #   print(f"\t\t\t{nrows=}{type(nrows)=}")
+  #   print(f"\t\t\t{avAge=}")
+  #   print(f"\t\t\t{initDay=}")
+  # expo1, expo2=expos
 
-def make_logexp_df(nData):
+  # if zeroInd:
+  endDay = np.cumsum(nObs) -1 #+> zero-indexed
+  # else:
+    # endDay = np.cumsum(nObs) 
+  endDay = endDay.astype(int)
+  # if db>=3: print(f"\t\t\t{len(endDay)=} {endDay=}")
+
+  mat = np.ones((nrows, len(cols) ))
+  # if db>=3: print(f"\t\t{mat.shape=} | {len(expos)=}")
+  # mat[:,0] = np.repeat(range(nNest), nObs) #+> repeat ID nObs times
+  mat[:,0] = np.repeat(ID, nObs) #+> repeat ID nObs times
+  mat[:,1][endDay] = fate ## nest status is 1 unless failed on last check
+  mat[:,2] = expos
+  # mat[:,2] = expo2
+  # mat[:,3] = np.repeat(ff, nObs)
+  mat[:,3] = np.repeat((first+last)/2, nObs) # avg observation day
+  mat[:,4] = obsDay ## observation day
+  mat[:,5] = np.repeat(avAge,nObs)
+  mat[:,6] = obsDay - initDay
+  # if db>=3: print(f"\t\t\t{mat.shape=} \n\t{mat=}")
+  # if db>=4: dfPrint(mat,nprint=20,names=cols)
+
+  return mat
+
+def make_logexp_df(nData,config):
   afate = nData[:,7]
   ## +> center date to reduce multicollinearity
   # date  = nData[:,6] # +> k value
@@ -241,7 +369,7 @@ def make_logexp_df(nData):
 def log_exp(nData,
             par,
             svy,
-            # conf,
+            conf,
             alldiff=True,
             typ="daily",
             fname="",
@@ -301,6 +429,7 @@ def log_exp(nData,
                               surveyInts=svyInt,
                               firstDay=ffList,
                               lastDay=lcList,
+                              config=conf,
                               )
     expo, date = expList # print(nData[:,np.r_[0,4:8]])
     # obsHist = build_dsr_mat( nestObs=nData[:,np.r_[0,4:9]],
@@ -308,7 +437,7 @@ def log_exp(nData,
     covar = centerDat(covar) if ctr else covar
     # obsHist = make_daily_logex_df( nestObs=nData[:,np.r_[0,4:9]],
     # obsHist = make_daily_logex_df( nestObs=nData[:,np.r_[0,4:8,10]],
-    obsHist = make_daily_logex_df( nestData=nData[:,np.r_[0:2,4:8]],
+    obsHist = make_daily_logex_df( obsData=nData[:,np.r_[0:2,4:8]],
                                   nObs = nData[:,10],
                                   expos=expo,
                                   covar1=covar,
@@ -317,7 +446,7 @@ def log_exp(nData,
                                   ) # print(f"{obsHist=}")
     expDF = obsHist
   else:
-    expDF = make_logexp_df(nData)
+    expDF = make_logexp_df(nData,config=conf)
     expo = expDF['exposure'] # for custom link below
   # obsHist = build_dsr_mat(nNest=nData.shape[0],
   #                          init=initList,
@@ -350,44 +479,6 @@ def log_exp(nData,
   # if modSave:
   #   np.save(fname,coef)
   return out
-
-def calc_daily_expo(numNests, surveyInts, surveyDays, firstDay, lastDay, db=0):
-  """
-    Calculate the daily exposure of each nest AND all survey days it's active
-    ----
-    ARGS:
-      
-    RETURNS:
-      a list containing:
-      1. a list of all exposure days across all nests
-      2. a list of all survey days across all nests
-  """
-  # svyInd = svy_position(init, end, surveyDays)
-  # print(f"{surveyInts=}")
-  svyInd = svy_position(firstDay, lastDay, surveyDays)
-  initPos, endPos = svyInd
-  # print(f"{initPos=} ; {endPos=}")
-  # print(surveyInts)
-
-  # expo = [surveyInts[initPos[n]:endPos[n]] for n in range(numNests)]
-  expo = []
-  sdays = []
-  for n in range(numNests):
-    # NOTE becomes a list of arrays:
-    # expo.append(surveyInts[initPos[n]:endPos[n]]) #+> probably slow
-    #+> extend flattens the added arrays
-    expo.extend(surveyInts[(initPos[n]+1):endPos[n]+1].tolist()) #+> probably slow
-    # sdays.extend(surveyDays[(initPos[n]+1):endPos[n]+1].tolist()) #+> probably slow
-    sdays.extend(surveyDays[(initPos[n]):endPos[n]].tolist()) #+> probably slow
-    
-    # expo.append(surveyInts[(initPos[n]+1):endPos[n]+1].tolist()) #+> probably slow
-
-  if db>=3:
-    # print(f"{numNests=} ")
-    print(f"\t{len(expo)=} {expo=} ")
-    print(f"\t{len(sdays)=} {sdays=} ")
-  # return expo
-  return [np.array(expo), sdays]
 
 # def calc_true(obsDat):
 #   """
