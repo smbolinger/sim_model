@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import pickle
 pd.set_option('display.float_format', '{:.2f}'.format)
 pd.set_option('display.max_columns', None) ##+> print all columns
 pd.set_option('display.width', 999)
@@ -47,7 +48,6 @@ def dfPrint(x,abbr=True,nprint=10,ind=6,wd=90,concat="no",names:list=[]):
   elif concat=="rwise":
     print(pd.concat(dfList, axis=0).head(nrow))
 
-
 def indPrint(x:str, ntabs:int=2, nl=False): #+> print strings, indented
   # ntabs = ind/2 ## +> turns it into a float, which doesn't multiply w/str
   tabs = '\t' * ntabs
@@ -72,6 +72,7 @@ def arrPrint(x, ind=6,abbr=True,abval=12,comp=True, wd=90, sep=" "): #+> print a
   # pprint.pprint(x, indent=ind, compact=comp, width=wd) ## doesn't indent properly
   # pprint.pprint(f"{i for i in x} ", width=wd)
   # print("\t" + str(x).replace("\n", "\n\t"))
+  # wd=80 if abbr else 130
   np.set_printoptions(precision=3, linewidth=wd )
   tabs = ind*' '
   if not isinstance(x, np.ndarray):
@@ -87,13 +88,147 @@ def arrPrint(x, ind=6,abbr=True,abval=12,comp=True, wd=90, sep=" "): #+> print a
     x = np.array2string(x, precision=3, separator=sep, prefix=tabs)
     print(tabs, x, xlen) #+> print 'tabs' again here to indent the first line
 
+def print_all(sums, nestData, par, debug=0):
+  """
+    ARGS:
+      nestData = nest data w/excluded removed
+    -------
+    dsr_c = mcmc dsr; dsr_a = apparent dsr; dsr_d = app dsr (disc)
+    dsr_t = app DSR - true; dsr_m = MARK dsr; 
+
+    unpacked to ha,fl,dsc,unk,mc,ex,dsr_c,dsr_a,dsr_r,dsr_d
+  """
+  # ha,fl,dsc,unk,mc,ex,dsr_c,dsr_m,dsr_mf,dsr_a,dsr_t,dsr_d=sums #+>unpack vals
+  ha,fl,dsc,unk,mc,ex,dsr_c,psr_c,dsr_mf,dsr_a,dsr_t,dsr_d=sums #+>unpack vals
+  # if debug>=2:
+  # obsHat = sum(nestData[:])
+  print(
+    f"\n\t|== (true)num"
+    f" -flood: {fl.sum()} |"
+    f" -hatch: {ha.sum()} |"
+    f" (obs)num-flood: {sum(nestData[:,7]==2)} |"
+    f" -hatch: {sum(nestData[:,7]==0)} |"
+    f" unk: {unk.sum()}"
+    f" disc: {dsc.sum()} |"
+    f" excl: {ex.sum()} |"
+    f" misclass: {mc.sum()} |"
+    f" ==|"
+    )
+  # if debug>=1:
+  print(
+    f"\n\t|=="
+    f" (true)prop-hatch: {ha/par.numNests:.3f} |"
+    f" -flood: {ha/par.numNests:.3f} |"
+    # f" (obs)prop-hatch: {ha/par.numNests:.3f} |"
+    # f" -flood: {ha/par.numNests:.3f} |"
+    f" expected PSR: {par.probSurv**par.hatchTime} "
+    f" apparent DSR - all: {dsr_t:.3f} |"
+    f" - analyzed: {dsr_a:.3f} |"
+    f" - discovered: {dsr_d:.3f} ==| "
+    )
+  # if debug>=2: 
+  print(
+    f"\n\t|=="
+    # f" apparent DSR: {dsr_t:.3f} |"
+    f" assigned DSR: {par.probSurv} |"
+    f" MCMC DSR: {dsr_c:.3f} |"
+    f" Mayfield DSR: {dsr_mf:.3f} |"
+    # f" MARK DSR: {dsr_m:.3f} |"
+    # f" DSR diff"
+    f" MCMC DSR bias: {(dsr_t-dsr_c)/dsr_t:.3f} ==| \n"
+    )
+
+def printLL():
+  """ print entire likelihood equation """
+
+  stillAlive = np.array([1,0,0]) 
+  mortFlood  = np.array([0,1,0])
+  mortPred   = np.array([0,0,1])
+  TstateI = np.transpose(stillAlive)  # this is just one, not a vector? yes
+  trMat = np.load('out/trMat.npy')
+  with open("out/interval.pkl", "rb") as f:
+    intArg = pickle.load(f)
+  pwrN, pwrS, normInt, finPred, finStm = intArg
+  print(f"\n\n\t\t>> Maximum Likelihood:")
+
+  print(
+      f"\n\t\t\ttransition matrix: {trMat=} "
+      f"\n\t\t\tnormal interval: {stillAlive=} @ {pwrN=} @ {TstateI=} "
+      f"\n\t\t\tfailure-predation: {mortPred=} @ {pwrS=} @ {TstateI=} "
+      f"\n\t\t\tfailure-flood: {mortFlood=} @ {pwrS=} @ {TstateI=} "
+      f"\n\t\t\t{normInt=} {finPred=} {finStm=}"
+      )
+
+
+  llArg = np.load('out/arg_PrintLL.npy') 
+  numNests = len(llArg)
+  # for x in range(numNests):
+
+  logLik,logLikFin,numInt,logL,ids,fate = llArg.T
+  print(f"\n\t\t\t>> likelihood equations [(numInt * logLik) + logLikFin]:")
+
+  for x in range(numNests): ## range excludes end point
+    # print(">> likelihood equation: (",logLik[x],"*",numIntNorm[x],")+(",logLikStm[x],"*",numIntStm[x],")+(",logLikFin[x],"**(1 -",stormDuringFin[x],")+(", logLikFinStm[x],"**",stormDuringFin[x])
+    print(
+        f"\t\t\t\t\t\tnest {ids[x]:.0f} [fate:{fate[x]:.0f}]: " 
+    #  f"{numInt[x]:.0f} * {logLik[x]:.5f} + "
+       f"({numInt[x]:.0f} * {logLik[x]:.5f}) + {logLikFin[x]:.5f} ="
+    #  f"{logLikFinStm[x]:.5f} * (1-{stormDuringFin[x]:.0f}) + " 
+    #  f"{logLikFinStm[x]:.2f} * {stormDuringFin[x]:.2f} = "
+    #  f"{logLikelihood[x]:.2f}")
+       f" {logL[x]:.2f}"
+       )
+  print( f"\n\t\t\t\t\t\t\t|> total log likelihood: {logL.sum():>30.3f}"
+      )
+
+def print_nestdata(nData, names:list=[], nprint=10, abbrv=False):
+  """
+    ---------
+    PURPOSE: print values from nest data matrix
+    ---------
+
+    ARGS:
+      1. data to print
+      2. names [as list; default=[]]
+      3. number of lines to print [default=10]
+      
+     [0]:nest ID...........[1]:initiation.......[2]:end date..........
+     [3]:true fate ........[4]:first found......[5]:last active.......
+     [6]:last checked......[7]:assigned fate....[8]:num obs active.... 
+     [9]:len(final int)....[10]:num obs total....
+
+    -------
+    
+  """
+  # print("\t\t\tNESTS CREATED - DATA:")
+  ## don't understand why this is giving an "already assigned" eror
+  ## I didn't call dfPrint yet?
+  # nm = ["ID","init","end","fate"," i "," j "," k ","afate","nobs","fint","stm","obs_tot"]
+  nm = ["ID","init","end","fate","i","j","k","afate","nobs","fint","obs_tot"]
+  dfPrint(nData,abbr=abbrv, names=nm,nprint=nprint,ind=8)
+  # print(f"nData[0,1:9]=")
+
+def print_nd(nestData, nDisc, pSurv, hatchTime):
+  # if debug_nest: print("nestData, discovered only:\n", nestData)
+  print("nestData, discovered only:\n", nestData)
+  print(">> proportion of nests assigned hatch fate:", 
+          np.sum(nestData[:,3]==0)/(nDisc),
+          "vs period survival:", 
+          pSurv**hatchTime)
+
+  print(
+    ">> nests w/ only 1 obs while active:",
+    np.where(nestData[:,6] == nestData[:,7]), # where i==j
+    "& nests w/ unknown fate:",
+    np.where(nestData[:,9] == 7)
+    ) 
+
 def fate_prop(assignedFate, trueFate, discovered):
   aFates = [np.sum((assignedFate == x)[discovered==True]) for x in range(4)]
   # this proportion needs to be out of nests discovered AND assigned
   aFatesProp = [np.sum((assignedFate == x)[discovered==True])/(np.sum(discovered==True)) for x in range(4)]
   tFates = [np.sum((trueFate == x)[discovered==True]) for x in range(4)]
   tFatesProp = [np.sum((trueFate == x)[discovered==True])/(np.sum(discovered==True)) for x in range(4)]
-
 
 def print_prop(nData, whichNests):  
   if whichNests == "disc":
@@ -130,7 +265,6 @@ def print_prop_all(nData):
       "\t\t>> assigned [H D Fl U]: {aFates} ({aFatesProp})", 
       "\t\t>> true [H D Fl]: {tFates} ({tFatesProp})", 
       )
-
 
 def print_prop_disc(nData):  
   nData = nData[nData[:,4]!=0]
@@ -202,102 +336,18 @@ def print_mark(nprintRow=5, print_exp=False):
         f" (1 - {s[i]:.5f}**{mark[i,2]:.5f}) = {mark[i,0]:.5f}"
         )
   print(f"\t\t\t\t\t\t|> total negative log likelihood (sum of probs) = {np.sum(mark[:,0])}")
-    # print("| s=", s, "| nocc=", nocc)
-    # # print("----------------------------")
-    # print(">> all nest cell probabilities:\n", allp)
-    # # print("> number of nests:", len(ndata), "discovered nests:", len(disc))
-    # # print("inp (ID, i, j, k, fate:)\n",inp)
-    # # print("l=", l, "| s=", s, "| nocc=", nocc)
-    # # print(">> all degrees of freedom:\n", alldof)
-    # # print("log of all nest cell probabilities:", lnp)
-    # print(
-    #     ">> sum log nest cell probs to get negative log likelihood of the data:", nll)
-
 
 def print_observer(nData, svysTilDiscovery, discovered):
   print("surveys til discovery; discovered T/F:", svysTilDiscovery, discovered)
   print("FATES:")
   print(f"\ttrue:{nData[a,3]} | assigned:{nData[a,7]}" for a in range(nData.shape[1]))
-  # if cn.debugObs: print("nestID, init, end, tfate, i, j, k, afate, nnobs, intFin:\n", 
-  #             np.concatenate((nData,fate[:,None],out), axis=1))
-  # if cn.debugObs: print("total observed days:\n", out[:,2]-out[:,0], 
-  #             "& total days nest was active:\n", nData[:,2] - nData[:,1])
-  
-def print_nestdata(nData, names:list=[], nprint=10, abbrv=False):
-  """
-    ---------
-    PURPOSE: print values from nest data matrix
-    ---------
 
-    ARGS:
-      1. data to print
-      2. names [as list; default=[]]
-      3. number of lines to print [default=10]
-      
-     [0]:nest ID.......[1]:initiation.....[2]:end date....
-     [3]:true fate ....[4]:first found....[5]:last active.
-     [6]:last checked..[7]:assigned fate..[8]:num obs int.
-     [9]:days in final interval.......................
-
-    -------
-    
-  """
-  print("\t\t\tNESTS CREATED - DATA:")
-  ## don't understand why this is giving an "already assigned" eror
-  ## I didn't call dfPrint yet?
-  dfPrint(nData,abbr=abbrv, names=names,nprint=nprint,ind=8)
-  # print(f"nData[0,1:9]=")
-  ##+> have to transpose to rows before unpacking:
-  # init, end, trFate, i, j, k, asFate, nInt = nData.T[:,1:8]
-  # print(f"{init=}")
-
-# -----------------------------------------------------------------------------
-# def print_prop(assignedFate, trueFate, discovered):  
 def print_mk_fates():
   """
     Print data after calling the mk_fates function
   """
   print("\t>> ", )
-  # nestData[:,10] = assignedFate
-  # expDays = survival.sum()
-  # fail = ~trueHatch
-  # expF = survival[fail==True].sum()
-  # if debug: print(">> exposure days:", expDays) # why make this a separate column?
-                        #   could just sum survival column?
-  # exp = np.zeros(numNests)
-  # exp.fill(expDays)
-  # exposure varies based on the nest fate (failed nests are assumed to have 
-  # survived half, or 60% for Johnson, of the final interval)
-  # nestData[:,14] = exp
- 
-  #@#print(">> nest data:\n----id--ini-end-hch-fld-std-dsc-i--j--k-fate-nobs-sfin-nstm\n", nestData)
-# -----------------------------------------------------------------------------
-def print_nd(nestData, nDisc, pSurv, hatchTime):
-  # if debug_nest: print("nestData, discovered only:\n", nestData)
-  print("nestData, discovered only:\n", nestData)
-  print(">> proportion of nests assigned hatch fate:", 
-          np.sum(nestData[:,3]==0)/(nDisc),
-          "vs period survival:", 
-          pSurv**hatchTime)
 
-  print(
-    ">> nests w/ only 1 obs while active:",
-    np.where(nestData[:,6] == nestData[:,7]), # where i==j
-    "& nests w/ unknown fate:",
-    np.where(nestData[:,9] == 7)
-    ) 
-        # if debug:
-        #   print(
-        #     "\n>> assigned DSR:",
-        #     pSurv,
-        #     "true DSR of all nests:", 
-        #     trueDSR, 
-        #     "discovered nests:",
-        #     trueDSR_disc,
-        #     "and nests used in analysis:", 
-        #     trueDSR_an
-        #     )
-# -----------------------------------------------------------------------------
 def print_mayf(expo):
   print("output from exposure function:", expo)
   
@@ -307,35 +357,7 @@ def print_mayf(expo):
       "& final int:", expo[n,1], 
       "& exposure:", expo[n,2]
       )
-    
-    
-  # if debug:
-  #   print(
-  #     # f"> {nestType} nests - hatched:", hatched.sum(),
-  #     f"> {nestType} nests - hatched:", hatched,
-  #     "; failed:", nNests - hatched, 
-  #     # "; exposure days:", expDays[:,2].sum(),
-  #     "; exposure days:", expDays.sum(),
-  #     "; & Mayfield-40 DSR:", 1-dmr
-  #     )
-# -----------------------------------------------------------------------------
-def printLL(numNests, logLik, logLikFin, numInt, logL, ids, fate):
-  """ print entire likelihood equation """
 
-  print(f"\n\t\t\t>> likelihood equations [(numInt * logLik) + logLikFin]:")
-  for x in range(numNests): ## range excludes end point
-    # print(">> likelihood equation: (",logLik[x],"*",numIntNorm[x],")+(",logLikStm[x],"*",numIntStm[x],")+(",logLikFin[x],"**(1 -",stormDuringFin[x],")+(", logLikFinStm[x],"**",stormDuringFin[x])
-    print(
-        f"\t\t\t\t\t\tnest {ids[x]:.0f} [fate:{fate[x]:.0f}]: " 
-    #  f"{numInt[x]:.0f} * {logLik[x]:.5f} + "
-       f"({numInt[x]:.0f} * {logLik[x]:.5f}) + {logLikFin[x]:.5f} ="
-    #  f"{logLikFinStm[x]:.5f} * (1-{stormDuringFin[x]:.0f}) + " 
-    #  f"{logLikFinStm[x]:.2f} * {stormDuringFin[x]:.2f} = "
-    #  f"{logLikelihood[x]:.2f}")
-       f" {logL[x]:.2f}"
-       )
-  print( f"\n\t\t\t\t\t\t\t|> total log likelihood: {logL.sum():>30.3f}"
-      )
 # -----------------------------------------------------------------------------
 # def logL(numNests, normalInt, finalInt, numInt, ha, config=config):
 # def logL(numNests, intervals, numInt, ha, fl, config=config):
@@ -359,40 +381,6 @@ def printLL(numNests, logLik, logLikFin, numInt, logL, ids, fate):
 # -----------------------------------------------------------------------------
 # def prog_mark(s, ndata, probs, nocc, con=config):
 # @profile
-
-def print_all(sums, nestData, par, debug=0):
-  """
-    ARGS:
-      nestData = nest data w/excluded removed
-    -------
-
-    unpacked to ha,fl,dsc,unk,mc,ex,dsr_c,dsr_a,dsr_r,dsr_d
-  """
-  ha,fl,dsc,unk,mc,ex,dsr_c,dsr_m,dsr_a,dsr_t,dsr_d=sums #+>unpack vals
-  # if debug>=2:
-  print(
-    f"\n\t\t |== (true)flooded: {fl.sum()} |"
-    f" (true)hatched: {ha.sum()} |"
-    f" (obs)flooded: {sum(nestData[:,7]==2)} |"
-    f" (obs)hatched: {sum(nestData[:,7]==0)} |"
-    f" unk: {unk.sum()} ==|"
-    )
-  # if debug>=1:
-  print(
-    f"\n\t\t |== discovered: {dsc.sum()} |"
-    f" excluded: {ex.sum()} |"
-    f" misclassified: {mc.sum()} |"
-    f" apparent DSR - analyzed: {dsr_a:.3f} |"
-    f" discovered: {dsr_d:.3f}==| "
-    )
-  # if debug>=2: 
-  print(
-      f"\n\t\t |== apparent DSR: {dsr_t:.3f} |"
-    f" assigned DSR: {par.probSurv} |"
-    f" calc DSR: {dsr_c:.3f} |"
-    f" MARK DSR: {dsr_m:.3f} |"
-    f" DSR bias: {(dsr_t-dsr_c)/dsr_t:.3f} ==| \n"
-    )
 
 # def print_bias():
         # if (trueDSR_an - lVal[1]) / trueDSR_an > 40:
@@ -488,3 +476,65 @@ def print_disc(discovered, hatched, exposure):
 # -----------------------------------------------------------------------------
 # --- PRINT FUNCTIONS ---------------------------------------------------------
 # -----------------------------------------------------------------------------
+        # if debug:
+        #   print(
+        #     "\n>> assigned DSR:",
+        #     pSurv,
+        #     "true DSR of all nests:", 
+        #     trueDSR, 
+        #     "discovered nests:",
+        #     trueDSR_disc,
+        #     "and nests used in analysis:", 
+        #     trueDSR_an
+        #     )
+# -----------------------------------------------------------------------------
+    
+    
+  # if debug:
+  #   print(
+  #     # f"> {nestType} nests - hatched:", hatched.sum(),
+  #     f"> {nestType} nests - hatched:", hatched,
+  #     "; failed:", nNests - hatched, 
+  #     # "; exposure days:", expDays[:,2].sum(),
+  #     "; exposure days:", expDays.sum(),
+  #     "; & Mayfield-40 DSR:", 1-dmr
+  #     )
+# -----------------------------------------------------------------------------
+# def printLL(numNests, logLik, logLikFin, numInt, logL, ids, fate):
+# -----------------------------------------------------------------------------
+  # nestData[:,10] = assignedFate
+  # expDays = survival.sum()
+  # fail = ~trueHatch
+  # expF = survival[fail==True].sum()
+  # if debug: print(">> exposure days:", expDays) # why make this a separate column?
+                        #   could just sum survival column?
+  # exp = np.zeros(numNests)
+  # exp.fill(expDays)
+  # exposure varies based on the nest fate (failed nests are assumed to have 
+  # survived half, or 60% for Johnson, of the final interval)
+  # nestData[:,14] = exp
+ 
+  #@#print(">> nest data:\n----id--ini-end-hch-fld-std-dsc-i--j--k-fate-nobs-sfin-nstm\n", nestData)
+# -----------------------------------------------------------------------------
+  # if cn.debugObs: print("nestID, init, end, tfate, i, j, k, afate, nnobs, intFin:\n", 
+  #             np.concatenate((nData,fate[:,None],out), axis=1))
+  # if cn.debugObs: print("total observed days:\n", out[:,2]-out[:,0], 
+  #             "& total days nest was active:\n", nData[:,2] - nData[:,1])
+  
+  ##+> have to transpose to rows before unpacking:
+  # init, end, trFate, i, j, k, asFate, nInt = nData.T[:,1:8]
+  # print(f"{init=}")
+
+# -----------------------------------------------------------------------------
+# def print_prop(assignedFate, trueFate, discovered):  
+    # print("| s=", s, "| nocc=", nocc)
+    # # print("----------------------------")
+    # print(">> all nest cell probabilities:\n", allp)
+    # # print("> number of nests:", len(ndata), "discovered nests:", len(disc))
+    # # print("inp (ID, i, j, k, fate:)\n",inp)
+    # # print("l=", l, "| s=", s, "| nocc=", nocc)
+    # # print(">> all degrees of freedom:\n", alldof)
+    # # print("log of all nest cell probabilities:", lnp)
+    # print(
+    #     ">> sum log nest cell probs to get negative log likelihood of the data:", nll)
+

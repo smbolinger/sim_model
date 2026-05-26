@@ -10,10 +10,8 @@ from print_func import arrPrint,dfPrint
 # from rsettings import config, rng
 np.set_printoptions(precision=3)
 
-# debug=config.debugNest
-
 # def stormGen(frq, dur, stormDat=stormDat):
-def stormGen(frq, dur, config, rng, stormDat, stFromFile=True):
+def stormGen(frq, dur, config, rng, stormDat, stFromFile=True, db=1):
   """
     generate a list of days where storms happened.
 
@@ -27,19 +25,10 @@ def stormGen(frq, dur, config, rng, stormDat, stFromFile=True):
   """
   # stormDat=sprob_from_csv(storm_init) # is evaluated later, can account for wsl filenames
   # rng = np.random.default_rng(seed=config.rngSeed)
+  stormProb,weekStart = stormDat
+  if config.debugNests>=4: dfPrint(np.array([stormProb]), names=list(weekStart))
   if stFromFile:
     # stormDat=sprob_from_csv(config.stormInit) # is evaluated later, can account for wsl filenames
-    stormProb = [0.006,0.019,0.044,0.025,0.069,0.044,0.050,0.044,0.025,0.038,
-                 0.050,0.057,0.031,0.069,0.025,0.069,0.038]
-                 # 0.050,0.057,0.031,0.069,0.025,0.069,0.038,0.082,0.031,0.038,
-                 # 0.063,0.050,0.031]
-    stormProb = stormProb/np.sum(stormProb)
-    print(f"\t\tstormProb by week & week start day [{len(stormProb)=}]:")
-    # dfPrint(np.array([stormProb]), names=list(np.arange(23)))
-    # stormWeek = np.arange(23)
-    stormWeek = np.arange(1,18,1)
-    weekStart = stormWeek*7
-    dfPrint(np.array([stormProb]), names=list(weekStart))
     # out = rng.choice(a=[*stormDat], size=frq, replace=False, p=list(stormDat.values()))
     # print("\t\t|>choosing storm weeks from list:", end=" ")
     out = rng.choice(a=weekStart, size=frq, replace=False, p=stormProb)
@@ -52,14 +41,14 @@ def stormGen(frq, dur, config, rng, stormDat, stFromFile=True):
     # print("|>choosing storm days from imported data ", end=" ")
   else:
     out = rng.choice(40, size=frq,replace=False)
-    print("|>SMALL: choosing storm days from np.arange(40)", end=" ")
+    if db>=1: print("|>SMALL: choosing storm days from np.arange(40)", end=" ")
   dr = np.arange(0, dur, 1)
   stormDays = [out + x for x in dr] # add sequential storm days when dur>1
   stormDays = np.array(stormDays).flatten()
   # splits      = np.where(np.diff(stormDays)!=1)[0] +1 # print(f"{splits=}")
   # storms      = np.split(stormDays, splits)
   # print(f"\t\t{storms=}")
-  print(f"\t\t{stormDays=}")
+  # if config.debugNests>=4: print(f"\t\t{stormDays=}")
   # print("\t\t>> storm days:", stormDays)
   # NOTE: should i move part of the storm creation out of mk_survey_days to here?
   # arrPrint(stormDays)
@@ -73,42 +62,51 @@ def mk_init(numNests,config, rng, initDat, hTime="all", nWeek=0, initFromFile=Tr
     days is < 180 & we can't use init probs from file (too long)
   """
   # rng = np.random.default_rng(seed=config.rngSeed)
+  # probInit, weekStart = initDat
+  initProb, weekStart = initDat
+  # weekStart = weeks * 7
   if initFromFile:
     # initDat=init_from_csv(config.stormInit) # this will evaluate after storm_init has been changed for wsl
-    if hTime==16:
-      coniInit = [2,11,9,4,22,18,14,7,11,2,6,2,20]
-      initProb = coniInit/np.sum(coniInit)
-      coniWeek = np.arange(4,16,1)
-      weekStart = coniWeek * 7
-      initWeek = rng.choice(a=weekStart, size=numNests, p=initProb)  # random starting weeks; len(a) must equal len(p)
-    elif hTime==20:
-      leteInit = [4,74,67,48,51,33,42,41,34,28,36,10,7,96]
-      initProb = leteInit/np.sum(leteInit)
-      leteWeek = np.arange(3,16,1)
-      weekStart = leteWeek * 7
-      initWeek = rng.choice(a=weekStart, size=numNests, p=initProb)  # random starting weeks; len(a) must equal len(p)
-    elif hTime==28:
-      wiplInit = [1,7,18,7,8,6,1,5,11,3,1,6]
-      initProb = wiplInit/np.sum(wiplInit)
-      wiplWeek = np.arange(1,12,1)
-      weekStart = wiplWeek * 7
-      initWeek = rng.choice(a=weekStart, size=numNests, p=initProb)  # random starting weeks; len(a) must equal len(p)
-    else:
-      inits = [1,7,22,83,86,63,56,60,71,58,42,39,38,16,9]
-      initProb = inits/np.sum(inits)
-      weeks = np.arange(1,16,1)
-      weekStart = weeks*7
-      initWeek = rng.choice(a=weekStart, size=numNests, p=initProb)  # random starting weeks; len(a) must equal len(p)
+    # if hTime==16:
+    #   # coniInit = [2,11,9,4,22,18,14,7,11,2,6,2,20]
+    #   # initProb = coniInit/np.sum(coniInit)
+    #   # coniWeek = np.arange(4,16,1)
+    #   # weekStart = coniWeek * 7
+    #
+    #   initProb = probInit/np.sum(probInit)
+    #   initWeek = rng.choice(a=weekStart, size=numNests, p=initProb)  # random starting weeks; len(a) must equal len(p)
+    # elif hTime==20:
+    #   # leteInit = [4,74,67,48,51,33,42,41,34,28,36,10,7,96]
+    #   initProb = probInit/np.sum(probInit)
+    #   # leteWeek = np.arange(3,16,1)
+    #   # weekStart = leteWeek * 7
+    #   initWeek = rng.choice(a=weekStart, size=numNests, p=initProb)  # random starting weeks; len(a) must equal len(p)
+    # elif hTime==28:
+    #   # wiplInit = [1,7,18,7,8,6,1,5,11,3,1,6]
+    #   initProb = probInit/np.sum(probInit)
+    #   # wiplWeek = np.arange(1,12,1)
+    #   # weekStart = wiplWeek * 7
+    #   initWeek = rng.choice(a=weekStart, size=numNests, p=initProb)  # random starting weeks; len(a) must equal len(p)
+    # else:
+      # inits = [1,7,22,83,86,63,56,60,71,58,42,39,38,16,9]
+      # initProb = inits/np.sum(inits)
+    # initProb = probInit/np.sum(probInit)
+      # weeks = np.arange(1,16,1)
+      # weekStart = weeks*7
+    initWeek = rng.choice(a=weekStart, size=numNests, p=initProb)  # random starting weeks; len(a) must equal len(p)
       # initWeek = rng.choice(a=[*initDat], size=numNests, p=list(initDat.values()))  # random starting weeks; len(a) must equal len(p)
     # print(f"\t|> init dates from file")
   else:
     weeks = np.arange(1,nWeek)
-    # print(f"\t|>SMALL: init weeks from 1 to {nWeek}", end=" ")
+    print(f"\t|>SMALL: init weeks from 1 to {nWeek}", end=" ")
     initWeek = rng.choice(a=weeks, size=numNests)
-  initiation = initWeek + rng.integers(7)          # add a random number from 1 to 6 (?) 
+  # this adds the same integer to all:
+  # initiation = initWeek + rng.integers(7)          # add a random number from 1 to 6 (?) 
+  initiation = initWeek + rng.integers(1, 7, size=numNests)          # add a random number from 1 to 6 (?) 
   # if debug:
-  # if config.debugNests >= 4:
+  # if config.debugNests >= 3:
   #   print(">> initiation week start days:\n", initWeek) 
+  #   print(">> plus random integer:\n", initiation) 
   return(initiation)
 
 #-----------------------------------------------------------------------------
@@ -236,19 +234,20 @@ def mk_flood( stormDays, pMortFl, stormIndex, numNests, con,rng):
   flooded = np.zeros(numNests, dtype=np.int32) ## keep track of flooded nests
   #can be zeros, but need to remember 0 is also an index
   whichStorm = np.zeros(numNests, dtype=np.int32)
+  # stormFinal = np.zeros(numNests, dtype=np.int32)
   # totStormDays = 
   # flP = rng.uniform(low=0, high=1, size=sum(numStorms>0)) # not quite right because prob of flooding stays the same or each nest in different storms
   flP = rng.uniform(low=0, high=1, size=sum(numStorms)) 
-  if con.debugFlood>=2:
-    # print(f"\t\t\t|>{len(stormIndex)=} {stormIndex=}")
-    print("\t\t\t|>stormIndex:")
-    arrPrint(stormIndex,abval=5)
-    print(f"\t\t\t|>{len(stormDays)=} {stormDays=}")
-    print("\t\t\t|>prob of flooding:", pMortFl)
-    # arrPrint(pMortFl)
-  if con.debugFlood>=1:
-    print(f"\t\t\t|>random probabilities, one per storm ({len(flP)=}) :")
-    arrPrint(flP)
+  # if con.debugFlood>=2:
+  #   # print(f"\t\t\t|>{len(stormIndex)=} {stormIndex=}")
+  #   print("\t\t\t|>stormIndex:")
+  #   arrPrint(stormIndex,abval=5)
+  #   print(f"\t\t\t|>{len(stormDays)=} {stormDays=}")
+  #   print("\t\t\t|>prob of flooding:", pMortFl)
+  #   # arrPrint(pMortFl)
+  # if con.debugFlood>=1:
+  #   print(f"\t\t\t|>random probabilities, one per storm ({len(flP)=}) :")
+  #   arrPrint(flP)
   x=0
   # np.savetxt("storm_index.csv",stormIndex, delimiter=",")
   for n in range(numNests):
@@ -256,21 +255,21 @@ def mk_flood( stormDays, pMortFl, stormIndex, numNests, con,rng):
     # for s in range(numStorms[n]):
     if numStorms[n] > 0:
       flood = np.zeros(len(stormDays), dtype=np.int32)
-      if con.debugFlood>=2: print(f"\t\t\t\t\t{len(flood)=}) :",end=" ")
+      # if con.debugFlood>=2: print(f"\t\t\t\t\t{len(flood)=}) :",end=" ")
       for s in range(len(flood)): ##for each storm day when nest active:
         # if con.debugFlood>=3: print(f"{range(len(flood))=}", end=" ")
-        if con.debugFlood>=2: print(f"{s=}", end=" ")
+        # if con.debugFlood>=2: print(f"{s=}", end=" ")
         if stormIndex[n,s] == 1:
           flood[s] = flP[x] < pMortFl # I changed how pMortFL was defined.
-          if con.debugFlood>=3: print(f"{stormIndex[n,s]=} ; {flP[x]=:.3f} < {pMortFl=} ? {flood[s]=} ; {x=} ", end=" ")
+          # if con.debugFlood>=3: print(f"{stormIndex[n,s]=} ; {flP[x]=:.3f} < {pMortFl=} ? {flood[s]=} ; {x=} ", end=" ")
           x=x+1 ##
       if any(flood.astype(bool)):
         flooded[n] = 1 # but if default val is 0, could be confused for index 0...
         whichstorm = np.where(flood==1)[0] # first index where val==True
         # if con.debugFlood>=3: print(f"{whichStorm=}")
-        if con.debugFlood>=3: arrPrint(whichStorm, ind=10)
+        # if con.debugFlood>=3: arrPrint(whichStorm, ind=10)
         whichStorm[n] = stormDays[whichstorm[0]]
-        if con.debugFlood>=3: arrPrint(whichStorm, ind=10)
+        # if con.debugFlood>=3: arrPrint(whichStorm, ind=10)
         # if con.debugFlood>=2: print(f"{whichStorm=}")
       
   # stormInfo = np.concatenate((stormInfo, stormIndex), axis=1)
@@ -285,13 +284,14 @@ def mk_flood( stormDays, pMortFl, stormIndex, numNests, con,rng):
   stormInfo[:,0] = numStorms
   stormInfo[:,1] = whichStorm # stormInfo[:,1] = stormDays[whichStorm]
   stormInfo[:,2] = flooded # true number flooded
+  # stormInfo[:,3] = stormFinal # true number flooded
 
   return(stormInfo)
 # -----------------------------------------------------------------------------
 
 def mk_fates(nestDat, numNests, hatched,stormInfo, stormDays, con): #+>print
   """
-    Want number flooded to derive organically from the storm activity, instead 
+    Want number flooded to derive organicarrrArddd  dzly from the storm activity, instead 
     of being a preset value
 
     Runs mk_flood() to update end dates to account for storms. 
@@ -312,31 +312,31 @@ def mk_fates(nestDat, numNests, hatched,stormInfo, stormDays, con): #+>print
   whichStorm = stormInfo[:,1].astype(int) # now this is the actual storm DAY, not the index
   trueFate[hatched == True] = 0 # was nest discovered?  
   trueFate[flooded == True] = 2  # should override the nests that "hatched" that were actually during storm
-  if con.debugNests>=3:
-    print( "\t\t\t|>|> end date before storms accounted for:", end=" ")
-    arrPrint(nestDat[:,2])
+  # if con.debugNests>=3:
+    # print( "\t\t\t|>|> end date before storms accounted for:", end=" ")
+    # arrPrint(nestDat[:,2])
 
   ## change end date for flooded nests
   nestDat[:,2][flooded==True] = whichStorm[flooded==True]
-  if con.debugNests>=1: print("\t\t\t|>|> hatch?", sum(hatched), end=" ")
-  if con.debugNests>=3: arrPrint(hatched)
-  if con.debugNests>=1: print( "\t\t\t|>|> flood?", sum(flooded))
-  if con.debugNests>=3:
-    arrPrint( flooded)
-    print( "\t\t\t|>|> end date after storms accounted for:", end=" ")
-    arrPrint(nestDat[:,2])
+  # if con.debugNests>=1: print("\t\t\t|>|> hatch?", sum(hatched), end=" ")
+  # if con.debugNests>=3: arrPrint(hatched)
+  # if con.debugNests>=1: print( "\t\t\t|>|> flood?", sum(flooded))
+  # if con.debugNests>=3:
+    # arrPrint( flooded)
+    # print( "\t\t\t|>|> end date after storms accounted for:", end=" ")
+    # arrPrint(nestDat[:,2])
   
   nestDat = np.concatenate((nestDat, trueFate[:,None]), axis=1)
-  if con.debugNests>=3: print("\t\t\t[*] [*] creating fates [*] [*] [*]")
-  if con.debugNests>=3: print(f"\t\t\t\t{flooded=} | {whichStorm=} | {hatched=}")
-  if con.debugNests>=2:
-    print("\t\t>>> true final nest fates:", end=" ")# # ---- TRUE DSR ------------------------------------------------------------
-    print(
-        f"  H:{sum(trueFate==0)}|D:{sum(trueFate==1)}|Fl:{sum(trueFate==2)}",
-        end=" "
-        )
-    arrPrint(trueFate)
-  #OH, but I don't ever return nestDat anyway. so maybe this should be a function that ADDS true fate to nestDat.
+  # if con.debugNests>=3: print("\t\t\t[*] [*] creating fates [*] [*] [*]")
+  # if con.debugNests>=3: print(f"\t\t\t\t{flooded=} | {whichStorm=} | {hatched=}")
+  # if con.debugNests>=2:
+    # print("\t\t>>> true final nest fates:", end=" ")# # ---- TRUE DSR ------------------------------------------------------------
+    # print(
+        # f"  H:{sum(trueFate==0)}|D:{sum(trueFate==1)}|Fl:{sum(trueFate==2)}",
+        # end=" "
+        # )
+    # arrPrint(trueFate)
+  # OH, but I don't ever return nestDat anyway. so maybe this should be a function that ADDS true fate to nestDat.
 
   return(nestDat)
 

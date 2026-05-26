@@ -15,7 +15,11 @@ dependencies = [
     "python-language-server (>=0.36.2,<0.37.0)",
     "pyyaml (>=6.0.3,<7.0.0)",
     "matplotlib (>=3.10.8,<4.0.0)",
-    "plotext (>=5.3.2,<6.0.0)"
+    "plotext (>=5.3.2,<6.0.0)",
+    "pandas (>=3.0.1,<4.0.0)",
+    "statsmodels (>=0.14.6,<0.15.0)",
+    "rpy2 (>=3.6.7,<4.0.0)",
+    "marginaleffects (>=0.5.0,<0.6.0)"
 ]
 
 

@@ -1,6 +1,7 @@
 #!/usr/local/bin/python
 
 
+# NOTE use git log --follow to see full history
 # sudo vim -o file1 file2 [open 2 files] 
 # BLAH
 # :/^[^#]/ search for uncommented lines

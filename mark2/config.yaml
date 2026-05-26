@@ -1,37 +1,30 @@
 default:
-  nreps: 2
-  mark: False
-  mcmc: True
-  mcmcOld: False
-  logex: True
-  testing: "yes"
+  nreps: 1
+  testing: "no"
   optimizer: "Nelder-Mead"
   rngSeed: 71358
   mayfStart: True
   stormFate: 0
   hTime: 3
-  mcType: 2 # 0=fail, 1=unk
   saveNData: False
   predict: False
   predSave: "none"
   coefSave: "none"
   obsSave: False
   plotPred: False
-  debug: 2
+  debug: 0
   debugLL: 0
   debugNests: 0 
   debugM: 0
   debugObs: 0
   debugFlood: 0
   debugSummary: 0
-  debugLogEx: 0
-  debugDSR: 0
   msg: ""
   numOut: 11 # only used when saving ml vals to matrix
   useWin: False
   fnUnique: False
-  # likeDir: "/home/wodehouse/Projects/sim_model/out/default"
-  # stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
+  likeDir: "/home/wodehouse/Projects/sim_model/out/default"
+  stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
 
 # NOTE: atype can be overridden with cmd line args, but sometimes not feasible
 # NOTE:   (like when calling python from R)
@@ -39,25 +32,18 @@ default:
 # NOTE:     is chosen based on atype...
 
 full:
-  nreps: 400
-  mark: False
-  mcmc: True
-  mcmcOld: False
-  logex: True
+  nreps: 200
   saveNData: False
   predict: False
   testing: "no"
   optimizer: "Nelder-Mead"
-  #rngSeed: 1111953
+  #rngSeed: 11153
   #rngSeed: 7131958
   rngSeed: 10281991
-  #rngSeed: 61389 rngSeed: 82985
-  #rngSeed: 6131989
-  #rngSeed: 8291985 
+  #rngSeed: 82985
   mayfStart: False
   stormFate: 2 #0=false, 1=true, 2=use val from param list
-  hTime: 0 # 0=16, 1=20, 2=28, 3=use val from param list
-  mcType: 2 # 0=fail, 1=unk, 2=use val from param list
+  hTime: 2
   predSave: "none"
   coefSave: "none"
   obsSave: False
@@ -70,21 +56,15 @@ full:
   debugObs: 0
   debugFlood: 0
   debugSummary: 0
-  debugLogEx: 0
-  debugDSR: 0
   msg: ""
   numOut: 11
   useWin: False
   fnUnique: False
-  # likeDir: "/home/wodehouse/Projects/sim_model/out"
-  # stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
+  likeDir: "/home/wodehouse/Projects/sim_model/out"
+  stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
 
 test:
   nreps: 2 
-  mark: False
-  mcmc: True
-  mcmcOld: False
-  logex: True
   # nreps: 100
   # saveNData: True
   saveNData: False
@@ -102,45 +82,36 @@ test:
   plotPred: False
   stormFate: 2
   hTime: 3
-  mcType: 2 # 0=hatch/fail, 1=unk
   debug: 3
-  debugLL: 1 #mcmc
-  debugNests: 2 #nest creation
-  debugM: 0 #mark
-  debugObs: 3
-  debugFlood: 0
-  debugSummary: 1
-  debugLogEx: 1
-  debugDSR: 2
+  debugLL: 3
+  debugNests: 1 
+  debugM: 1
+  debugObs: 1
+  debugFlood: 1
+  debugSummary: 3
   msg: ""
   numOut: 11
   useWin: False
   fnUnique: False
-  # likeDir: "/home/wodehouse/Projects/sim_model/out/test"
-  # stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
+  likeDir: "/home/wodehouse/Projects/sim_model/out/test"
+  stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
 
 #####
   # likeDir: "/home/wodehouse/Projects/sim_model/out"
 
 ctrl:
-  nreps: 500
-  mark: False
-  mcmc: True
-  mcmcOld: False
-  logex: True
+  nreps: 300
   saveNData: False
   predict: False
   testing: "no"
   # optimizer: "Powell"
   optimizer: "Nelder-Mead"
-  #rngSeed: 82985
+  rngSeed: 82985
   #rngSeed: 6131989
   #rngSeed: 5171989
-  rngSeed: 1051990
   mayfStart: False
   stormFate: 2
   hTime: 3
-  mcType: 2 # 0=fail, 1=unk
   predSave: "none"
   coefSave: "none"
   obsSave: False
@@ -152,14 +123,12 @@ ctrl:
   debugObs: 0
   debugFlood: 0
   debugSummary: 0
-  debugLogEx: 0
-  debugDSR: 0
   msg: ""
   numOut: 11
   useWin: False
   fnUnique: True
-  # likeDir: "/home/wodehouse/Projects/sim_model/out"
-  # stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
+  likeDir: "/home/wodehouse/Projects/sim_model/out"
+  stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
 #
 ## nesting??
 # debugging:

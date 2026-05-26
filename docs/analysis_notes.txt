@@ -1,0 +1,24 @@
+
+picking the colors to be colorblind-friendly
+
+Purple/blue is not a good combo D:
+For sky blue/blue-green, pick colors with different values so one appears darker than the other
+Vermilion red and blue-green should be distinguishable, but pick different values again maybe?
+Yellow is good; make it a different value than the blue-green
+Gray is good
+
+see https://www.color-blindness.com/coblis-color-blindness-simulator/
+
+
+BOXPLOT FUNCTION:
+
+
+Use tidy evaluation to use the function arguments in aes()
+ .data[[var]]
+ 
+This is how I created the filter:
+* Use rlang::exprs() to create a list of unevaluated expressions (e.g. obs_int==obsint)
+* Use !!! (unsplice operator) to feed the expressions to dplyr::filter() 
+* Use list of expressions (filt) at all list indices except the one that matches var (filt[!grepl(var, filt)])
+
+

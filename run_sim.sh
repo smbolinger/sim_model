@@ -22,7 +22,7 @@ date=$(date +'%d%b')
 now=$(date +'%H:%M:%S')
 dstr=$(date +'%Y%m%d')
 argList=()
-file="/home/wodehouse/Projects/sim_model/datsim.py"
+file="/home/wodehouse/Projects/sim_model/run_datsim.py"
 datestr="${date:0:2}${-}${date:2}"
 testOn="false"
 pref=""
@@ -46,7 +46,7 @@ for val in "$@"; do # loop through all CLI arguments
   fi
   if [ $val == "test" ]; then
     testOn="true"
-    pref+="test_"
+    pref+="test-"
     echo -n "$val  "
     # echo $pref
   elif [ $val == "ctrl" ]; then

@@ -1,0 +1,64 @@
+
+19 May - changing how survey ints is calculated so it will be accurate
+tried increasing overall discovery probability to make the difference in bias from number of storms more detectable
+   just in case more storms also leads to fewer nests being discovered, canceling out any differnce from unknown fate nests?
+
+14 May - changing "true DSR" to weighted logistic exposure date model
+days for prediction should be actual days nests existed
+since weighted by num nests initiated on date, should be 1:last init day?
+
+13 May - changed mayfield calculation to exclude only unknown fate nests, not 
+"short" nests.
+But still not sure why including short-obs history nests made the estimate
+more sensitive to storm frequency/intensity
+
+10 May - log exposure/MCMC DSR still isn't responding to number or intensity of storms, but does respond to number unknown & number misclassified.
+Mayfield DSR does the opposite.
+Also, MCMC DSR is almost identical to log exposure in the new script, but not if I calculate it from the old script.
+I don't know what is going on.
+
+24 Mar - Somehow I was excluding too many nests for my functions. RMark consistntly used more nsts. Now th
+"exclusion" conditions match exactly, but still not getting the same number of nests used. And even when
+the same number of nests ar used, sometimes answers ar a few hundredths apart.
+  I think I was excluding all nests wher i=j instead of wher i=k
+  now they ar excluded when n obs < 1
+  still don't know why numberes arn't consistent, but they are closer now at least.
+  the bias also doesn't appear to always be in the same direction anymor.
+
+23 Mar - RMark recovers closer to the correct DSR, so there must b an issu with my MARK modl.
+
+19 Mar 2026 - could add an interval in between storms in addition to intensity
+
+
+
+
+to call w/atype=nstest: rr all_dsr.R atnstest nstest mc1
+
+>>>> param set #1 & par=Params(numNests=250, probSurv=0.94, pMortFl=0, stormFrq=0, stormDur=0, obsFreq=3, discProb=0.8, hatchTime=20, stormFate=False, brDays=180, whichLike=1, decayRate=0.05, SprobSurv=0.2, useSMat=False, pWrong=0, wType=7)
+params for the nests analyzed in RMark
+
+  "","psurvVal","lnVal","parID","repID"
+"1",0.931352,224,"00","00"
+"2",0.9328296,214,"00","01"
+"3",0.9425287,218,"00","02"
+"4",0.9315556,211,"00","03"
+"5",0.9348674,222,"00","04"
+"6",0.9432885,191,"01","00"
+"7",0.9459839,190,"01","01"
+"8",0.952552,190,"01","02"
+"9",0.9530275,182,"01","03"
+"10",0.9387395,177,"01","04"
+"11",0.9390609,436,"02","00"
+"12",0.9418154,442,"02","01"
+"13",0.9431476,448,"02","02"
+"14",0.9468774,433,"02","03"
+"15",0.943128,430,"02","04"
+"16",0.9320144,355,"03","00"
+"17",0.936043,363,"03","01"
+"18",0.9438735,365,"03","02"
+"19",0.942644,381,"03","03"
+"20",0.9423781,353,"03","04"
+
+parLists={'numNests':[250,500],'probSurv':[0.94,0.96,0.98],'brDays':[180],'discProb':[0.8],'pMortFl':[0.9,0.75,0.6],#flood/stormseverity'stormDur':[1,2],'stormFrq':[1,2,3,4],'obsFreq':[3,5,7],'stormFate':[False,True],'pWrong':[0],'wType':[-1],'hatchTime':[16,20,28]}
+
+staticPar = {'SprobSurv': 0.2, 'whichLike': 1, 'decayRate': 0.08, 'useSMat': False }
