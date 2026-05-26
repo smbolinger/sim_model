@@ -14,8 +14,9 @@ import sys
 from typing import Dict, Generator
 import yaml
 # from datsim import config
-from helpers import mk_outdir, mk_param_list_list
+from helpers import mk_outdir, mk_param_list_list,print,sprob_from_csv,init_from_csv
 from getClass import Config
+from print_func import dfPrint
 from paramLists import (
   staticPar,
   plSubset,
@@ -43,18 +44,23 @@ now_short  = datetime.today().strftime('%Y%m%d')
 # atype=""
 # atype_r = os.environ.get('atypeR')
 atype = os.environ.get('atypeR')
-debug=False
+mcType = os.environ.get('mcTypeR')
+# debug=False
 use_pwrong=False
 nWeeks = 2
 initFromFile = True
 stormFromFile = True
 np.set_printoptions(precision=3) # NOTE this doesn't work outside np arrays?
+printSettings = os.environ.get('printset')
+# if debug: print(f"\t\t>>{printSettings=}")
 
+# print("> run getopt -> ", end=" ")
 try:
   opts,args = getopt.gnu_getopt(sys.argv[1:],"ht:do:",["Help", "Type", "Debug","Options"])
 except getopt.error as err:
   print(str(err))
   sys.exit(2)
+# print(f"{opts=} {args=}")
 
 def load_config(fpath, ctype="default", debug=False):
   """
@@ -67,29 +73,31 @@ def load_config(fpath, ctype="default", debug=False):
       my_conf = yaml.safe_load(cfg) # if debug: print(">=> config:\n", my_conf)
   my_conf = Config(**my_conf[ctype]) ## select correct config set
   # if debug: print(f"\t\t>=> config, type {atype}; converted to class:", my_conf)
-  if debug: print(f"\t\t>=> config, type {ctype}; converted to class:", my_conf)
+  if debug: msg=f"\t\t>=> config, type {ctype}; converted to class: {my_conf}"
+  # return [my_conf,msg]
   return my_conf
 
 # atype="default" ## can be changed with CL args, below
 optval="none"
-for arg, val in opts:
-  if arg in ("-h", "--Help"):
-      print("\n-------------------------------------------------------------------------------------------------------",
-             "\nsimdata_vect.py usage:\n\n",
-            "[-t --Type] Choose mode w/ smaller # of nests and reduced # of params OR used fixed probs:\n",
-            # "\t\t1.'norm' - moderate values; 2.'storm' - extremes of storm values;\n",
-            "\t\t1.'nostorm'-no storms; 2.'test'-moderate values; 3.'storm'-extreme storm values;\n",
-            "\t\t3.'fixed'-fixed values; 4.'fixedtest'-test fixed; 5.'no' (default); 6.'nstest'-test no storm\n\n",
-            "[-d --Debug-general] Turn on simple/broad debugging statements? (Default:False)\n\n",
-            "\n-------------------------------------------------------------------------------------------------------"
-              )
-      sys.exit()
-  elif arg in ("-t", "--Type"):
-      atype=val
-  elif arg in ("-d", "--Debug-general"):
-      debug = True
-  elif arg in ("-o", "--Options"):
-    optval=val
+if len(opts)>0:
+  for arg, val in opts:
+    if arg in ("-h", "--Help"):
+        print("\n-------------------------------------------------------------------------------------------------------",
+               "\nsimdata_vect.py usage:\n\n",
+              "[-t --Type] Choose mode w/ smaller # of nests and reduced # of params OR used fixed probs:\n",
+              # "\t\t1.'norm' - moderate values; 2.'storm' - extremes of storm values;\n",
+              "\t\t1.'nostorm'-no storms; 2.'test'-moderate values; 3.'storm'-extreme storm values;\n",
+              "\t\t3.'fixed'-fixed values; 4.'fixedtest'-test fixed; 5.'no' (default); 6.'nstest'-test no storm\n\n",
+              "[-d --Debug-general] Turn on simple/broad debugging statements? (Default:False)\n\n",
+              "\n-------------------------------------------------------------------------------------------------------"
+                )
+        sys.exit()
+    elif arg in ("-t", "--Type"):
+        atype=val
+    elif arg in ("-d", "--Debug-general"):
+        debug = True
+    elif arg in ("-o", "--Options"):
+      optval=val
 
 # tests = ['debug', 'control','testing', 'storm', 'fixedtest', 'nstest']
 
@@ -101,77 +109,62 @@ ctrlList = ['control']
 #test2 is control vals; range is extremes at either end of param vals
 # ctrlList = ['control', 'test2']
 
-def choose_config(atype):
+def choose_config(atype,debug=False):
   if atype in tests:
     config=load_config("/home/wodehouse/Projects/sim_model/config.yaml", "test")
-    print("\t\t|>Config-TEST mode:", config.testing, end=" ")
+    msg = f"\t\t|>Config-TEST mode <{config.testing=}>"
 # elif atype == "full":
   elif atype in ctrlList:
     config=load_config("/home/wodehouse/Projects/sim_model/config.yaml", "ctrl")
+    msg = f"\t\t|>Config-control <{config.testing=}>"
   elif atype in fullList:
     config=load_config("/home/wodehouse/Projects/sim_model/config.yaml", "full")
-    print("\t\t|>Config-FULL mode", end=" ")
+    msg = f"\t\t|>Config-full <{config.testing=}>"
+    # msg=("\t\t|>Config-FULL mode", end=" ")
 # elif atype == ""
   else:
-    print("\t\t|>using default config", end=" ")
+    # msg=("\t\t|>using default config", end=" ")
     # config = load_config("/home/wodehouse/Projects/sim_model/config.yaml", debug=True)
     config = load_config("/home/wodehouse/Projects/sim_model/config.yaml")
-  return config
+    msg = f"\t\t|>Config-default <{config.testing=}>"
+  return config, msg
 
-# if debug:
-#   # config.debug = True
-#   config.debug = 2
-#   print("\t\t|>Config-debug (using default val):", config.debug, end=" ")
-#
-# #--- OTHER SETTINGS ------------------------------------------------------------
-# if config.useWin:
-#   config.likeDir = "C:/Users/Sarah/Dropbox/Models/sim_model/py_output"
-#   config.stormInit = "C:/Users/Sarah/Dropbox/Models/sim_model/storm_init3.csv" 
-#   config.fnUnique   = False
-#
-
-# def other_settings(config, pLists):
-  # print(f"\t|>{config.rngSeed=}", end=" ")
-  # rng = np.random.default_rng(seed=config.rngSeed)
-  #
-  # print(f"\t|>{config.optimizer=}", end=" ")
-  # odir  = mk_outdir(now_short, con=config)
-  # paramsArray = mk_param_list_list(parList=pLists, fdir=odir, suf=f"{config.rngSeed}{atype}", debug=False)
-  # pArrList = mk_param_list_list(parList=pLists, fdir=odir, suf=f"{config.rngSeed}{atype}", debug=False, listRet=True)
-
-def choose_parlist(atype, config):
+def choose_parlist(atype, config,debug=False):
   match atype:
     case "full":
       pLists = parLists
-      print("\t\t|>not testing; using full param lists",end=" ")
+      msg="\t\t|>not testing; using full param lists"
     case "control":
-      print("\t\t|>full w/control values", end=" ")
+      msg="\t\t|>full w/control values"
       pLists=plControl
       config.stormFate = 2
     case "predict":
-      print("\t\t|> full WITH PREDICTIONS")
+      msg="\t\t|> full WITH PREDICTIONS"
       config.predSave="mean"
       config.stormFate=2
       pLists=plSubset
     case "nostorm":
-      print("\t\t|>run with no storms")
+      msg=("\t\t|>run with no storms")
       pLists=plNoStorm
     case "nstest":
-      print("\t\t|>run with no storms")
+      msg=("\t\t|>run with no storms")
       pLists=plNSTest
     case "supp":
-      print("\t\t|>run with supplemental param sets")
+      msg=("\t\t|>run with supplemental param sets")
       pLists=plSupp
     case "norm":
       pLists = plTest
       # debug = True
-      print("\t\t|>using test values.")
+      msg=("\t\t|>using test values.")
     case "test2":
       pLists=plTest2
       # initFromFile=False
-      print("\t\t|>testing with control vals")
+      msg=("\t\t|>testing with control vals")
+    case "range":
+      msg="\t\t|>range of values"
+      pLists=plTestRange
     case "small":
-      print("\t\t|>small set of values", end=" ")
+      msg="\t\t|>small set of values"
       pLists=plSmall
       # initFromFile=False
       # staticPar['brDays'] = 25
@@ -185,84 +178,155 @@ def choose_parlist(atype, config):
     #   initFromFile=False
     case _:
       pLists = plDefault # don't need to update any settings if not testing?
-      print("\t\t|>no type provided; using default param lists", end=" ")
+      msg="\t\t|>no type provided; using default param lists"
 
   if config.hTime==0:
     pLists["hatchTime"] = [16]
-    print(f"\t\t\t|>!OVERRIDE - using {pLists["hatchTime"]} as hatch time", end=" ")
+    msg= msg + f"\t\t\t|>!OVERRIDE - using {pLists["hatchTime"]} as hatch time"
   if config.hTime==1:
     pLists["hatchTime"] = [20]
-    print(f"\t\t\t|>!OVERRIDE - using {pLists["hatchTime"]} as hatch time", end=" ")
+    msg= msg+f"\t\t\t|>!OVERRIDE - using {pLists["hatchTime"]} as hatch time"
   if config.hTime==2:
     pLists["hatchTime"] = [28]
-    print(f"\t\t\t|>!OVERRIDE - using {pLists["hatchTime"]} as hatch time", end=" ")
+    msg= msg+f"\t\t\t|>!OVERRIDE - using {pLists["hatchTime"]} as hatch time"
   else:
-    print(f"\t\t\t|> using {pLists["hatchTime"]} as hatch time", end=" ")
+    msg= msg+f"\t\t\t|> using {pLists["hatchTime"]} as hatch time"
   # if config.hTime==3:
   if config.stormFate==0:
     pLists["stormFate"] = [False]
-    print(f"\t\t>> override - using {pLists["stormFate"]} as storm fate", end=" ")
+    msg= msg+f"\t\t>> override - using {pLists["stormFate"]} as storm fate"
   elif config.stormFate==1:
     pLists["stormFate"] = [True]
     # print("using '2' as storm fate")
-    print(f"\t\t>> override - using {pLists["stormFate"]} as storm fate", end=" ")
+    msg=msg+f"\t\t>> override - using {pLists["stormFate"]} as storm fate"
   else:
-    print(f"\t\t\t|> using {pLists["stormFate"]} as storm fate", end=" ")
+    msg=msg+f"\t\t\t|> using {pLists["stormFate"]} as storm fate"
   if config.mcType==0:
     pLists['propMC'] = list(np.linspace(0.0,0.5,11))
-    print(f"\t\t\t|> ***OVERRIDE to change propMC: using {pLists["propMC"]=} & {pLists["propUnk"]=} ", end=" ")
+    msg=msg+f"\t\t\t|> ***OVERRIDE to change propMC: using {pLists["propMC"]=} & {pLists["propUnk"]=} "
   elif config.mcType==1:
     pLists['propUnk'] = list(np.linspace(0.0,0.5,11))
-    print(f"\t\t\t|> ***OVERRIDE to change propUnk: using {pLists["propMC"]=} & {pLists["propUnk"]=} ", end=" ")
+    msg=msg+f"\t\t\t|> ***OVERRIDE to change propUnk: using {pLists["propMC"]=} & {pLists["propUnk"]=} "
   else:
-    print(f"\t\t\t|> using {pLists["propMC"]=} & {pLists["propUnk"]=} ", end=" ")
+    msg=msg+f"\t\t\t|> using {pLists["propMC"]=} & {pLists["propUnk"]=} "
+  ## this might work better:
+  # if atype == nstest:
 
-  return pLists
-if atype in ["small", "test2"]:
-  initFromFile=False
-  stormFromFile=False
+  if atype in ["small", "test2"]:
+    initFromFile=False
+    stormFromFile=False
 
-# def edit_config(pLists, config):
-  # if config.stormFate==0:
-  #   pLists["stormFate"] = [False]
-  #   print(f"\t\t>> override - using {pLists["stormFate"]} as storm fate", end=" ")
-  # elif config.stormFate==1:
-  #   pLists["stormFate"] = [True]
-  #   # print("using '2' as storm fate")
-  #   print(f"\t\t>> override - using {pLists["stormFate"]} as storm fate", end=" ")
-  # else:
-  #   print(f"\t\t\t|> using {pLists["stormFate"]} as storm fate", end=" ")
+  if debug: print(msg)
+  # NOTE could you collect messages and then print the msg so far on error?
+  # NOTE that way, you can turn off printing in one place
+  # return pLists
+  # return [pLists, (msg)]
+  #NOTE need to return as tuple
+  return pLists, msg
 
-def print_settings(config, atype, paramsArray, scriptName = "lexp.R"):
-  print("\n\t[*] [*] [*] [*] [*] [*] settings [*] [*] [*] [*] [*] [*] [*] [*] [*] ")
-  print(f"|>{atype=}", end=" ")
+def print_settings(config, atype, initFromFile, paramsArray, pListOut, confMsg):
+  print("\n\t[*] [*] [*] [*] [*] [*] settings [*] [*] [*] [*] [*] [*] [*] [*] [*] \n")
+  print(confMsg, end=" ")
+  print(f"\t|>{atype=}", end=" ")
   print(f"\t|>{config.rngSeed=}", end=" ")
   print(f"\t|>{config.optimizer=}", end=" ")
   print(f"\t|>{initFromFile=}")
+  # if atype in tests:
+  #   print(f"\t\t|>Config-TEST mode <{config.testing=}>", end=" ")
+  # elif atype in ctrlList:
+  #   print(f"\t\t|>Config-control <{config.testing=}>", end=" ")
+  # elif atype in fullList:
+  #   print(f"\t\t|>Config-FULL <{config.testing=}>", end=" ")
+  # else:
+  #   print("\t\t|>Config-default <{config.testing=}>", end=" ")
+  # print(pListOut[0])
+  # print(pListOut[1])
 
-  print(f"|>saving nest data? {config.saveNData}", end=" ")
-  print(f"|>saving prediction data? {config.predSave}", end=" ")
-  print(f"|>saving model coefficients? {config.coefSave}", end=" ")
-  print(f"|>saving nest obs matrix? {config.obsSave}")
+  print(f"\t\t|>SAVING: nest data? {config.saveNData}", end=" ")
+  print(f">prediction data? {config.predSave}", end=" ")
+  print(f">model coefficients? {config.coefSave}", end=" ")
+  print(f">nest obs matrix? {config.obsSave}")
   print(
         f"\n|>|>|>{len(paramsArray)} param sets x {config.nreps} reps ="
         f" {len(paramsArray)*config.nreps} total rows"
         )
+  if config.debug>=3:
+    print("\t\t|>|>param sets:")
+    print(pArrList)
 
 
 # print(f"{atype=}\t\t{initFromFile=}")
 # NOTE needs to be saved in dir for specific script instance
 # with open(configFile, "wb") as f:
 #   pickle.dump(config,f)
-config = choose_config(atype)
-pLists = choose_parlist(atype, config)
+configOut = choose_config(atype)
+config = configOut[0]
+debug = config.debug
+confMsg = configOut[1]
+pListOut = choose_parlist(atype, config, debug=False)
+pLists = pListOut[0]
+# print(f"{pListOut=}")
+pListMsg = pListOut[1]
+# print(f"{pListMsg=}")
 odir  = mk_outdir(now_short, con=config)
+# print(f"{odir=}")
+# paramsArray = mk_param_list_list(parL=pLists, fdir=odir, suf=f"{config.rngSeed}{atype}", debug=config.debug)
 paramsArray = mk_param_list_list(parL=pLists, fdir=odir, suf=f"{config.rngSeed}{atype}", debug=False)
 pArrList = mk_param_list_list(parL=pLists, fdir=odir, suf=f"{config.rngSeed}{atype}", debug=False, listRet=True)
-if config.debug>=2:
-  print("|>|>param sets:")
-  print(pArrList)
 rng = np.random.default_rng(seed=config.rngSeed)
+# stormDat      = sprob_from_csv(config.stormInit,debug=True)
+# initDat      = init_from_csv(config.stormInit,debug=True)
+config.mcType = int(mcType)
+
+coniInit = [2,11,9,4,22,18,14,7,11,2,6,2,20]
+coniWeek = np.arange(4,16,1)
+leteInit = [4,74,67,48,51,33,42,41,34,28,36,10,7,96]
+leteWeek = np.arange(3,16,1)
+wiplInit = [1,7,18,7,8,6,1,5,11,3,1,6]
+wiplWeek = np.arange(1,12,1)
+inits = [1,7,22,83,86,63,56,60,71,58,42,39,38,16,9]
+weeks = np.arange(1,16,1)
+
+initProb = inits / np.sum(inits) # make them into probabilities again
+# init_weeks = np.arange(14,29,1)
+# weekStart = (init_weeks * 7) - 90 # why minus 90?
+weekStart = weeks * 7
+weekStart = weekStart.astype(int)
+initDat = [initProb, weekStart]
+if debug>=0: print(f"\n\t\tinitProb by week & week start day [{len(initProb)=}]:")
+if debug>=0: dfPrint(np.array([initProb]), names=list(weekStart))
+
+# stormProb = [0.006,0.019,0.044,0.025,0.069,0.044,0.050,0.044,0.025,0.038,
+# stormProb = [0.019,0.044,0.025,0.069,0.044,0.050,0.044,0.025,0.038,
+#              0.050,0.057,0.031,0.069,0.025]
+stormNum = [2,2,2,3,5,8,7,4,7,5,3,14,5,5,5]
+             # 0.050,0.057,0.031,0.069,0.025,0.069,0.038,0.082,0.031,0.038,
+             # 0.063,0.050,0.031]
+stormProb = stormNum/np.sum(stormNum)
+# dfPrint(np.array([stormProb]), names=list(np.arange(23)))
+# stormWeek = np.arange(23)
+# stormWeek = np.arange(1,18,1)
+stormWeek = np.arange(2,17,1)
+weekStart = stormWeek*7
+stormDat = [stormProb, weekStart]
+if debug>=0: print(f"\t\tstormProb by week & week start day [{len(stormProb)=}]:")
+if debug>=0: dfPrint(np.array([stormProb]), names=list(weekStart))
+
+if atype=="range":
+  config.nreps=50
+  config.debug=1
+  config.debugNests=0
+  config.debugLogEx=0
+  config.debugDSR=0
+  config.debugObs=0
+  print(f"*** OVERRIDE atype=range; {config.debug=} {config.debugNests=} {config.debugObs=} {config.nreps=}")
+
+if printSettings == 'TRUE':
+  print_settings(config, atype, initFromFile, paramsArray, pListMsg, confMsg )
+  
+
+if __name__ == "__main__":
+  print_settings(config, atype, initFromFile, paramsArray, pListMsg, confMsg )
 
 # print(f"\t|>{config.rngSeed=}", end=" ")
 # print(f"\t|>{config.optimizer=}", end=" ")
@@ -416,3 +480,35 @@ rng = np.random.default_rng(seed=config.rngSeed)
 
 # initDat=init_from_csv(storm_init) # this will evaluate after storm_init has been changed for wsl
 
+# if debug:
+#   # config.debug = True
+#   config.debug = 2
+#   print("\t\t|>Config-debug (using default val):", config.debug, end=" ")
+#
+# #--- OTHER SETTINGS ------------------------------------------------------------
+# if config.useWin:
+#   config.likeDir = "C:/Users/Sarah/Dropbox/Models/sim_model/py_output"
+#   config.stormInit = "C:/Users/Sarah/Dropbox/Models/sim_model/storm_init3.csv" 
+#   config.fnUnique   = False
+#
+
+
+# def other_settings(config, pLists):
+  # print(f"\t|>{config.rngSeed=}", end=" ")
+  # rng = np.random.default_rng(seed=config.rngSeed)
+  #
+  # print(f"\t|>{config.optimizer=}", end=" ")
+  # odir  = mk_outdir(now_short, con=config)
+  # paramsArray = mk_param_list_list(parList=pLists, fdir=odir, suf=f"{config.rngSeed}{atype}", debug=False)
+  # pArrList = mk_param_list_list(parList=pLists, fdir=odir, suf=f"{config.rngSeed}{atype}", debug=False, listRet=True)
+
+# def edit_config(pLists, config):
+  # if config.stormFate==0:
+  #   pLists["stormFate"] = [False]
+  #   print(f"\t\t>> override - using {pLists["stormFate"]} as storm fate", end=" ")
+  # elif config.stormFate==1:
+  #   pLists["stormFate"] = [True]
+  #   # print("using '2' as storm fate")
+  #   print(f"\t\t>> override - using {pLists["stormFate"]} as storm fate", end=" ")
+  # else:
+  #   print(f"\t\t\t|> using {pLists["stormFate"]} as storm fate", end=" ")
