@@ -66,13 +66,11 @@ mk_logex_data <- function(nestData,survey,pyconfig,exposure=0){
   nNest <- nrow(nestData) # cat("\nnumber of nests:", nNest)
   # nestObs <- nestData |> dplyr::select(ID, init, i, j, k, afate, totobs) # print(head(nestObs))
   nestObs <- nestData |> dplyr::select(ID, init,end,fate, i, j, k, afate) # print(head(nestObs))
-  if(debug>=3) cat("\n\n\t<*><*> Logistic exposure ")
+  # if(debug>=3) cat("\n\n\t<*><*> Logistic exposure ")
   if(exposure==1){
-    # svyDays = as.matrix(seq(max(survey[[1]])))
-    # svyInts = as.matrix(rep(1, length(svyDays)))
-    if(debug>=2) cat("- exposure=1 <*><*><*><*>\n")
+    # if(debug>=2) cat("- exposure=1 <*><*><*><*>\n")
     #NOTE: should this be up until the final active day of any nest?
-    svyDays <- np_array(seq(max(survey[[1]])))
+    svyDays <- np_array(seq(max(survey[[1]]))) ## better than using as.matrix?
     svyInts <- np_array(rep(1, length(svyDays)))
     # numObs <- sum(nestData[,"k"] - nestData[,"i"])
     ## sum happens inside function
@@ -83,7 +81,7 @@ mk_logex_data <- function(nestData,survey,pyconfig,exposure=0){
     last    <- nestData[,"end"]
     exp1    <- TRUE
   } else {
-    if(debug>=2) cat("- exposure=exposure <*><*><*><*>\n")
+    # if(debug>=2) cat("- exposure=exposure <*><*><*><*>\n")
     svyDays <- survey[[1]]
     svyInts <- survey[[2]]
     first   <- nestData[,"i"]
@@ -91,39 +89,53 @@ mk_logex_data <- function(nestData,survey,pyconfig,exposure=0){
     numObs  <- nestData[, "totobs"]
     exp1    <- FALSE
   }
-  if(debug>=3){
-    cat("\n\t>->num obs:", numObs)
-    cat(sprintf("\n\t>-> survey days (len %s) & survey ints (len %s) to pass to logexp functions:\n",length(svyDays),length(svyInts)))
-    qvcalc::indentPrint(svyDays)
-    qvcalc::indentPrint(svyInts)
-  }
-  if(debug>=3) cat("\n\t\t>>> calculating daily exposure\n")
   # expoList   <- logex$calc_daily_expo(numNests=nNest, surveyDays=svyDays,
   #                                  surveyInts=svyInts, firstDay=nestData$i,
   #                                  lastDay=nestData$k, db=config$debugLL)
+
   expoList   <- logex$calc_daily_expo(numNests=nNest, surveyDays=svyDays,
                                    surveyInts=svyInts, firstDay=first,
-                                   lastDay=last, config=pyconfig,db=config$debugLogEx)
-  if(debug>=3) cat("\n\tmaking log exp dataframe\n")
+                                   lastDay=last, config=pyconfig)
+  # if(dbug>=3) cat("\n\tmaking log exp dataframe\n")
+  # if(debug>=3) cat("\n\tpass obs data to make_daily_logex_df:\n")
+  # if(debug>=3) qvcalc::indentPrint(head(nestData,30))
   dat2S <-  withCallingHandlers(
     {logex$make_daily_logex_df(obsData=nestObs,
                                      nObs=numObs,
-                                     expos=expoList[[1]],
-                                     covar1=expoList[[2]], # all survey dates for all nests
-                                     exp1 = exp1,
-                                     db=config$debugLogEx) },
+                                     survey=survey,
+                                     config=pyconfig,
+                                     expoList=expoList,
+                                     # expos=expoList[[1]],
+                                     # covar1=expoList[[2]], # all survey dates for all nests
+                                     exp1 = exp1)},
+                                     # db=config$debugLogEx) },
     error = function(e) { reticulate::py_last_error() } )
   # return(list(expoList,dat2S))
-  if(debug>=3) cat("\n\t>-> dat2S:\n")
-  if(debug>=3) qvcalc::indentPrint(head(dat2S))
+  #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  if(debug>=3){
+    cat("\n\t>->num obs:", numObs)
+    cat(sprintf("\n\t>-> survey end days (len %s) & survey ints (len %s) to pass to logexp functions:\n",
+                length(svyDays),length(svyInts)))
+    # print(class(svyInts)) 
+    # print(class(svyDays))
+    # print(py_to_r(svyInts))
+    # print(py_to_r(svyInts)[-1])
+    # prvec(py_to_r(svyInts), nms=py_to_r(svyDays)[-1])
+    prvec(py_to_r(svyInts), nms=py_to_r(svyDays)[-length(svyDays)])
+    # qvcalc::indentPrint(svyDays)
+    # qvcalc::indentPrint(svyInts)
+  }
+  if(debug>=3) cat("\n\t\t>>> calculating daily exposure\n")
+  # if(debug>=3) cat("\n\t>-> dat2S:\n")
+  # if(debug>=3) qvcalc::indentPrint(head(dat2S, 25))
+  #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   return(dat2S)
 }
 
-# calc_logexp <- function(modList,nestData,survey,exposure=0,config,debug=F){
 calc_logexp <- function(modList,dat2S,exp=0,config){
 
   debug <- config$debugLogEx
-  if(debug>=3) cat("\n\t>>> calculating logistic exposure\n")
+  # if(dbug>=3) cat("\n\t>>> calculating logistic exposure\n")
 
   excpt <- FALSE
   warn  <- FALSE
@@ -192,8 +204,10 @@ calc_logexp <- function(modList,dat2S,exp=0,config){
       #   }
   if(excpt) return("exception")
   coefsArray <- get_coef(modOut, debug=config$debugLogEx)
-  if(debug>=3) cat(sprintf("\n\t|> coefsArray <class:%s> =\n", class(coefsArray)))
-  if(debug>=3) qvcalc::indentPrint(coefsArray)
+  #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  # if(debug>=3) cat(sprintf("\n\t|> coefsArray <class:%s> =\n", class(coefsArray)))
+  # if(debug>=3) qvcalc::indentPrint(coefsArray)
+  #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   return(coefsArray)
 }
 
@@ -205,20 +219,16 @@ fit_glm <- function(modList, dat, exposure = 1, debug=F){
   for(m in seq_along(modList)){
     vars         <- stringr::str_extract_all(modList[m], "[\\w()^]{2,}")
     vars         <- vars[[1]][-1]
-    # if(debug>=4) qvcalc::indentPrint(c("vars:",vars))
-    if(debug>=4) cat("\n\t\t\tvars: ",paste(vars, collapse=","))
+    # if(debug>=4) cat("\n\t\t\tvars: ",paste(vars, collapse=","))
     form <- as.formula(modList[m])
-    # if(debug>=4) qvcalc::indentPrint(form)
-    # if(debug>=4) qvcalc::indentPrint(modList[m])
-    if(debug>=4) cat("\t\tmodel: ",modList[m])
+    # if(debug>=4) cat("\t\tmodel: ",modList[m])
     # start <- c(1, rep(0,m-1))
     start <- c(1, rep(0,length(vars)))
-    # if(debug>=4) qvcalc::indentPrint(start)
-    if(debug>=4) cat("\t\tstart: ",start)
+    # if(debug>=4) cat("\t\tstart: ",start)
     # out[[m]] <- glm(modList[m], data=dat,
     out[[m]] <- glm(form, data=dat, start=start,
                     family=binomial(link=logexp(dat$Exposure)))
-    if(debug>=4) qvcalc::indentPrint(summary(out[[m]]),indent=8)
+    # if(debug>=4) qvcalc::indentPrint(summary(out[[m]]),indent=8)
   }
 
     ## move trycatch outside of function so you can skip entire iteration
@@ -291,24 +301,27 @@ fit_glm <- function(modList, dat, exposure = 1, debug=F){
   return(out)
 }
 
-get_logex <- function(nestData,coefsArray,mList,dat){
+get_logex <- function(nestData,coefsArray,mList,dat,config){
+  debug = config$debugLogEx
   dsr1 <-  1/(1+exp(-coefsArray[[1]][1,1]))
   psr1 <- dsr1 ^ par$hatchTime
   allInits <- nestData$init
   numInit <- sapply(dat$Date, function(x) sum(allInits==x))
   propInit <- numInit/par$numNests
   propInitScl <- propInit/sum(propInit)
-  if(debug>=4){
-    cat("\n\t\tinits & dates:\n")
-    qvcalc::indentPrint(allInits)
-    qvcalc::indentPrint(dat2S$Date)
-    # cat("\nnum inits before date:\n")
-    cat("\n\t\tnum inits on date:\n")
-    qvcalc::indentPrint(numInit)
-    cat("\n\t\tproportion inits on date:\n")
-    qvcalc::indentPrint(propInit)
-    qvcalc::indentPrint(propInitScl)
-  }
+  #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  # if(debug>=4){
+  #   cat("\n\t\tinits & dates:\n")
+  #   qvcalc::indentPrint(allInits)
+  #   qvcalc::indentPrint(dat2S$Date)
+  #   # cat("\nnum inits before date:\n")
+  #   cat("\n\t\tnum inits on date:\n")
+  #   qvcalc::indentPrint(numInit)
+  #   cat("\n\t\tproportion inits on date:\n")
+  #   qvcalc::indentPrint(propInit)
+  #   qvcalc::indentPrint(propInitScl)
+  # }
+  #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   dsrList <- make_pred(coefsArray, nmod, mList, newDat=dat2S,hTime=par$hatchTime, db=config$debugLogEx)
   dsrList <- dsrList[-1]
   psrList <- lapply(dsrList, function(x) x^par$hatchTime)
@@ -321,29 +334,29 @@ get_logex <- function(nestData,coefsArray,mList,dat){
 }
 
 get_coef <- function(modOut, debug=0){
-  if(debug>=3) cat("\n\t\t>>> getting coefficients from models\n")
+  # if(debug>=3) cat("\n\t\t>>> getting coefficients from models\n")
   coefsArray = sapply(modOut, function(x){
-                        if(debug>=5) cat("\n\t\t\tcoefs input:\n")
-                        if(debug>=5) qvcalc::indentPrint(x,indent=8)
+                        # if(debug>=5) cat("\n\t\t\tcoefs input:\n")
+                        # if(debug>=5) qvcalc::indentPrint(x,indent=8)
                         # print(coef(x))
                                 sapply(seq_along(coef(x)), function(y){
                                 # sapply(seq_along(x), function(y){
                                          ## R STILL trying to return conf instead of coef_arr?
                                          # print(y)
                                          if (is.matrix(confint.default(x))){ 
-                                            if (debug>=5) cat(sprintf("\n\t\t\t\t|>%s-coefs&confint:\n",y))
-                                            if (debug>=5) qvcalc::indentPrint(c(coef(x)[y], confint.default(x)[y,]),indent=8)
+                                            # if (debug>=5) cat(sprintf("\n\t\t\t\t|>%s-coefs&confint:\n",y))
+                                            # if (debug>=5) qvcalc::indentPrint(c(coef(x)[y], confint.default(x)[y,]),indent=8)
                                             return(c(coef(x)[y], confint.default(x)[y,]))
                                          } else {
-                                            if (debug>=5) cat(sprintf("\n\t\t\t\t|>%s-coefs&confint:\n",y))
-                                            # if (debug>=4) cat("\n\t\tcoefs&confint:\n")
-                                           if (debug>=5) qvcalc::indentPrint(c(coef(x)[y], confint.default(x)[y]),indent=8)
+                                            # if (debug>=5) cat(sprintf("\n\t\t\t\t|>%s-coefs&confint:\n",y))
+                                            # # if (debug>=4) cat("\n\t\tcoefs&confint:\n")
+                                           # if (debug>=5) qvcalc::indentPrint(c(coef(x)[y], confint.default(x)[y]),indent=8)
                                            return(c(coef(x)[y], confint.default(x)[y]))
                                          }
                                          })
                  })
-  if (debug>=4) cat("\n\t\t\tcoefs output:\n")
-  if (debug>=4) qvcalc::indentPrint(coefsArray)
+  # if (debug>=4) cat("\n\t\t\tcoefs output:\n")
+  # if (debug>=4) qvcalc::indentPrint(coefsArray)
   return(coefsArray)
 }
 
@@ -360,8 +373,8 @@ make_pred <- function(coefArr,nmod,mods,newDat,hTime,db=0){
   # mod_eq[[1]] <- plogis(coefArr[[]])
   ## already calculated for constant model in the main script
   # for(m in 2:nmod){
-  if(db>=3) cat("\n\t\tnewDat:\n")
-  if(db>=3) qvcalc::indentPrint(head(newDat))
+  # if(db>=3) cat("\n\t\tnewDat:\n")
+  # if(db>=3) qvcalc::indentPrint(head(newDat))
   for(m in seq(2,nmod)){# why get rid of the first one when already starting at 2??
     # vars         <- stringr::str_extract_all(mods, "\\w{2,}")[-1]
     # vars         <- stringr::str_extract_all(mods, "(?<=~)[\\w()^]{2,}")
@@ -372,7 +385,7 @@ make_pred <- function(coefArr,nmod,mods,newDat,hTime,db=0){
     # qvcalc::indentPrint(vars)
     # vars         <- sapply(vars, function(x) x[-1])
     vars         <- vars[[1]][-1]
-    if(db>=2) cat(sprintf("\n\t\tMODEL %s: %s ; VARS: %s",m, mods[m], vars))
+    # if(db>=2) cat(sprintf("\n\t\tMODEL %s: %s ; VARS: %s",m, mods[m], vars))
     int          <- coefArr[[m]][1,1]
     # betas        <- sapply(coefArr, function(x) )
     if(length(vars)>1){
@@ -386,43 +399,32 @@ make_pred <- function(coefArr,nmod,mods,newDat,hTime,db=0){
     # mod_eq       <- make_pr_eq(int,betas,vars,db)
     # mod_eq       <- str2expression(make_pr_eq(int,betas,newD,db))
     mod_eq       <- str2expression(make_pr_eq(int,betas,vars,db))
-    if(db>=3) cat("\n\t\tas expression:")
-    if(db>=3) qvcalc::indentPrint(mod_eq)
+    # if(db>=3) cat("\n\t\tas expression:")
+    # if(db>=3) qvcalc::indentPrint(mod_eq)
     dsrList[[m]] <- eval(mod_eq, envir=newDat)
-    if(db>=3) qvcalc::indentPrint (dsrList[[m]])
+    # if(db>=3) qvcalc::indentPrint (dsrList[[m]])
     # dsrList[[m]] <- plogis(mod_eq[[m]])
     # psrList[[m]] <- dsrList[[m]]^hTime
   }
   # psrList <- sapply(dsrList, function(x) x^hTime)
   return(dsrList)
-  # dsrArr1 <-  1/(1+exp(-(coefsArray[[2]][1,1] + coefsArray[[2]][1,2] * prDays)))
-  # if (debug>=3) cat("\ndsr & psr from model 1:\n")
-  # if (debug>=3) print(dsrArr1)
-  # psrArr1 <- dsrArr1 ^ par$hatchTime
-  # if (debug>=3) print(psrArr1)
-  # dsrArr2 <-  1/(1+exp(-(coefsArray[[3]][1,1] + coefsArray[[3]][1,2] * prDays + coefsArray[[3]][1,3] * prDays^2)))
-  # psrArr2 <- dsrArr2 ^ par$hatchTime
-  # if (debug>=3) cat("\ndsr & psr from model 2:\n")
-  # if (debug>=3) print(dsrArr2)
-  # if (debug>=3) print(psrArr2)
-  # plogis(intercept )
 }
 
 make_pr_eq <- function(intercept, betas, x,db){
   # if(db>=3) cat(sprintf("\npass to function: %s %s %s\n",intercept, betas,x))
-  if(db>=3) cat(sprintf("\n\t\tpass to function: %s %s \n",intercept, paste(betas,x, sep=" ")))
+  # if(db>=3) cat(sprintf("\n\t\tpass to function: %s %s \n",intercept, paste(betas,x, sep=" ")))
   # if(length(betas)>1){
   #   beta_expand <- sapply(betas, function(i) paste(betas[i],x[i],sep="*"))
   # }else{
   beta_expand <- paste(betas,x,sep="*")
   # }
-  if(db>=3) cat(sprintf("\n\t\tbetas: %s\n", beta_expand))
+  # if(db>=3) cat(sprintf("\n\t\tbetas: %s\n", beta_expand))
   # eqs <- sapply(beta_expand, function(x)cat( intercept,"+", paste(x, collapse="+")))
   # eq <- cat( intercept,"+", paste(beta_expand, collapse="+"))
   # eq <- sprintf("%s + %s", intercept, paste(beta_expand, collapse="+"))
   # eq <- sprintf("qlogis(%s + %s)", intercept, paste(beta_expand, collapse="+"))
   eq <- sprintf("1/(1+exp(-(%s + %s)))", intercept, paste(beta_expand, collapse="+"))
-  if(db>=3) cat("\t\t>> equation:", eq)
+  # if(db>=3) cat("\t\t>> equation:", eq)
 
   return(eq)
 }
@@ -433,15 +435,18 @@ make_psr <- function(psrList, prop_nests,db=0){
   ## this could either be the true number or some estimate by the observer
   ## for now, stick with the true number
   psrOut <- lapply(psrList, function(x) sum(x*prop_nests))
-  if(db>=3){
-    cat(sprintf("\n\t>>> calculate for first psr list (lengths= %s, %s):\n", length(psrList[[1]]), length(prop_nests)))
-    qvcalc::indentPrint(psrList)
-    qvcalc::indentPrint(prop_nests)
-    # print(sum(psrList[[1]]*prop_nests))
-    # return(sum(psrList*prop_nests))
-    cat("\n\t|>output of make_psr:\n")
-    qvcalc::indentPrint(psrOut)
-  }
+  #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  # if(db>=3){
+  #   cat(sprintf("\n\t>>> calculate for first psr list (lengths= %s, %s):\n",
+  #               length(psrList[[1]]), length(prop_nests)))
+  #   qvcalc::indentPrint(psrList)
+  #   qvcalc::indentPrint(prop_nests)
+  #   # print(sum(psrList[[1]]*prop_nests))
+  #   # return(sum(psrList*prop_nests))
+  #   cat("\n\t|>output of make_psr:\n")
+  #   qvcalc::indentPrint(psrOut)
+  # }
+  #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   return(psrOut)
 }
 
