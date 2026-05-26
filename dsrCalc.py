@@ -1,24 +1,19 @@
+from datetime import datetime
+import pandas as pd
 import numpy as np
 from MCmatrix import logistic
 from observer import svy_position
-import pandas as pd
-import matplotlib as pl
 from print_func import arrPrint, dfPrint
-from settings import config
+# from settings import config
+# from rsettings import config
 import itertools
-# from marginaleffects import predictions, datagrid
-# from marginaleffects import *
-import statsmodels.formula.api as smf
-import statsmodels.api as sm
-import rpy2
-import rpy2.robjects as robj
-from rpy2.robjects.packages import importr, data
+from helpers import centerDat, print
 
 
 
 # np.set_printoptions(precision=5, legacy='1.25', linewidth=120)
 np.set_printoptions(precision=5, legacy='1.25', linewidth=999)
-debug = config.debug
+# debug = config.debug
 
 def calc_exp(inp, cn, expPercent=0.5, debug=0): 
   """
@@ -189,9 +184,12 @@ def calc_dsr(nData, nestType, calcType, conf, incTime=0, psurv=0, debug=0):
     calc_exp doesn't work for all nests since many weren't discovered
   """
 
+  if isinstance(nData,pd.DataFrame):
+    nData = nData.to_numpy()
   nNests  = len(nData)
-  if calcType=="mayfield":
-    expDays = calc_exp(nData[:,4:7], expPercent=0.4, cn=conf, debug=debug)
+  # if calcType=="mayfield":
+    ## +> pass i,j,k to calc_exp
+    # expDays = calc_exp(nData[:,4:7], expPercent=0.4, cn=conf, debug=debug)
   # hatched = len(nData[:,3] == 0)
   # failed  = nNests-hatched
   
@@ -202,7 +200,7 @@ def calc_dsr(nData, nestType, calcType, conf, incTime=0, psurv=0, debug=0):
   # if debug>=2: print(f"{nestType=} | {calcType=} |> ", end="   ")
   # if debug>=2:
     # print(f"\n\t\t\t|>{nestType=}|{calcType=}|{incTime=}|{psurv=}|>", end=" ")
-  if calcType=="apparent":
+  if calcType=="apparent" or calcType=="all":
     # if debug>=3: 
     #   print("\t> exposure days calc type = 'true'")
     #   print("\t> calculating exposure days from all nests")
@@ -211,14 +209,14 @@ def calc_dsr(nData, nestType, calcType, conf, incTime=0, psurv=0, debug=0):
     avgExp  = allDays/nNests
     hatched = sum(nData[:,3] == 0)
     apparent = hatched/nNests
-    appDSR   = 1-((nNests-hatched)/allDays)
+    appDSR   = 1-((nNests-hatched)/allDays) ## +> num failures/total days
 
-    # if debug>=2:
-      # print(
-          # f"\t\tapp. DSR (1-(true_num_fail/total_days)):{appDSR:.3f} "
-          # f"\t\t1 - (({nNests}-{hatched}) / {allDays}) = {appDSR:.3f} "
-          # # f"| expected DSR: {psurv}"
-          # )
+    if debug>=3:
+      print(
+          f"\t\t>> calculate apparent DSR: (1-(true_num_fail/total_days)):{appDSR:.3f} "
+          f"\t\t1 - (({nNests}-{hatched}) / {allDays}) = {appDSR:.3f} "
+          # f"| expected DSR: {psurv}"
+          )
     # if debug>=3: 
       # print(
             # f"\n\t\t\tapparent nest success s (hatched/total): {apparent:.3f} "
@@ -228,20 +226,22 @@ def calc_dsr(nData, nestType, calcType, conf, incTime=0, psurv=0, debug=0):
       # for n in range(5):
         # print(f"\t\t\t\texposure days: {nData[n,2]} - {nData[n,1]}")
     return(appDSR)
-  else:
-    # expDays = calc_exp(nData[:,4:7], expPercent=0.4, cn=conf, debug=0)
+  # else:
+  elif calcType=="mayfield":
+    expDays = calc_exp(nData[:,4:7], expPercent=0.4, cn=conf, debug=0)
     expDays = expDays[:,2].sum()
     hatched = sum(nData[:,7] == 0)
     dmr   = mayfield(num_fail=nNests-hatched, expo=expDays)
 
     ## +> now mayfield function prints instead..
-    # if debug>=2:
-    #   print(
-          # f"\t{expDays=:.3f}|{nNests-hatched=}|"
-          # f"{dmr=:.3f}|{1-dmr=:.3f} "
-          # # f"| expected DSR={psurv}"
-          # )
+    if debug>=3:
+      print(
+          f"\t\t>> calculate mayfield DSR: {expDays=:.3f}|{nNests-hatched=}|"
+          f"{dmr=:.3f}|{1-dmr=:.3f} "
+          # f"| expected DSR={psurv}"
+          )
     return(1-dmr)
+  # else:
 
 
 # if debug: 
@@ -333,408 +333,5 @@ def mark_wrapper(srn, ndata, nocc, conf):
   #@#print("ret=", ret)
   return ret
 
-
-
-def time_model():
-  """
-  """
-
-def make_logexp_df(nData):
-  afate = nData[:,7]
-  # date  = nData[:,2]
-  ## +> center date to reduce multicollinearity
-  # date  = nData[:,6] # +> k value
-  date  = nData[:,4] # +> i value
-  mndate = np.mean(date)
-  date = date - mndate
-
-  week = np.floor(date/7)
-  # mnweek = np.mean(week)
-
-  age  = nData[:,6] - nData[:,1] 
-  # print(f"{week=}")
-  # print("centered dates:\n", date)
-  expo = calc_exp(nData[:,4:7], cn=config, debug=2)
-  expDF = pd.DataFrame({'exposure': expo[:,2],
-                        'afate': afate,
-                        'date': date,
-                        'week': week
-                        })
-  # print(expDF.corr())
-  # print(expDF['date'][expDF['survive']==0])
-
-  expDF['survive'] =  [0 if x in [1,2] else 1 for x in expDF['afate']]
-  expDF['log_expo'] = np.log(expDF['exposure'])
-
-  # TODO: fix something weird with dfPrint output? just shows NA
-
-    # print("survive column:")
-    # arrPrint(expDF['survive'], abbr=False)
-    # print("log exposure:")
-    # arrPrint(expDF['log_expo'], abbr=False)
-    # print("dates where survive==0 & survive==1:")
-    # print(expDF.loc[expDF['survive']==0, ['date']])
-    # print(expDF.loc[expDF['survive']==1, ['date']])
-  return(expDF)
-
-# def log_exp_r(nData, output='predict'):
-# def log_exp(expo, afate, date):
-# def log_exp(nData,par,nSurvey, fname="", modSave=False, predSave=False):
-def log_exp(nData,par,svy,typ="daily",fname="", modSave=False, predSave=False):
-  """
-    The logistic exposure model for an intercept-only model &
-    a model with effect of end date & a quadratic end date model
-    -----
-    ARGS: 
-      exposure days, assigned fate,
-        & date of fate assignment for each nest
-    -----
-    RETURNS:
-      
-    -----
-    NOTES:
-      Uses clog-log link function, and then adds an offset
-      to account for exposure
-
-      Date is centered
-  """
-  # +> PERIOD SURVIVAL
-
-  nNest = nData.shape[0]
-  svyDays, svyInt, stormSvy = svy
-  # nSurvey = len(svyDays)
-  ffList = nData[:,4].astype(int)
-  lcList = nData[:,6].astype(int)
-  #---BUILD TRUE NEST HISTORY:
-  # initList = nData[:,1].astype(int) #+> true init date
-  # endList = nData[:,2].astype(int)  #+> true end date
-  # #+> convert fate to 0 = failed, 1 = hatched
-  # fateList = np.array([0 if i in [1,2] else 1 for i in nData[:,3]])
-  # trueHist = build_dsr_mat_old(nNest=nData.shape[0],
-  #                          init=initList,
-  #                          end=endList,
-  #                          fate=fateList,
-  #                          nDays=par.brDays)
-
-  #+> DAILY SURVIVAL
-  #---BUILD NEST OBSERVATION HISTORY:
-  #+> convert fate to 0 = failed, 1 = hatched
-  if typ == "daily":
-    afateList = np.array([0 if i in [1,2] else 1 for i in nData[:,7]])
-    # expo = calc_daily_expo(nNest, svyDays, svyInts, initList, endList  )
-    expo = calc_daily_expo(numNests=nNest,
-                        surveyDays=svyDays,
-                        surveyInts=svyInt,
-                        firstDay=ffList,
-                        lastDay=lcList  )
-    # print(nData[:,np.r_[0,4:8]])
-    obsHist = build_dsr_mat( nestObs=nData[:,np.r_[0,4:9]],
-                            expos=expo,
-                            covar1=nData[:,4], #init date
-                            )
-    print(f"{obsHist=}")
-    expDF = obsHist
-  else:
-    expDF = make_logexp_df(nData)
-  # obsHist = build_dsr_mat(nNest=nData.shape[0],
-  #                          init=initList,
-  #                          end=endList,
-  #                          fate=fateList,
-  #                          # nDays=len(svydays))
-  #                          nDays=nSurvey)
-  #
-  fam = sm.families.Binomial(link=sm.families.links.CLogLog())
-  # modForm = ["survive ~ 1","survive ~ date", "survive ~ date * nstorm"]
-  # modForm = ["I(1-survive) ~ 1",
-  #            "I(1-survive) ~ date",
-  #            "I(1-survive) ~ date + I(date**2)",
-  modForm = ["I(survive) ~ 1",
-             "I(survive) ~ date",
-             # "I(survive) ~ week",
-             "I(survive) ~ date + I(date**2)",
-             # "I(survive) ~ date - I(date**2)",
-             ]
-  out = predict_vals(modForm, fam, expDF) #
-  coef, pred = out
-  if modSave:
-    np.save(fname,coef)
-  return out
-
-# def build_dsr_mat(nData, par):
-def build_dsr_mat_old(nNest,init, end,fate, nDays ):
-  """
-  """
-  # +> create matrix with nNests rows and nDays columns
-  # mat = np.empty((par.numNests, par.hatchTime))
-  # mat = np.empty((par.numNests, par.brDays))
-  #+> number analyzed nests
-  # nNest = nData.shape[0]
-  # mat = np.empty((nNest, par.brDays))
-  mat = np.empty((nNest, nDays))
-  mat.fill(np.nan)
-  # mat[:, ]
-  init2d = init[:,np.newaxis]
-  end2d = end[:,np.newaxis]
-  fate2d = fate[:,np.newaxis]
-  # print(f"{nNest=} ; {len(init)=} ; {len(end)=} ; {len(fate)=}")
-  # print(
-      # f"{nNest=} ; {init2d.shape=} ; {end2d.shape=}"
-      # f" ; {fate2d.shape=} ; {mat.shape=}"
-      # )
-  # print(f"{fate=}")
-  #+> make true nest history:
-  #+> for each row in mat, at col value (axis 1) matching init, put "1"
-  np.put_along_axis(mat, init2d, 1, axis=1)
-  np.put_along_axis(mat, end2d, fate2d, axis=1)
-  # mat[init:end-1] = 1
-  for n in range(nNest):
-    initInd = int(init[n])
-    endInd  = int(end[n])
-    # print(f"{initInd=} ; {endInd=}")
-    # mat[:,initInd:endInd-1] = 1 # NOTE this modifies all rows in array
-    mat[n,initInd:endInd] = 1
-  # print(f"{mat=}")
-
-
-
-# def calc_daily_expo(numNests, surveyInts, surveyDays, init, end):
-def calc_daily_expo(numNests, surveyInts, surveyDays, firstDay, lastDay):
-  """
-    ARGS:
-      
-    RETURNS:
-      a list of lists of exposure days for each interval nest was observed
-  """
-  # svyInd = svy_position(init, end, surveyDays)
-  print(f"{surveyInts=}")
-  svyInd = svy_position(firstDay, lastDay, surveyDays)
-  initPos, endPos = svyInd
-  print(f"{initPos=} ; {endPos=}")
-  # print(surveyInts)
-
-  # expo = [surveyInts[initPos[n]:endPos[n]] for n in range(numNests)]
-  expo = []
-  for n in range(numNests):
-    # NOTE becomes a list of arrays:
-    # expo.append(surveyInts[initPos[n]:endPos[n]]) #+> probably slow
-    #+> extend flattens the added arrays
-    expo.extend(surveyInts[(initPos[n]+1):endPos[n]+1].tolist()) #+> probably slow
-    # expo.append(surveyInts[(initPos[n]+1):endPos[n]+1].tolist()) #+> probably slow
-
-  print(f"{expo=} {len(expo)=}")
-  return expo
-
-
-# def build_dsr_mat(nNest, nObs, init, end, expo, fate, nDays, covars=True):
-# def build_dsr_mat(nestObs, nDays, expos, covars=True):
-# def build_dsr_mat(nestObs, nDays, expos, covar1="date", covar2="datesq"):
-# def build_dsr_mat(nestObs, expos, covar1=[], covar2=[]):
-def build_dsr_mat(nestObs, expos, covar1=0):
-  """
-    Build a nest survival matrix with rows for each obs of each nest
-    ----
-    ARGS:
-      nestObs = id, i, j, k, fate, nObs
-      expos = flattened list of exposure intervals for all obs for all nests
-  """
-  # if len(covar2) > 0:
-  # cols = ["id", "surv", "expo", "covar1", "covar2"]
-  cols = ["id", "surv", "expo", "covar1"]
-  # else:
-    # cols = ["id", "surv", "expo"]
-
-  nestID, ff, la, lc, fate, nObs = nestObs.T
-  nObs = nObs.astype(int)
-  nObs[fate!=0] +=1
-  print(f"{nObs=}")
-
-  nNest = nestObs.shape[0]
-
-  nrows = np.sum(nObs)
-  endDay = np.cumsum(nObs) -1 #+> zero-indexed
-  # mat = np.empty((nNest*np.sum(nObs), len(cols) ))
-  mat = np.ones((nrows, len(cols) ))
-  # mat[:,0] = [np.repeat(i, nObs[i]) for i in range(nNest)]
-  mat[:,0] = np.repeat(range(nNest), nObs) #+> repeat ID nObs times
-  mat[:,1][endDay] = fate
-  mat[:,2] = expos
-  # if covar1 != 0:
-  mat[:,3] = np.repeat(covar1, nObs)
-  # mat[:,4] = np.repeat(covar2, nObs)
-  # print("matrix: \n")
-  print(f"{mat=}")
-
-  return mat
-
-
-
-def predict_daily(modForm, fam, expDF, ndays=180):
-  """
-  """
-  out = {} # NOTE change this to list?
-  pred = []
-  dateVal   = np.arange(1,ndays+1,1) # dateVal   = np.arange(1,181,1)
-  nNests = expDF.shape[0]
-  like = []
-  # for f in modForm:
-  #   for n in nNests:
-  #
-  #     like.append()
-
-
-def predict_vals(modForm, fam, expDF,ndays=180):
-  """
-    Returns 
-      A list of 2 lists:
-        1. model coefs/cl/pvals 
-        2. predicted vals
-  """
-  out = {} # NOTE change this to list?
-  pred = []
-  dateVal   = np.arange(1,ndays+1,1) # dateVal   = np.arange(1,181,1)
-  for f in modForm:
-    #+> this seems to work ok, but try a custom link function?
-    mod = smf.glm(f, data=expDF, family=fam, offset=expDF['log_expo'])
-    fit = mod.fit(method='nm', maxiter=50000,maxfun=5000)
-    # out[f] = fit # +>this will output the model fit directly
-    # print("\tMODEL RESULTS:")
-    # print(fit.summary()) 
-    # +> choose how to make the predictions:
-    # if f=='I(1-survive) ~ 1':
-    #   # preee = fit.predict(expDF).to_numpy() # +> produces a pd.Series; convert to np
-    #   # print(f"{preee=}")
-    #   # pre = fit.get_prediction(expDF).to_numpy() # +> produces a pd.Series; convert to np
-    #   pre = fit.get_prediction(expDF)
-    #   mean = pre.predicted_mean
-    #   print(f"{mean=}")
-    #   conf = pre.conf_int()
-    #   print(f"{conf=}")
-    #   # print(f"{pre=}")
-    #   pred.append(pre)
-    # else:
-    # +> new data for making predictions:
-    newDat    = pd.DataFrame({'date': dateVal}) # print("new data: ") print(newDat)
-    # NOTE predict generates points; get_predict also has CIs
-    # preee = fit.predict(newDat).to_numpy()
-    # print(f"{preee=}")
-    # pre = fit.get_prediction(newDat).to_numpy()
-    pre = fit.get_prediction(newDat)
-    mean = pre.predicted_mean
-    # print(f"{mean=}")
-    conf = pre.conf_int()
-    # print(f"{conf=}")
-    lcl = conf[:,0] #+> indexing w/1 val returns 1d arr # print("lcl:", lcl, lcl.shape)
-    ucl = conf[:,1]
-    pr = np.column_stack((mean,lcl,ucl))
-    # print(f"{pr=}")
-    # nd = datagrid(newDat)
-    # pred = predictions(fit, )
-    # print(f"{pred=}")
-    pred.append(pr)
-    # print(f"{pred=}")
-
-    coef = fit.params.values # print(coef, coef.shape,type(coef))
-    confint = fit.conf_int(alpha=0.05).values # print(confint, confint.shape,type(confint))
-    pval = fit.pvalues.values # print(pval, pval.shape)
-    lcl = confint[:,0] #+> indexing w/1 val returns 1d arr # print("lcl:", lcl, lcl.shape)
-    ucl = confint[:,1]
-    # stack = np.column_stack((coef,lcl,ucl,pval)) # print(stack, stack.shape)
-    # out[f] = np.concatenate((coef,lcl,ucl,pval)) 
-    out[f] = np.column_stack((coef,lcl,ucl,pval))
-
-  # print("predictions:\n",pred, type(pred))
-  # #NOTE explicitly call the columns here:
-  # pred2 = np.column_stack((dateVal,pred[0],pred[1],pred[2]))
-  # NOTE: add the date column later, after averaging
-  # pred2 = np.column_stack((pred[0],pred[1],pred[2]))
-  # pred2 = np.vstack(pred)
-  pred2 = np.column_stack(pred)
-  
-  # pred2 = np.column_stack((pred[0],pred[1]))
-  # print("|> predictions:")
-  # print(pred2[:5,:])
-  # print(". . . . . . . . . . . ")
-  # print(pred2[-5:,:])
-  # coefs = np.concatenate(list(out.values()))
-  coefs = np.vstack(list(out.values()))
-  # print(">> coefs:\n", coefs, type(coefs), coefs.shape)
-  # return [out, pred2] #
-  return [coefs, pred2] #
-  # return out #+> returns a 1D numpy array
-      
-      # out[f] = [fit.params.values, fit.conf_int(alpha=0.05).values]
-      # out[f] = np.concatenate(coef,confint[0,:])
-      # out[f] = np.concatenate((coef,lcl,pval)) 
-      # survVal = np.linspace(0.9,0.99,9)
-      # sfrqVal = np.array([1,2,3,4,5])
-      # sdurVal = np.array([1,2,3])
-      # pflVal  = np.linspace(0.6,0.95,7)
-      # combo   = list(itertools.product(survVal, sfrqVal, sdurVal, pflVal))
-      # dateVal   = np.linspace(0,180,181)
-      # if f=='survive ~ 1':
-    # elif output == 'predict':
-    # out[f] = fit.predict(newDat)
-
-  # print(out)
-  # print(type(pred[1]))
-  # print("dates:\n", dateVal, type(dateVal))
-  
-  # pred2 = np.vstack(pred)
-  # pred2 = np.column_stack((dateVal,pred))
-  # NOTE instead of saving to file, return & then save average to file
-  # np.save(outf, pred2)
-  # if output == 'coef':
-    # out = np.concatenate(list(out.values()))
-
-        # logexArr = np.concatenate(list(logex.values()))
-
-  # ret = [out[1].params]
-    # TODO save param vals?
-
-  
-  # expMod = [sm.GLM.from_formula(f, data=expDF, family=fam) for f in modForm]
-  # TODO decide on output
-
-def logit(x):
-  odds = x / (1-x)
-  logodds = np.log(odds)
-  return logodds  
-
-def predict_vals_r(modForm, fam, expDF,ndays=180):
-  """
-    Fit the models using R functions and plot the
-    predictions from the R model objects so you
-    get appropriate confidence intervals, etc
-  """
-  
-def plot_predict(pred):
-  """
-  """
-
-def logexp_eq(exp):
-  """
-  """
-  
-
-
-#-----------------------------------------------------------------------------
-#   THE LIKELIHOOD FUNCTION
-# -----------------------------------------------------------------------------
-#def like_old(a_s, a_mp, a_mf, a_ss, a_mfs, a_mps, nestData, stormDays, surveyDays, obs_int):
-# -----------------------------------------------------------------------------
-#   PROGRAM MARK 
-# -----------------------------------------------------------------------------
-
-# It also has a wrapper function that transforms the initial optimizer values
-# using the logistic function.
-# This way, the optimizer can work over the range of -infinity:infinity, but
-# the values fed to the function are between 0 and 1 (probabilities)
-
-# Lastly, it has a function to generate the probabilities before running the optimizer 
-# on the MARK function, so I can take the for loop out of the function that is optimized.
-
-# -----------------------------------------------------------------------------
-# def prog_mark(s, ndata, probs, nocc, con=config):
-# @profile
 
 
