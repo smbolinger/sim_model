@@ -43,10 +43,11 @@ from typing import Dict, Generator
 
 from getClass import Params, Config
 # from settings import rng,config,atype,staticPar, pLists, now_short, now_long
-from rsettings import rng,config,atype,staticPar, pLists, now_short, now_long
+# from rsettings import rng,config,atype,staticPar, pLists, now_short, now_long
 from helpers import mk_param_list, mk_param_list_list, mk_outdir, mk_fnames,print
 from print_func import arrPrint,dfPrint,printLL, print_all, print_nestdata,print_mark
-from makeNests import stormGen,initDat
+# from makeNests import stormGen,initDat
+from makeNests import stormGen
 from observer import make_obs, mk_surveys
 from dsrCalc import calc_dsr, mark_wrapper, mayfield
 from MCmatrix import like_smd, triangle, logistic
@@ -54,8 +55,8 @@ from log_exposure import calc_daily_expo, make_daily_logex_df
 
 r = robjects.r
 np.set_printoptions(precision=5)
-debug = config.debug
-print("\t\t|>|>|>debug value:", debug, end=" ")
+# debug = config.debug
+# print("\t\t|>|>|>debug value:", debug, end=" ")
 #+> seearch for #\~ to find the dbug statements
 ## TODO:  the MCMC matrix is giving a low answer bc it doesn't
 
@@ -63,7 +64,7 @@ print("\t\t|>|>|>debug value:", debug, end=" ")
 
 ## TODO: mark "storm nsts" and add an xtra day to one intrval?
 
-def randArgs():
+def randArgs(config,rng):
   """
     Choose random initial values for the optimizer.
     These will be log-transformed before going through the likelihood function
@@ -75,6 +76,8 @@ def randArgs():
     biased positive. So maybe not an issue with the starting vals... but
     starting with the Mayfield estimate could make the process faster
   """
+  # rng =
+  # rng = np.random.default_rng(seed=config.rngSeed)
   # s   = rng.uniform(-10.0, 10.0)     
   # mp  = rng.uniform(-10.0, 10.0)
   s   = rng.uniform(0.0, 10.0)     
@@ -208,7 +211,7 @@ def ansTransform(ans):
 # -----------------------------------------------------------------------------
 
 #@profile
-def rep_loop(par, nData, storm, survey, config, random=True,to_r=False):
+def rep_loop(par,rng, nData, storm, survey, config, random=True,to_r=False):
   """
     For each data replicate, call this function, which:
       - takes the reduced nest data as input
@@ -235,19 +238,19 @@ def rep_loop(par, nData, storm, survey, config, random=True,to_r=False):
   if config.optimizer=="global":
     res    = run_optim(minimizer="bh",
                        fun=like_smd,
-                       z=randArgs(),
+                       z=randArgs(config,rng),
                        arg=arg,
                        )
   else:
     res    = run_optim(minimizer="norm",
                        fun=like_smd,
-                       z=randArgs(),
+                       z=randArgs(config,rng),
                        arg=arg,
                        met=config.optimizer,
                        )
   if res[0] < 0.8:
     print(f"\t\t\t\t{res[0]=:.4f}; run optimizer again with basinhopping; ", end=" ")
-    res = run_optim(minimizer="bh",fun=like_smd,z=randArgs(),arg=arg,db=True)
+    res = run_optim(minimizer="bh",fun=like_smd,z=randArgs(config,rng),arg=arg,db=True)
     # print(f"\t\t|>NEW {res[0]=:.4f}")
     if res[0] < 0.8:
       # discover = nData[nData[:,6]!=0]
@@ -257,8 +260,9 @@ def rep_loop(par, nData, storm, survey, config, random=True,to_r=False):
       ## but using total obs is somehoww leading to larger overestimate? or is it?
       discover = nData[nData[:,10]>0] ## +> TOTAL obs > 0
       discovered = discover.shape[0]
-      print(f"discovered nests ({discover.shape=}):")
-      dfPrint(discover)
+      # if config.debug>=3:
+        # print(f"discovered nests ({discover.shape=}):")
+        # dfPrint(discover)
       # excl = ((discover[:,7] == 7) | (discover[:,4]==discover[:,5]))
       # excl = ((discover[:,7] == 7) | discover[:,8]>0)
       excl = (discover[:,7] == 7)
@@ -267,9 +271,9 @@ def rep_loop(par, nData, storm, survey, config, random=True,to_r=False):
       unknown = np.sum(discover[:,7]==7)
       # print(f"\t\t\t\t\t{discovered=}|>{excluded=}&{hatched=}&{unknown=}", end=" ")
       # print(f"{res[0]=:.4f}; AGAIN with bh", end=" ")
-      res0 = run_optim(minimizer="bh",fun=like_smd,z=randArgs(),arg=arg,db=True)
-      res1 = run_optim(minimizer="bh",fun=like_smd,z=randArgs(),arg=arg,db=True)
-      res2 = run_optim(minimizer="bh",fun=like_smd,z=randArgs(),arg=arg,db=True)
+      res0 = run_optim(minimizer="bh",fun=like_smd,z=randArgs(config,rng),arg=arg,db=True)
+      res1 = run_optim(minimizer="bh",fun=like_smd,z=randArgs(config,rng),arg=arg,db=True)
+      res2 = run_optim(minimizer="bh",fun=like_smd,z=randArgs(config,rng),arg=arg,db=True)
       # print(f"\t\t\t\t\t|>NEW {res0[0]=:.4f}{res1[0]=:.4f}{res2[0]=:.4f}", end=" ")
       # resList = np.array(res1, res2, res3)
       # resArr= np.concatenate((res1, res2, res3), axis=0)
@@ -284,8 +288,8 @@ def rep_loop(par, nData, storm, survey, config, random=True,to_r=False):
       # print(f"\t\t\t\t\t|>NEW {res[0]=:.4f}")
   # srand = rng.uniform(-10.00, 10.00)
   s2, mp2 = res[0], res[1]
-  if config.debug>=3:
-    print(f"{s2=} {mp2=}")
+  # if config.debug>=4:
+  #   print(f"{s2=} {mp2=}")
   psr = s2 ** par.hatchTime
 
   if False:
@@ -327,14 +331,29 @@ def rep_loop(par, nData, storm, survey, config, random=True,to_r=False):
     # like_val = 
   return(like_val)
   
-def calc_nests(nestData1, par, repID, parID, db=0):
+def calc_nests(nestData1, par,rng, repID, parID, config, db=0):
+  # rng = np.random.default_rng(seed=config.rngSeed)
   flooded  = sum(nestData1[:,3]==2)
   hatched  = sum(nestData1[:,3]==0)
-  discover = nestData1[:,8]>0
+  # discover = nestData1[:,8]>0 ## where num obs > 0
+  discover = nestData1[:,10]>0 ## where num obs > 0
   nestData = nestData1[(discover),:] # +> remove undiscovered nests
-  exclude  = ((nestData[:,7] == 7))
+  if db>=4: print(f"\t\t>>calc_nests: discovered: {len(nestData)=}")
+  # if db>=3: print(f"{(nestData[:,5]==nestData[:,6])=}")
+  # short    = (nestData[:,4]==nestData[:,5]) ## where i==j
+  short    = np.zeros(len(nestData))
+  if db>=4: print(f"\t{short=}")
+  # exclude  = ((nestData[:,7] == 7) or (nestData[:,5]==nestData[:,6]))
   unknown  = (nestData[:,7]==7)
+  if db>=4: print(f"\t{unknown=}")
+  # exclude = unknown or short
+  # can also use bitwise or (|) or np.logical_or():
+  exclude = unknown + short > 0 # at least one is true
+  if db>=4: print(f"\t{exclude=}")
   misclass = (nestData[:,7]!=nestData[:,3]) #+> out of discovered nests
+  nestData = nestData[~exclude,:] # +> remove undiscovered nests
+  if db>=4: print(f"\t\t>>calc_nests: analyzed:{len(nestData)=}")
+  # misclass = misclass - unknown
   avgFInt  = (nestData[:,9].sum()/len(discover))
   avgK     = nestData[:,6].sum()/len(discover)
   srand = rng.uniform(0.00, 10.00) # +> random init val for MARK
@@ -350,7 +369,7 @@ def calc_nests(nestData1, par, repID, parID, db=0):
                       conf=config,
                       incTime=par.hatchTime,
                       psurv=par.probSurv,
-                      debug=config.debugSummary)
+                      debug=config.debugDSR)
   # markPSR = mark_s ** par.hatchTime
   appPSR = appDSR ** par.hatchTime
   # lVal = rep_loop(par=par, nData=nestData, storm=stormDays,
@@ -365,19 +384,19 @@ def calc_nests(nestData1, par, repID, parID, db=0):
                            conf=config,
                            incTime=par.hatchTime,
                            psurv=par.probSurv,
-                           debug=config.debugSummary) 
+                           debug=config.debugDSR) 
   appDSR_an   = calc_dsr(nData=nestData,
                           nestType="analysis",
                           calcType="apparent",
                           conf=config,
                           incTime=par.hatchTime,
                           psurv=par.probSurv,
-                          debug=config.debugSummary) 
+                          debug=config.debugDSR) 
   nestVals = np.array([
     # flooded,hatched,discover.sum(),exclude.sum(),unknown.sum(),
     # misclass.sum(), avgFInt, avgK, appDSR, mark_s, repID, parID])
     parID,repID,flooded,hatched,discover.sum(),exclude.sum(),unknown.sum(),
-    misclass.sum(), avgFInt, avgK, appDSR,appPSR,mayfDSR_an,appDSR_an])
+    misclass.sum()-unknown.sum(),avgFInt,avgK,appDSR,appPSR,mayfDSR_an,appDSR_an])
     # misclass.sum(), avgFInt, avgK, appDSR,appPSR, mark_s,markPSR])
   if db>=4: print(f"{nestVals=}")
   return nestVals
@@ -389,7 +408,9 @@ def r_logexp():
   # r.source('logexp.R')
   r['pi']
 
-def main(fnUnique, testing, parLists, msg="", config=config, pStatic=staticPar):
+# def main(fnUnique, testing, parLists,stormdays=[], msg="", config=config, pStatic=staticPar):
+# def main(fnUnique,atype,rng,nowStr, testing,config, parLists,pStatic,stormdays=[], msg=""):
+def main(atype,config,rng, parLists,pStatic,nowStr,stormdays=[]):
   """
     If 'fnUnique'==True, filename is "uniquified" and includes H:M:S
       --> Otherwise, just the date.
@@ -405,8 +426,13 @@ def main(fnUnique, testing, parLists, msg="", config=config, pStatic=staticPar):
   """
   ### TODO: count the number of times the model returns "0.5000" or thereabouts 
   # counters <- range
+  # rng = np.random.default_rng(seed=config.rngSeed)
+  msg=config.msg
+  testing=config.testing
+  fnUnique=config.fnUnique
   pList = parLists
-  now_str = now_short
+  # now_str = now_short
+  now_str = nowStr
   odir  = mk_outdir(now_str, con=config)
   # print(f"\t|> output directory = {odir}")
   if len(msg) > 0:
@@ -444,7 +470,13 @@ def main(fnUnique, testing, parLists, msg="", config=config, pStatic=staticPar):
       par    = Params(**par_merge)
       print("\n\t<> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <>")
       print(f"\n>>>> param set #{parID} & {par=}\n")
-      stormDays  = stormGen(frq=par.stormFrq, dur=par.stormDur)
+      if len(stormdays)>0:
+        stormDays=stormdays
+        print("\t>> using storm days from arg")
+        print(f"\t\t{stormDays=}")
+      else:
+        print("\t>> making storm days ")
+        stormDays  = stormGen(par.stormFrq, par.stormDur,config,rng)
       survey   = mk_surveys(stormDays, par.obsFreq, par.brDays, conf=config)
       # surveyDays, surveyInts = survey
       repID = numMC = nEx = 0 # +> num nests misclassified, num exceptions
@@ -463,7 +495,8 @@ def main(fnUnique, testing, parLists, msg="", config=config, pStatic=staticPar):
       for r in range(config.nreps): 
         print(f"\t>---->----> replicate  {parID}.{repID} >---->----> ")
         try:
-          nestData1 = make_obs(par=par,storm=stormDays,survey=survey,nw=nweek,conf=config) 
+          # nestData1 = make_obs(par=par,storm=stormDays,survey=survey,nw=nweek,conf=config) 
+          nestData1 = make_obs(par,rng,stormDays,survey,config,nw=nweek) 
         except IndexError as error:
           print(
             "\t\t>> !!! IndexError in nest data:", 
@@ -490,7 +523,7 @@ def main(fnUnique, testing, parLists, msg="", config=config, pStatic=staticPar):
         #
         #~----------------------------------------------------------------------
         ## +> print all nest data
-        if config.debug>=2:
+        if config.debug>=3:
           print("\t\t\t|> ALL NEST DATA")
           nm = ["ID","init","end","fate"," i "," j "," k ","afate","nobs","fint"]
           # nm = ["ID","init","end","fate"," i "," j "," k ","afate","nobs","fint","nstm"]
@@ -560,11 +593,11 @@ def main(fnUnique, testing, parLists, msg="", config=config, pStatic=staticPar):
 
         nestData  = nestData[~(exclude),:]  # +> remove excluded nests 
         # print("\n\t\tnest data length after excluding:",nestData.shape[0])
-        if config.obsSave:
-          nestObs = nestData[:,np.r_[0,1,4:8,11]]
-          nNest = nestData.shape[0]
-          expoList = calc_daily_expo(nNest, survey[1], survey[2], nestData[:,4], nestData[:,6],db=config.debugNests)
-          obsDat = make_daily_logex_df(nestObs,expos=expoList[1],covar1=expoList[2],db=config.debugNests)
+        # if config.obsSave:
+        #   nestObs = nestData[:,np.r_[0,1,4:8,11]]
+        #   nNest = nestData.shape[0]
+        #   expoList = calc_daily_expo(nNest, survey[1], survey[2], nestData[:,4], nestData[:,6],db=config.debugNests)
+        #   obsDat = make_daily_logex_df(nestObs,expos=expoList[1],covar1=expoList[2],db=config.debugNests)
 
         mayfDSR_an   =  calc_dsr(nData=nestData,
                                  nestType="analysis",
@@ -580,7 +613,7 @@ def main(fnUnique, testing, parLists, msg="", config=config, pStatic=staticPar):
                                 incTime=par.hatchTime,
                                 psurv=par.probSurv,
                                 debug=config.debugSummary) 
-        lVal = rep_loop(par=par, nData=nestData, storm=stormDays,
+        lVal = rep_loop(par=par,rng=rng, nData=nestData, storm=stormDays,
                    survey=survey,config=config)
         # llDSR = lVal[0]
         llDSR,llPSR,llDFR = lVal
@@ -596,8 +629,9 @@ def main(fnUnique, testing, parLists, msg="", config=config, pStatic=staticPar):
         #   ##+> print LL equations for each nest:
         #   ##+> enable the saving inside hte logLike function definition
         #
-          llArg = np.load('out/arg_PrintLL.npy') 
-          printLL(len(llArg), *llArg.T) # +> tranpose so it is unpacked colwise
+          printLL()
+          # llArg = np.load('out/arg_PrintLL.npy') 
+          # printLL(len(llArg), *llArg.T) # +> tranpose so it is unpacked colwise
         #
         #~----------------------------------------------------------------------
         # if config.testing == "yes":
