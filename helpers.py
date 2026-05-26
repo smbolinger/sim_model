@@ -1,7 +1,9 @@
 from datetime import datetime
 import csv
+import functools
 import itertools
 import numpy as np
+import pandas as pd
 import os
 import traceback
 import warnings
@@ -14,15 +16,30 @@ import sys
 from typing import Dict, Generator
 import yaml
 # from datsim import config
-from getClass import Config
-from settings import config, rng
+from getClass import Config, Params
+from print_func import dfPrint
+# from settings import config, rng
 now = datetime.today().strftime('%H%M%S')
-debug = config.debug
+# debug = config.debug
 # NOTE: maybe make an indent print function for strings? instead of typing \t all the time
+# NOTE: I *THINK* maybe this should be functions that don't require any of my 
+# NOTE:     other scripts (to avoid circular referencing or whatever)
 
+## flush print buffer immediately to std.out (so not delayed)
+print = functools.partial(print, flush=True)
 # -----------------------------------------------------------------------------
 #  HELPER FUNCTIONS
 # -----------------------------------------------------------------------------
+def centerDat(dat):
+  """
+    ARGS
+      dat should be a numpy array
+  """
+  print("centering")
+  mu = np.mean(dat)
+  return dat - mu
+
+
 def expDecay(n0, k, t):
   """
   Exponential decay function.
@@ -103,7 +120,7 @@ def warn_with_traceback(message, category, filename, lineno, file=None, line=Non
 
 # -----------------------------------------------------------------------------
 
-def init_from_csv(file):
+def init_from_csv(file, debug=False):
     # file="C:/Users/Sarah/Dropbox/Models/sim_model/storm_init3.csv"):
     # file=storm_init):
   """
@@ -127,9 +144,12 @@ def init_from_csv(file):
   ret = dict(zip(weekStart, initProb))
   # if debug: print("\t>=> week: init probability = ",round(ret,3))
   # if debug: print("\t>=> loading init dates; <week start date>: <init probability> ")
-  if debug: print("\t\t>=> loading init dates; <week start date>: <init probability> ")
-  if debug: print("\t\t\t\t",{str(key): str(round(value,3)) for key,value in ret.items()}, end=" ")
-  if debug: print(sum(initProb))
+  if debug: print(f"\t\t>=> loading init dates \t\t[{sum(initProb)=}] : ")
+  if debug: dfPrint(np.array([list(ret.values())]), names=list(ret.keys()))
+  # if debug: dfPrint(pd.DataFrame(ret,index=['i',]))
+  # if debug: dfPrint(pd.DataFrame.from_dict(ret,orient="index").T, names=list(ret))
+  # if debug: print("\t\t\t\t",{str(key): str(round(value,3)) for key,value in ret.items()}, end=" ")
+  # if debug: print(sum(initProb))
   # if debug: print("\t", {str(key): str(round(value,3)) for key,value in ret.items()})
   # if debug: arrPrint("   ".join(map(str,ret.keys())))
   # if debug: arrPrint(" ".join(map(str,ret.values())))
@@ -138,7 +158,7 @@ def init_from_csv(file):
   return(ret)
   # return(initProb)
 # -----------------------------------------------------------------------------
-def sprob_from_csv(file):
+def sprob_from_csv(file, debug=True):
     # file="C:/Users/Sarah/Dropbox/Models/sim_model/storm_init3.csv"):
   """
     import storm probabilities by week (based on real storm data).
@@ -160,14 +180,18 @@ def sprob_from_csv(file):
   weekStart = (storm_weeks2 * 7) - 90 # why minus 90?
   weekStart = weekStart.astype(int)
   ret = dict(zip(weekStart, stormProb))
+  # df = pd.DataFrame()
   # if debug: print("\t>=> week start date: storm probability =\n",round(ret,3))
-  if debug: print("\t\t>=> loading storm prob; <week start date>: <storm probability> ")
+  # if debug: print("\t\t>=> loading storm prob; <week start date>: <storm probability> ")
+  if debug: print(f"\n\t\t>=> loading storm prob; \t\t[{sum(stormProb)=}] ")
+  # if debug: dfPrint(np.array([stormProb]).T, names=weekStart)
+  if debug: dfPrint(np.array([list(ret.values())]), names=list(ret.keys()))
   # if debug: print({key: round(value,3) for key,value in ret.items()})
   # retstr = map(str, ret)
   # if debug: print({key: round(value,3) for key,value in retstr.items()}) ##doesn't work
   # if debug: print(map(str,{key: round(value,3) for key,value in ret.items()}))##doesn't work
-  if debug: print("\t\t\t\t",{str(key): str(round(value,3)) for key,value in ret.items()}, end=" ")
-  if debug: print(sum(stormProb))
+  # if debug: print("\t\t\t\t",{str(key): str(round(value,3)) for key,value in ret.items()}, end=" ")
+  # if debug: print(sum(stormProb))
   # if debug: pprint.pprint({str(key): str(round(value,3)) for key,value in ret.items()}, indent=4, width=90)
   return(ret)
 
@@ -187,13 +211,16 @@ def uniquify(path):
 
   return path
 # -----------------------------------------------------------------------------
-def mk_param_list(parList: Dict[str, list], fdir:str="", suf="", listRet=False) -> list:
+def mk_param_list_list(parL: Dict[str, list],stInd=0,fdir:str="", suf="", listRet=False, debug=False) -> list:
   """
     Take the dictionary of lists of param values, then unpack the lists to a 
     list of lists. Then feed this list of lists to itertools.product using *.
     
       Also, write entire set of param lists to csv if **fdir** is specified.
       Can add a suffix to filename using **suf**
+    -----
+    ARGS:
+      stInd = which param set to start at
     -----
     RETURNS: 
       **if !listRet:**
@@ -208,25 +235,38 @@ def mk_param_list(parList: Dict[str, list], fdir:str="", suf="", listRet=False) 
 
   """
   # TODO: could add ** to surround for docstrings?
-  print(f"\t\t>=> using the {parList} params lists")
-  listVal = [parList[key] for key in parList]
-  p_List = list(itertools.product(*listVal))
+  if debug: print(f"\t\t>=> using the {parL} params lists")
+  listVal = [parL[key] for key in parL]
+  pL = list(itertools.product(*listVal))
   if fdir:
     plfile = os.path.join(fdir, f"param-lists_{suf}.csv")
-    print(f"\t\t|> param list file: {plfile}")
+    if debug: print(f"\t\t|> param list file: {plfile}")
     with open(plfile, 'w', newline='') as f:
       writer = csv.writer(f)
-      writer.writerows(p_List)
+      writer.writerows(pL)
   
   if listRet:
-    print('returning list of lists (not list of dicts)')
-    return(p_List)
+    if debug: print('returning list of lists (not list of dicts)')
+    return(pL)
   else:
     # +> make this list of lists into a list of dicts with the original keys:
-    paramsList = [dict(zip(parList.keys(), p_List[x])) for x in range(len(p_List))]
+    # paramsList = [dict(zip(parList.keys(), p_List[x])) for x in range(len(p_List))]
+    paramsList = [dict(zip(parL.keys(),pL[x])) for x in range(stInd,len(pL))]
+    if debug: print(f"\t\t{type(paramsList)=} \t\t{paramsList=}")
     return(paramsList)
 
-def mk_outdir(nowstr, seed:str="", suf="",con=config, unique=False):
+def mk_param_list(par, pStatic, debug=False):
+  """
+  """
+  # if debug: print(f"{type(par)} ; {type(pStatic)}")
+  # try:
+  par_merge = {**par, **pStatic}
+  # except TypeError as error:
+    
+  return Params(**par_merge)
+
+# def mk_outdir(nowstr, seed:str="", suf="",con=config, unique=False):
+def mk_outdir(nowstr, con,seed:str="", suf="", unique=False, debug=False):
   """
     Create a directory w/ a unique name using datetime.today() & uniquify().
 
@@ -243,7 +283,8 @@ def mk_outdir(nowstr, seed:str="", suf="",con=config, unique=False):
       > pass same nowstr to this function and mk_fnames so everything matches
   """
   # TODO: decide whether I want to include seed in dir name, or just filenames
-  like_f_dir = con.likeDir
+  # like_f_dir = con.likeDir
+  like_f_dir = "/home/wodehouse/Projects/sim_model/out/default"
   if not seed: seed=con.rngSeed
   seedStr = f"_{seed}"
   if unique:
@@ -253,17 +294,17 @@ def mk_outdir(nowstr, seed:str="", suf="",con=config, unique=False):
   else:
     # now = datetime.today().strftime("%Y%m%d")
     # fname  = f"ml_val_{now}.csv"
-    fdir = Path(Path.home() / like_f_dir / (nowstr + suf)) # need the parens or get an error about concatenating string and Path?
+    fdir = Path(Path.home() / like_f_dir / nowstr / suf) # need the parens or get an error about concatenating string and Path?
     # ndir   = Path(Path.home()/ like_f_dir / ('nests_' +nowstr + suf))
   os.makedirs(fdir, exist_ok=True)
-  print("\t\t>> save directory name:", fdir)
+  if debug: print("\t\t>> save directory name:", fdir)
   # print("\t>> nest directory name:", ndir)
   # return((fdir,ndir))
   return(fdir)
 # def mk_fnames(suf:str, f_dir, unique=True):
 # def mk_fnames(suf:str, con=config, unique=True):
 # def mk_fnames(fdir, nowstr, suf:str, con=config):
-def mk_fnames(nowstr,test=False,seed:str="",suf:str="",fdir=None,con=config,uniq=False):
+def mk_fnames(nowstr,con,test=False,seed:str="",suf:str="",fdir=None,uniq=False):
   """
     1. Create likelihood filepath (& parent dir, if necessary)
       --> ERROR if filepath exists
@@ -277,7 +318,7 @@ def mk_fnames(nowstr,test=False,seed:str="",suf:str="",fdir=None,con=config,uniq
   if fdir is None:
     print("\t\tno fdir provided; using default")
     # fdir   = mk_outdir(nowstr, unique=uniq)
-    fdir   = mk_outdir(nowstr)
+    fdir   = mk_outdir(nowstr,con=con)
   # print(f"{fdir=}")
   if not seed: seed=con.rngSeed
   seedStr = f"{seed}"
@@ -308,7 +349,8 @@ def mk_fnames(nowstr,test=False,seed:str="",suf:str="",fdir=None,con=config,uniq
   # f_dir = "C:/Users/Sarah/Dropbox/Models/sim_model/py_output/"
   # fpath = Path(f_dir/ fname)
   # f_dir = con.likeDir
-  like_f_dir = con.likeDir
+  # like_f_dir = con.likeDir
+  like_f_dir = "/home/wodehouse/Projects/sim_model/out/default"
   # fpath = like_f_dir + "/" + nowstr + "/" + fname
   fpath = str(likeF)
   print("\t\t\t> fpath (written to txt file):",fpath)
@@ -319,13 +361,19 @@ def mk_fnames(nowstr,test=False,seed:str="",suf:str="",fdir=None,con=config,uniq
     f.write(str(fpath))
   column_names = np.array([
     # 'mark_s', 'psurv_est', 'ppred_est', 'pfl_est', 'ss_est', 'mps_est', 'mfs_est',
-    'mark_s', 'psurv_est', 'ppred_est',
+    #    0          1          2           
+     'dsr_est','psr_est' 'ppred_est',
+    # 'mark_s', 'psurv_est', 'ppred_est',
     # 'ps_given', 'dur', 'freq', 'n_nest', 'h_time', 'obs_fr',
-    'appDSR','appDSRdisc','mayfDSRdisc','mayfDSR_an',# ''
-    'discovered', 'excluded', 'unknown',
-    'misclass','flooded','hatched',
+    #   3           4       5               6           7
+    'appDSR','appDSR_an','appDSRdisc','mayfDSRdisc','mayfDSR_an',# ''
+    #       8           9       10          11          12          13
+    'discovered', 'excluded', 'unknown', 'misclass','flooded','hatched',
     # 'nExc', 'repID', 'parID','psurv_est2', 'ppred_est2'
-    'nExc', 'repID', 'parID'
+    # #   14      15      16
+    # 'nExc', 'repID', 'parID'
+    #14      15 
+    'repID', 'parID'
     # 'rep_ID', 'mark_s', 'psurv_est', 'ppred_est', 'pflood_est', 
     # 'stormsurv_est', 'stormpred_est', 'stormflood_est', 'storm_dur', 
     # 'storm_freq', 'psurv_real', 'psurv_found', 'psurv_given',
@@ -337,7 +385,8 @@ def mk_fnames(nowstr,test=False,seed:str="",suf:str="",fdir=None,con=config,uniq
     # 'stormsurv_real','pflood_real', 'stormflood_real', 'hatch_time','num_nests', 
     # 'obs_int', 'num_discovered','num_excluded', 'exception'
     ])
-  colnames = ', '.join([str(x) for x in column_names]) # needs to be string
+  # colnames = ', '.join([str(x) for x in column_names]) # needs to be string
+  colnames = ','.join([str(x) for x in column_names]) # needs to be string
 
   # saveNames = dict(
   #   likeFile   = likeF,
