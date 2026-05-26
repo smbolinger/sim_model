@@ -1,5 +1,7 @@
 import numpy as np
+import pickle
 from print_func import printLL
+from helpers import print
 np.set_printoptions(precision=3)
 # from datsim import config ## in case anything was changed in place
 
@@ -149,13 +151,14 @@ def new_mat(argL, activeDays, finalInt, fate, numNests):
   return([allNorm, allFinal])
 
 
-def nest_mat(argL, obsFreq, stormFin, useStormMat, config):
+# def nest_mat(argL, obsFreq, stormFin, useStormMat, config):
+def nest_mat(argL, obsFreq, config):
   """
-    Purpose
     -------
+    Purpose
       1. Create transition matrix for normal intervals & storm intervals
       2. Raise transition matrix to the power of interval length
-          - intervals with storms are longer (obs_int x 2)
+          - intervals with storms are longer (obs`_`int x 2)
           - there is no separate storm matrix anymore (see notes)
   
     INPUTS
@@ -165,7 +168,7 @@ def nest_mat(argL, obsFreq, stormFin, useStormMat, config):
   
     RETURNS
     -------
-          - list containing the two matrices [pwr, pwrStm]
+          - list containing the two matrices [pwr], [pwrStm]
   
     Background
     ----------
@@ -179,10 +182,10 @@ def nest_mat(argL, obsFreq, stormFin, useStormMat, config):
          > daily nest probabilities: s - survival; mp - mortality from predation; mf - mortality from flooding 
          > these are daily probabilities, so raise transition matrix to the power of number of days in interval  
   
-     ......................................_........._^intElt........_   _ 
-     ...........[ 1 0 0 ].................|  s  0  0  |.............|  1  | 
-     ............................*........|  mp 1  0  |......*......|  0  | 
-     .....................................|_ mf 0  1 _|.............|_ 0 _|  
+     ...........................`_`.........`_`^intElt........`_`   `_` 
+     ......[ 1 0 0 ].............|  s  0  0  |.............|  1  | 
+     ....................*......|  mp 1  0  |.......*......|  0  | 
+     ..........................|`_` mf 0  1 `_`|.............|`_` 0 `_`|  
                  
      {  transpose(stateI) * trMatrix, raised to intElt power * stateF } 
   
@@ -201,6 +204,10 @@ def nest_mat(argL, obsFreq, stormFin, useStormMat, config):
   pwr = np.linalg.matrix_power(trMatrix, obsFreq) # raise the matrix to the power of the number of days in obs int
   # storm matrix just has a longer observation interval
   pwrStm = np.linalg.matrix_power(trMatrix, obsFreq*2) 
+  # if config.debugLL>=2:
+  #   np.save('out/trMat.npy',trMatrix)
+    # np.save('out/arg_PrintLL.npy', argPrLL) ## save numpy binary file
+
 
   return([pwr, pwrStm])
 # def logL(normalInt, normalFinal, stormFinal, numInt):
@@ -274,6 +281,10 @@ def interval(pwr, numNests, fl, pr, cn):
   # NOTE now pwr has storms incorporated
   # print("final interval:", normalFinal, "and -log likelihood:", -np.log(normalFinal))
   # if cn.debugLL >=2:
+  # if cn.debugLL>=2:
+  #   argInt = [pwrN,pwrS,oneNormInt,oneFinalPr,oneFinalSt]
+  #   with open("out/interval.pkl", "wb") as f:
+  #     pickle.dump(argInt, f)
 
 
   # return([normalInt, stormInt, finalInt, stormFinal])
@@ -305,10 +316,13 @@ def logL(numNests, intervals, numInt, ids, fate, config):
           - final interval (where fl==True, this is the storm final interval)
       3. Sum the -log likelihood values to get an overall value.
 
+    Called by: like
+
     INPUTS
     ------
       normalInt, finalInt, & stormFinal are output from interval()
         - represent likelihood of one interval
+      numInt should be numInt-1 for failed nests
   
     RETURNS
     -------
@@ -399,12 +413,16 @@ def like(argL, numN, obsFr, obsDat, useSM, con):
         b. Observation history values from nest data:
         ......fl, ha, ff, la, lc, nInt, sTrue = obsDat
         ......fl, ha, ff, la, lc, nInt = obsDat
-    2. Pass to logL:
+    2. Call:
+      a. nest_mat() to create the matrices
+      b. interval() to raise matrix to interval power
+        -> reduces to 1x1 matrix 
+    3. Pass to logL:
       a. IDs&fate for printing
       b. num nests
-      c. num intervals befor final int 
-        for non-hatched, is nobs-2 (bc final interval is calculated separately)
-        for hatched, is nobs-1 (bc final interval is 0)
+      c. num intervals before final int 
+        for non-hatched, is nobs-1 (bc final interval is calculated separately)
+        for hatched, is nobs (bc final interval is 0)
     ---------------------------------------------------------------------------------------------------
     NOTES:
     ----------
@@ -422,7 +440,10 @@ def like(argL, numN, obsFr, obsDat, useSM, con):
   pr = fate==1
   actDay = la-ff
 
+  # nInt[fate!=0] -= 1 # THIS SUCKS
   # nInt[fate!=0] = nInt[fate!=0] - 1
+  # nInt[fate==1] = nInt[fate==1] -1
+  # nInt[fate==2] = nInt[fate==2] -1
   
   # NOTE NOTE should this be the assigned fate or true fate?
   # NOTE these if .. print statements, esp inside the optimizer, take lots of time:
@@ -440,18 +461,20 @@ def like(argL, numN, obsFr, obsDat, useSM, con):
   #     )
   # stEnd, stFin = stMat 
   # pwrOut = nest_mat(argL=argL, obsFreq=obsFr, stormFin=sFinal, useStormMat=useSM)
-  # pwrOut = nest_mat(argL=argL, obsFreq=obsFr, stormFin=sFinal, useStormMat=useSM, config=con)
+  pwrOut = nest_mat(argL=argL, obsFreq=obsFr, config=con)
   # pwr, pwrStm = pwrOut
   # inter  = interval(pwr=pwr, stateEnd=stEnd, stateLC=stFin)   
   # inter = interval(pwr=pwrOut, stateMat=stMat)   
   # inter = interval(pwr=pwrOut,ha=ha, fl=fl, numNests=numN)   
-  # inter = interval(pwr=pwrOut, fl=fl, pr=pr, numNests=numN, cn=con)   
-  inter = new_mat(argL, actDay, lenFin, fate, obsDat.shape[0])
+  inter = interval(pwr=pwrOut, fl=fl, pr=pr, numNests=numN, cn=con)   
+  nint = nInt
+  # inter = new_mat(argL, actDay, lenFin, fate, obsDat.shape[0])
+  # nint = 1
   # norm, fin, sfin = inter
   # llVal = logL(normalInt=norm, normalFinal=fin, stormFinal=sfin, numInt=nInt)
   # llVal = logL(numNests=numN, intervals=inter, numInt=nInt, ha=ha, fl=fl)
   # llVal = logL(ids=nid, fate=fate,numNests=numN, intervals=inter, numInt=nInt, config=con)
-  llVal = logL(ids=nid, fate=fate,numNests=numN, intervals=inter, numInt=1, config=con)
+  llVal = logL(ids=nid, fate=fate,numNests=numN, intervals=inter, numInt=nint, config=con)
   # make sure numN is the number of analyzed nests, not the param value (total number)
   
   return(llVal)
