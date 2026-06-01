@@ -1,37 +1,116 @@
 
-## Begin Example 1
-## logistic exposure model, following the Example in ?family. See,
-## Shaffer, T. 2004. Auk 121(2): 526-540.
-# Definition of the link function
-logexp_brglm <- function(exposure = 1) {
-  get_exposure <- function() {
-    if (exists("..exposure", env=.GlobalEnv))
-      return(get("..exposure", envir=.GlobalEnv))
-    exposure
-  }
-  linkfun <- function(mu) qlogis(mu^(1/get_exposure()))
-  linkinv <- function(eta) plogis(eta)^get_exposure()
-  logit_mu_eta <- function(eta) {
-    ifelse(abs(eta)>30,.Machine$double.eps,
-           exp(eta)/(1+exp(eta))^2)
-  }
-  mu.eta <- function(eta) get_exposure() * plogis(eta)^(get_exposure()-1) *
-    logit_mu_eta(eta)
-  # binomial()$mu.eta(eta)
-  valideta <- function(eta) TRUE
-  link <- paste("logexp(", deparse(substitute(exposure)), ")", sep="")
-  structure(list(linkfun = linkfun, linkinv = linkinv,
-          mu.eta = mu.eta, valideta = valideta, name = link),
-          class = "link-glm")
-}
 
-br.custom.family <- function(p) {
-  etas <- binomial(logexp(.days))$linkfun(p)
-  list(ar=0.5*p/p, # so that to fix the length of ar
-  at=0.5+exp(etas)*(1-p)/(2*p*.days))
+mk_true_dsr <- function(nData, modList, preDat, par, config){
+# mk_true_dsr <- function(nData, modForm, preDat, par, config){
+  # if(config$debugDSR>=3){
+    # print(preDat)
+  # }
+  nData <- nData |>
+    mutate(Survival = end - init) ## total survival days
+
+  fitData <- nData[rep(1:nrow(nData), times=nData$Survival),]
+  # print(unlist(lapply(nData$survival, function(x) seq(1,x))) )
+  # print(fitData$init + fitData$day)
+  # dayz <- unlist(lapply(nData$survival, function(x) seq(1,x))) 
+  # datez <- fitData$init + fitData$day
+  # cat("\nlength of days & dates; nrow of data: ", length(dayz), length(datez), nrow(fitData))
+  # print(nData$survival)
+  # print(nData$init)
+  # print(dayz)
+  # print(datez)
+  fitData$Day <- unlist(lapply(nData$Survival, function(x) seq(1,x))) 
+  fitData$Date <- fitData$init + fitData$Day
+  # fitData <- fitData |> mutate(status = ifelse(fate %in% c(1,2) & Date==end, 0, 1))
+  fitData <- fitData |> mutate(Surv = ifelse(fate %in% c(1,2) & Date==end, 0, 1))
+
+  # form <- as.formula(modForm)
+  # modFit <- glm(form, data=fitData, family=binomial)
+  # out <- predict(modFit, newdata=preDat, type="response")
+  # psrOut <- out ^ par$hatchTime
+  #
+  # allInits    <- nestData1$init 
+  # numInit     <- sapply(preDat$Date, function(x) sum(allInits==x))
+  # propInit    <- numInit/par$numNests
+  # propInitScl <- propInit/sum(propInit)
+  # psrScl      <- sum(propInitScl * psrOut)
+  ## you can alwways get the null even w/o it bing in modList
+  # if(config$debugDSR>=4) qvcalc::indentPrint(modFit)
+
+  # modFit <- lapply(modList, function(x){
+  ## returns a list:
+  out <- lapply(modList, function(x){
+                     # form <- as.formula(modList[x])
+                     form <- as.formula(x)
+                     modFit <- glm(form, data=fitData, family=binomial)
+                     if(config$debugDSR>=4) qvcalc::indentPrint(modFit)
+                     predict(modFit, newdata=preDat, type="response")
+                     # out <- predict(modFit, newdata=preDat, type="response")
+                     # psrOut <- out ^ par$hatchTime
+                     #
+                     # allInits    <- nestData1$init 
+                     # numInit     <- sapply(preDat$Date, function(x) sum(allInits==x))
+                     # propInit    <- numInit/par$numNests
+                     # propInitScl <- propInit/sum(propInit)
+                     # # psrScl      <- sum(propInitScl * psrOut)
+                     # sum(propInitScl * psrOut)
+  })
+
+  # psrOut <- out ^ par$hatchTime
+  psrOut <- lapply(out, function(x) x ^ par$hatchTime)
+
+  allInits    <- nData$init 
+  numInit     <- sapply(preDat$Date, function(x) sum(allInits==x))
+  propInit    <- numInit/par$numNests
+  propInitScl <- propInit/sum(propInit)
+  # psrScl      <- sum(propInitScl * psrOut)
+  psrScl      <- sapply(psrOut,function(x) sum(propInitScl * x))
+  dsr         <- out[[1]]
+  # dsrNull <- 
+
+
+  if(config$debugDSR>=3){
+    cat("\n\t\t>> data for calculating true DSR:\n")
+    qvcalc::indentPrint(head(fitData,80))
+    # cat("\n\t\t\t> model output:\n")
+    # qvcalc::indentPrint(modFit)
+    cat("\n\t\t\t> DSR for all models:\n")
+    qvcalc::indentPrint(out)
+    # cat("\n\t\t\t> DSR for null model:\n")
+    # qvcalc::indentPrint(psrOut)
+    cat("\n\t\t\t> PSR for all models:\n")
+    qvcalc::indentPrint(psrOut)
+
+    cat("\n\t\t\t> DSR (null): ", dsr)
+    cat("\n\t\t\t> PSR, weighted average: ", psrScl)
+    # cat("\n\t\tcoefficients:\n")
+    # qvcalc::indentPrint(coef(modFit))
+    # writeLines(as.character(psrOut), )
+    # conn <- file("psr_plot.txt", open="a")
+    # writeLines(psrOut, con=conn)
+    ## should append vector to file as a single line:
+    ## will just keep appending (doesn't reset) - need to create blank file elsewhere in script
+    ## or just take the last 100 lines written to the file and plot those?
+    write(psrOut, file="out/psr_plot.txt", ncolumns=length(psrOut), append=TRUE)
+  }
+
+  
+  # return(list(c(psrOut, psrScl)))
+  ## return DSR & PSR from null model, and weighted PSR from Date model:
+  return(c(dsr, psrScl))
+  # return(psrScl)
+  # return(psrOut)
+  # fitData <- lapply(nData, function(x) )
+  # colPivot <- c("")
+  # fitData <- nData |>
+    # tidyr::pivot_longer()
+    # pivot_longer()
+           
+           # trials = 
+
 }
 
 logexp <- function(exposure = 1) {
+  ## function from Bolker
   ## hack to help with visualization, post-prediction etc etc
   get_exposure <- function() {
     if (exists("..exposure", env=.GlobalEnv))
@@ -59,29 +138,33 @@ logexp <- function(exposure = 1) {
             class = "link-glm")
 }
 
+## probably makes more sense to do in python bc of search functions
+get_exposure <- function(numNests, survey, firstDay, lastDay, config){
+  db=config$debugLogEx
+  surveyDays = survey[[1]]
+  surveyInts = survey[[2]]
+}
+
+## take reduced nest data + survey info and create df to pass to logex function
 mk_logex_data <- function(nestData,survey,pyconfig,exposure=0){
+
   config = py_to_r(pyconfig)
   debug <- config$debugLogEx
-  # cat(sprintf("debug: %s ; type: %s ; length: %s", debug, class(debug), length(debug)))
   nNest <- nrow(nestData) # cat("\nnumber of nests:", nNest)
-  # nestObs <- nestData |> dplyr::select(ID, init, i, j, k, afate, totobs) # print(head(nestObs))
   nestObs <- nestData |> dplyr::select(ID, init,end,fate, i, j, k, afate) # print(head(nestObs))
-  # if(debug>=3) cat("\n\n\t<*><*> Logistic exposure ")
+
+
+  ##--- 1. choose dates to pass - different for daily exposure vs. normal ---------------------------------------------------------
   if(exposure==1){
-    # if(debug>=2) cat("- exposure=1 <*><*><*><*>\n")
     #NOTE: should this be up until the final active day of any nest?
     svyDays <- np_array(seq(max(survey[[1]]))) ## better than using as.matrix?
     svyInts <- np_array(rep(1, length(svyDays)))
-    # numObs <- sum(nestData[,"k"] - nestData[,"i"])
-    ## sum happens inside function
-    # numObs <- nestData[,"k"] - nestData[,"i"]
-    ## also needs to be all nests, not just discovered:
+    ## sum happens inside function; also needs to be all nests, not just discovered:
     numObs  <- nestData[,"end"] - nestData[,"init"]
     first   <- nestData[,"init"]
     last    <- nestData[,"end"]
     exp1    <- TRUE
   } else {
-    # if(debug>=2) cat("- exposure=exposure <*><*><*><*>\n")
     svyDays <- survey[[1]]
     svyInts <- survey[[2]]
     first   <- nestData[,"i"]
@@ -89,18 +172,18 @@ mk_logex_data <- function(nestData,survey,pyconfig,exposure=0){
     numObs  <- nestData[, "totobs"]
     exp1    <- FALSE
   }
-  # expoList   <- logex$calc_daily_expo(numNests=nNest, surveyDays=svyDays,
-  #                                  surveyInts=svyInts, firstDay=nestData$i,
-  #                                  lastDay=nestData$k, db=config$debugLL)
 
-  expoList   <- logex$calc_daily_expo(numNests=nNest, surveyDays=svyDays,
+  ##--- 2. get exposure days from survey info -----------------------------------------
+  expoList   <- dsr$calc_daily_expo(numNests=nNest, surveyDays=svyDays,
                                    surveyInts=svyInts, firstDay=first,
                                    lastDay=last, config=pyconfig)
   # if(dbug>=3) cat("\n\tmaking log exp dataframe\n")
   # if(debug>=3) cat("\n\tpass obs data to make_daily_logex_df:\n")
   # if(debug>=3) qvcalc::indentPrint(head(nestData,30))
+
+  ##--- 3. make a new df w/exposure & covars for glm -----------------------------------
   dat2S <-  withCallingHandlers(
-    {logex$make_daily_logex_df(obsData=nestObs,
+    {dsr$make_daily_logex_df(obsData=nestObs,
                                      nObs=numObs,
                                      survey=survey,
                                      config=pyconfig,
@@ -124,14 +207,14 @@ mk_logex_data <- function(nestData,survey,pyconfig,exposure=0){
     prvec(py_to_r(svyInts), nms=py_to_r(svyDays)[-length(svyDays)])
     # qvcalc::indentPrint(svyDays)
     # qvcalc::indentPrint(svyInts)
+    cat("\n\t\t>>> calculating daily exposure\n")
   }
-  if(debug>=3) cat("\n\t\t>>> calculating daily exposure\n")
-  # if(debug>=3) cat("\n\t>-> dat2S:\n")
-  # if(debug>=3) qvcalc::indentPrint(head(dat2S, 25))
   #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
   return(dat2S)
 }
 
+## take the dataframe made in make_logex_data and pass to glm
 calc_logexp <- function(modList,dat2S,exp=0,config){
 
   debug <- config$debugLogEx
@@ -233,74 +316,10 @@ fit_glm <- function(modList, dat, exposure = 1, debug=F){
 
     ## move trycatch outside of function so you can skip entire iteration
 
-    # tryCatch( { out[[m]] <- glm(form, data=dat, start=start,
-    #                 family=binomial(link=logexp(dat$Exposure)))
-    #              },
-    #              error=function(e){
-    #                message("!! error in glm:", e, "re-run")
-    #                reticulate::py_last_error()
-    #                out[[m]] <- glm(form, data=dat, start=start,
-    #                    family=binomial(link=logexp(dat$Exposure)),
-    #                    method=brglm2::brglmFit,
-    #                    control=brglmControl(maxit=500))
-    #
-    #                cat("\n**converged? ",out[[m]]$converged, "\n")
-    #              },
-    #              warning = function(w){
-    #                message("!! warning in glm:", w, "re-run")
-    #                out[[m]] <- glm(form, data=dat, start=start,
-    #                    family=binomial(link=logexp(dat$Exposure)),
-    #                    method=brglm2::brglmFit,
-    #                    control=brglmControl(maxit=500))
-    #
-    #                cat("\n**converged? ",out[[m]]$converged, "\n")
-    #              }
-    # )
-    # if(debug) print(summary(out[[m]]))
-  # }
-
-  # out[[1]] <- glm(modList[1], data=dat,
-  #                 family=binomial(link=logexp(dat$exposure)))
-  # if(debug) print(summary(out[[1]]))
-  #
-  # out[[2]] <- glm(modList[2], data=dat,
-  #                 family=binomial(link=logexp(dat$exposure)))
-  # if(debug) print(summary(out[[2]]))
-  #
-  # out[[3]] <- glm(modList[3], data=dat,
-  #                 family=binomial(link=logexp(dat$exposure)))
-  # if(debug) print(summary(out[[3]]))
-
-  # just explicitly specify the formulas, since it doesn't like anything else...
-  # dat <- na.omit(dat)
-  # out[[1]] <- glm(Surv~1, data=dat, start=c(1),control=glm.control(maxit=1000),
-  # # out[[1]] <- glm2(Surv~1, data=dat, start=c(1),control=glm.control(maxit=1000),
-  #                 family=binomial(link=logexp(dat$Exposure)))
-  # if(debug>=4) qvcalc::indentPrint(summary(out[[1]]),indent=8)
-  #
-  # out[[2]] <- glm(Surv~Date, data=dat, start=c(1,0),control=glm.control(maxit=1000),
-  #                 family=binomial(link=logexp(dat$Exposure)))
-  # if(debug>=4) qvcalc::indentPrint(summary(out[[2]]),indent=8)
-  #
-  # out[[3]] <- glm(Surv~Date+I(Date^2), data=dat, start=c(1,0,0),control=glm.control(maxit=1000),
-  #                 family=binomial(link=logexp(dat$Exposure)))
-  # if(debug>=4) qvcalc::indentPrint(summary(out[[3]]),indent=8)
-  #
-  # out[[4]] <- glm(Surv~Age, data=dat,start=c(1,0),control=glm.control(maxit=1000),
-  #                 family=binomial(link=logexp(dat$Exposure)))
-  # if(debug>=4) qvcalc::indentPrint(summary(out[[4]]),indent=8)
-  #
-  # out[[5]] <- glm(Surv~Date+Age, data=dat,start=c(1,0,0),control=glm.control(maxit=1000),
-  #                 family=binomial(link=logexp(dat$Exposure)))
-  # if(debug>=4) qvcalc::indentPrint(summary(out[[5]]),indent=8)
-  #
-  # out[[6]] <- glm(Surv~avDate, data=dat,start=c(1,0),control=glm.control(maxit=1000),
-  #                 family=binomial(link=logexp(dat$Exposure)))
-  # if(debug>=4) qvcalc::indentPrint(summary(out[[5]]),indent=8)
-
   return(out)
 }
 
+## do I ever use this??
 get_logex <- function(nestData,coefsArray,mList,dat,config){
   debug = config$debugLogEx
   dsr1 <-  1/(1+exp(-coefsArray[[1]][1,1]))
@@ -359,9 +378,6 @@ get_coef <- function(modOut, debug=0){
   # if (debug>=4) qvcalc::indentPrint(coefsArray)
   return(coefsArray)
 }
-
-# get_trueDSR <- function(nestData){
-# }
 
 make_pred <- function(coefArr,nmod,mods,newDat,hTime,db=0){
   # intercepts <- array(NA, dim=c(nmod))
@@ -450,97 +466,6 @@ make_psr <- function(psrList, prop_nests,db=0){
   return(psrOut)
 }
 
-# real_MARK <- function(inp,nocc,modList){
-real_MARK <- function(nData, more=F , db=0){
-  inp <- make_inp(nData)
-  noc <- max(inp$LastChecked)
-  if(db>=5) cat(sprintf("\n\t\t\t|> made 'inp' (nocc=%s):\n",noc))
-  if(db>=5) qvcalc::indentPrint(inp)
-  ## should output a list of arrays of DSR values & CIs:
-  ret <- make_outp(inp, noc,more, db)
-  if (db>=1) cat("\n\toooo|> MARK: returning model results for ", paste(names(ret),collapse=" ; "))
-  return(ret)
-
-}
-
-make_inp <- function(dat,db=0){
-  inp <- dat %>%
-  mutate(Name        = sprintf("/*sim_%s*/", nest),
-         FirstFound  = i,
-         LastPresent = j,
-         LastChecked = k,
-         Fate        = fate,
-         avDate      = (k-i)/2) %>%
-  mutate(avAge       = avDate -init, 
-         Freq        = 1) %>%
-  select(Name, FirstFound, LastPresent, LastChecked, Fate, avDate, avAge, Freq)
-  return(inp)
-
-}
-
-make_outp <- function(inp, nocc,more=F,db=0){
-  # res <- invisible(run_mark_models(inp,nocc, more))
-  if(db>=2) cat("\n<*><*><*> Run RMark <*><*><*><*><*>\n")
-  res <- invisible(make_mark_models(inp,nocc,db))
-  if(db>=3) cat(sprintf("\n\t\tRMark OUTPUT <type: %s> :\n",class(res)))
-  if(db>=3) qvcalc::indentPrint(res)
-  # if(db>=3) cat("\n\t\tAICc scores:\n") ## outputs a list
-  # if(db>=3) print(sapply(res,function(x) x$results$AICc))
-  top <- which.min(unlist(sapply(res,function(x) x$results$AICc)))
-  # print(top)
-  # expre <- paste("res",names(top),sep="$")
-  expre <- paste(c("res",names(top),"results","real[,1:4]"),collapse="$")
-  # print(expre)
-  # print(rlang::expr(expre))
-  # dsr <- eval(parse(text=expre))
-  # print(res[top])
-  dsrVals <- list()
-  dsrVals[["dot"]]   <- res$S.dot$results$real[,1:4]
-  dsrVals[["date"]]  <- res$S.date$results$real[,1:4]
-  dsrVals[["dsAge"]] <- res$S.dsAge$results$real[,1:4]
-  dsrVals[["top"]]   <- eval(parse(text=expre))
-  dsrVals[["topname"]] <- top
-  # dsrVals[["dot"]] <- res$Dot$results$real[,1:4]
-  # if(more){
-  #   dsrVals[["age"]] <- res$Age$results$real[,1:4]
-  #   dsrVals[["date"]] <- res$Date$results$real[,1:4]
-  #   dsrVals[["date_sq"]] <- res$Datesq$results$real[,1:4]
-  #   dsrVals[["age_date"]] <- res$AgeDatesq$results$real[,1:4]
-  # }
-  # if(db>=3) print(dsrVals[["dot"]])
-  return(dsrVals)
-}
-
-make_mark_models <- function(dat,noc,db=0){
-  # out <- dat |> RMark::process.data(model="Nest",nocc=noc) |> RMark::make.design.data() 
-  markDat <- RMark::process.data(dat, model="Nest",nocc=noc) 
-  # desDat  <- RMark::make.design.data(markDat) 
-  mark.ddl  <- RMark::make.design.data(markDat) 
-  # Dotf    <- list(formula=~1)
-  # Agef    <- list(formula=~avAge)
-  # Datef   <- list(formula=~avDate)
-  S.dot    <- list(formula=~1)
-  S.age    <- list(formula=~avAge)
-  S.date   <- list(formula=~avDate)
-  S.datesq   <- list(formula=~avDate + I(avDate^2))
-  S.dsAge   <- list(formula=~avAge + avDate + I(avDate^2))
-  # mods    <- create.model.list("Nest")
-  mark.model.list    <- create.model.list("Nest")
-  sink("/dev/null")
-  # mark.results <- mark.wrapper(mark.model.list, data=markDat, ddl=mark.ddl,
-  res <- mark.wrapper(mark.model.list, data=markDat, ddl=mark.ddl,
-                               invisible=TRUE,silent=TRUE,delete=TRUE)
-  sink()
-  # Dot     <- RMark::make.mark.model(markDat, desDat, parameters=list(Dot))
-  # out   <- RMark::mark.wrapper(mods, data=markDat, ddl=desDat)
-  # return(out)
-  # res <- mark.results$results
-  if(db>=4) qvcalc::indentPrint(res)
-  if(db>=4) qvcalc::indentPrint(str(res))
-  # return(mark.results)
-  return(res)
-}
-
 mk_par_storm_survey <- function(paramsArray, staticPar){
 
   par <- tryCatch(
@@ -558,63 +483,34 @@ mk_par_storm_survey <- function(paramsArray, staticPar){
                                    }  )
 }
 
-run_mark_models <- function(dat,noc,runMore=F,inv=T,mod=NULL){
-  # Dot <- RMark::mark( dat, nocc = noc , model='Nest', se=TRUE,output=FALSE, silent=TRUE, model.parameters=list(S=list(formula=~1)) )
-  #
-  # if (runMore){
-  #   Age <- RMark::mark( dat, nocc = noc , model='Nest', se=TRUE,
-  #                      model.parameters=list(S=list(formula=~Age)) )
-  #
-  #   Date <- RMark::mark( dat, nocc = noc , model='Nest', se=TRUE, 
-  #                       model.parameters=list(S=list(formula=~Date)) )
-  #
-  #   Datesq <- RMark::mark( dat, nocc = noc , model='Nest', se=TRUE,
-  #                         model.parameters=list(S=list(formula=~Date + I(Date^2))) )
-  #
-  #   AgeDatesq <- RMark::mark( dat, nocc = noc , model='Nest', se=TRUE,
-  #                            model.parameters=list(S=list(formula=~Age + Date + I(Date^2))) )
-  # }
-
-  # if(inv){
-  #   Dot <- 
-  # } else {
-    invisible(capture.output(Dot <- RMark::mark( dat, nocc = noc , model='Nest', se=TRUE,
-                               model.parameters=list(S=list(formula=~1)) )))
-
-    if (runMore){
-      invisible(Age <- RMark::mark( dat, nocc = noc , model='Nest', se=TRUE,
-                                  model.parameters=list(S=list(formula=~Age)) ))
-
-      invisible(Date <- RMark::mark( dat, nocc = noc , model='Nest', se=TRUE, 
-                                   model.parameters=list(S=list(formula=~Date)) ))
-
-      invisible(Datesq <- RMark::mark( dat, nocc = noc , model='Nest', se=TRUE,
-                                     model.parameters=list(S=list(formula=~Date + I(Date^2))) ))
-
-      invisible(AgeDatesq <- RMark::mark( dat, nocc = noc , model='Nest', se=TRUE,
-                                        model.parameters=list(S=list(formula=~Age + Date + I(Date^2))) ))
-      }
-      # }
-
-  return(RMark::collect.models())
+## Begin Example 1
+## logistic exposure model, following the Example in ?family. See,
+## Shaffer, T. 2004. Auk 121(2): 526-540.
+# Definition of the link function
+logexp_brglm <- function(exposure = 1) {
+  get_exposure <- function() {
+    if (exists("..exposure", env=.GlobalEnv))
+      return(get("..exposure", envir=.GlobalEnv))
+    exposure
+  }
+  linkfun <- function(mu) qlogis(mu^(1/get_exposure()))
+  linkinv <- function(eta) plogis(eta)^get_exposure()
+  logit_mu_eta <- function(eta) {
+    ifelse(abs(eta)>30,.Machine$double.eps,
+           exp(eta)/(1+exp(eta))^2)
+  }
+  mu.eta <- function(eta) get_exposure() * plogis(eta)^(get_exposure()-1) *
+    logit_mu_eta(eta)
+  # binomial()$mu.eta(eta)
+  valideta <- function(eta) TRUE
+  link <- paste("logexp(", deparse(substitute(exposure)), ")", sep="")
+  structure(list(linkfun = linkfun, linkinv = linkinv,
+          mu.eta = mu.eta, valideta = valideta, name = link),
+          class = "link-glm")
 }
 
-# logexp_brglm_old <- function(days = 1) {
-#   linkfun <- function(mu) qlogis(mu^(1/days))
-#   linkinv <- function(eta) plogis(eta)^days
-#   mu.eta <- function(eta) days * plogis(eta)^(days-1) *
-#   binomial()$mu.eta(eta)
-#   valideta <- function(eta) TRUE
-#   link <- paste("logexp(", days, ")", sep="")
-#   structure(list(linkfun = linkfun, linkinv = linkinv,
-#           mu.eta = mu.eta, valideta = valideta, name = link),
-#           class = "link-glm")
-# }
-#
-#
-# br.custom.family.old <- function(p) {
-#   etas <- binomial(logexp(.days))$linkfun(p)
-#   list(ar=0.5*p/p, # so that to fix the length of ar
-#   at=0.5+exp(etas)*(1-p)/(2*p*.days))
-# }
-#
+br.custom.family <- function(p) {
+  etas <- binomial(logexp(.days))$linkfun(p)
+  list(ar=0.5*p/p, # so that to fix the length of ar
+  at=0.5+exp(etas)*(1-p)/(2*p*.days))
+}
