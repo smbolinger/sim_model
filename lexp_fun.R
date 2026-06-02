@@ -22,6 +22,7 @@ mk_true_dsr <- function(nData, modList, preDat, par, config){
   fitData$Date <- fitData$init + fitData$Day
   # fitData <- fitData |> mutate(status = ifelse(fate %in% c(1,2) & Date==end, 0, 1))
   fitData <- fitData |> mutate(Surv = ifelse(fate %in% c(1,2) & Date==end, 0, 1))
+  # fitData <- fitData |> mutate(Surv = ifelse(fate %in% c(1,2) & Date==end, 1, 0))
 
   # form <- as.formula(modForm)
   # modFit <- glm(form, data=fitData, family=binomial)
@@ -42,7 +43,7 @@ mk_true_dsr <- function(nData, modList, preDat, par, config){
                      # form <- as.formula(modList[x])
                      form <- as.formula(x)
                      modFit <- glm(form, data=fitData, family=binomial)
-                     if(config$debugDSR>=4) qvcalc::indentPrint(modFit)
+                     if(config$debugDSR>=4) qvcalc::indentPrint(modFit,indent=12)
                      predict(modFit, newdata=preDat, type="response")
                      # out <- predict(modFit, newdata=preDat, type="response")
                      # psrOut <- out ^ par$hatchTime
@@ -62,26 +63,27 @@ mk_true_dsr <- function(nData, modList, preDat, par, config){
   numInit     <- sapply(preDat$Date, function(x) sum(allInits==x))
   propInit    <- numInit/par$numNests
   propInitScl <- propInit/sum(propInit)
+  if(config$debugDSR>=3) cat(sprintf("\n\t\tpropInitScl (length=%s):\n\t\t", length(propInitScl)), unlist(propInitScl))
+  # if(config$debugDSR>=3) cat(sprintf("\n\t\tpsrOut (length=%s):\n\t\t", length(psrOut)), unlist(psrOut))
+  if(config$debugDSR>=3) cat(sprintf("\n\t\tpsrOut (length=%s):\n\t\t", sapply(psrOut,length)))
+  if(config$debugDSR>=3) qvcalc::indentPrint(psrOut)
   # psrScl      <- sum(propInitScl * psrOut)
   psrScl      <- sapply(psrOut,function(x) sum(propInitScl * x))
-  dsr         <- out[[1]]
+  if(config$debugDSR>=3) cat(sprintf("\n\t\tpsrScl (length=%s):\n\t\t", length(psrScl)), unlist(psrScl))
+  dsr         <- out[[1]][1]
   # dsrNull <- 
 
 
   if(config$debugDSR>=3){
     cat("\n\t\t>> data for calculating true DSR:\n")
-    qvcalc::indentPrint(head(fitData,80))
-    # cat("\n\t\t\t> model output:\n")
-    # qvcalc::indentPrint(modFit)
+    qvcalc::indentPrint(head(fitData,50), indent=12) # cat("\n\t\t\t> model output:\n") qvcalc::indentPrint(modFit)
     cat("\n\t\t\t> DSR for all models:\n")
-    qvcalc::indentPrint(out)
-    # cat("\n\t\t\t> DSR for null model:\n")
-    # qvcalc::indentPrint(psrOut)
+    qvcalc::indentPrint(out) # cat("\n\t\t\t> DSR for null model:\n") qvcalc::indentPrint(psrOut)
     cat("\n\t\t\t> PSR for all models:\n")
     qvcalc::indentPrint(psrOut)
 
     cat("\n\t\t\t> DSR (null): ", dsr)
-    cat("\n\t\t\t> PSR, weighted average: ", psrScl)
+    cat("\n\t\t\t> PSR, weighted average: ", unlist(psrScl))
     # cat("\n\t\tcoefficients:\n")
     # qvcalc::indentPrint(coef(modFit))
     # writeLines(as.character(psrOut), )
@@ -90,7 +92,13 @@ mk_true_dsr <- function(nData, modList, preDat, par, config){
     ## should append vector to file as a single line:
     ## will just keep appending (doesn't reset) - need to create blank file elsewhere in script
     ## or just take the last 100 lines written to the file and plot those?
-    write(psrOut, file="out/psr_plot.txt", ncolumns=length(psrOut), append=TRUE)
+    # write(psrOut[[2]], file="out/psr_plot.txt", ncolumns=length(psrOut[[2]]), append=TRUE)
+    # write(psrOut[[2]], file="out/psr_plot.txt", sep="\t", append=TRUE, ncolumns=length(psrOut[[2]]))
+  }
+  if(config$testing=="yes"){
+    write(psrOut[[2]], file="out/psr_plot.txt", sep="\t", append=TRUE, ncolumns=130)
+    # write(psrOut[[2]], file="out/psr_plot.txt", append=TRUE)
+    # write("\n", file="out/psr_plot.txt", append=TRUE)
   }
 
   
@@ -196,8 +204,8 @@ mk_logex_data <- function(nestData,survey,pyconfig,exposure=0){
   # return(list(expoList,dat2S))
   #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   if(debug>=3){
-    cat("\n\t>->num obs:", numObs)
-    cat(sprintf("\n\t>-> survey end days (len %s) & survey ints (len %s) to pass to logexp functions:\n",
+    cat("\n\t\t\t>->num obs:", numObs)
+    cat(sprintf("\n\t\t\t>-> survey end days (len %s) & survey ints (len %s) to pass to logexp functions:\n",
                 length(svyDays),length(svyInts)))
     # print(class(svyInts)) 
     # print(class(svyDays))
@@ -227,7 +235,7 @@ calc_logexp <- function(modList,dat2S,exp=0,config){
   # tryCatch({ modOut <- fit_glm(modList,dat=dat2S,debug=config$debugLL) },
   # withCallingHandlers({ modOut <- fit_glm(modList,dat=dat2S,debug=config$debugLL) },
    # modOut <- tryCatch({
-  if(debug>=3) cat("\n\t>-> modList = ", modList)
+  if(debug>=3) cat("\n\t\t\t>-> modList = ", modList)
   tryCatch({
 
     modOut <- withCallingHandlers({
@@ -395,13 +403,8 @@ make_pred <- function(coefArr,nmod,mods,newDat,hTime,db=0){
     # vars         <- stringr::str_extract_all(mods, "\\w{2,}")[-1]
     # vars         <- stringr::str_extract_all(mods, "(?<=~)[\\w()^]{2,}")
     vars         <- stringr::str_extract_all(mods[m], "[\\w()^]{2,}")
-    # cat("\n\t\tcoefArr: ")
-    # qvcalc::indentPrint(coefArr)
-    # cat("\n\t\tVARS: ")
-    # qvcalc::indentPrint(vars)
     # vars         <- sapply(vars, function(x) x[-1])
     vars         <- vars[[1]][-1]
-    # if(db>=2) cat(sprintf("\n\t\tMODEL %s: %s ; VARS: %s",m, mods[m], vars))
     int          <- coefArr[[m]][1,1]
     # betas        <- sapply(coefArr, function(x) )
     if(length(vars)>1){
@@ -415,8 +418,17 @@ make_pred <- function(coefArr,nmod,mods,newDat,hTime,db=0){
     # mod_eq       <- make_pr_eq(int,betas,vars,db)
     # mod_eq       <- str2expression(make_pr_eq(int,betas,newD,db))
     mod_eq       <- str2expression(make_pr_eq(int,betas,vars,db))
-    # if(db>=3) cat("\n\t\tas expression:")
-    # if(db>=3) qvcalc::indentPrint(mod_eq)
+    #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    if(db>=2) {
+      cat("\n\t\tcoefArr: ")
+      qvcalc::indentPrint(coefArr)
+      cat("\n\t\tVARS: ")
+      qvcalc::indentPrint(vars)
+      cat(sprintf("\n\t\tMODEL %s: %s ; VARS: %s",m, mods[m], vars))
+    }
+    if(db>=3) cat("\n\t\tas expression:")
+    if(db>=3) qvcalc::indentPrint(mod_eq)
+    #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     dsrList[[m]] <- eval(mod_eq, envir=newDat)
     # if(db>=3) qvcalc::indentPrint (dsrList[[m]])
     # dsrList[[m]] <- plogis(mod_eq[[m]])
