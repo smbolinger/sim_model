@@ -50,6 +50,19 @@ for(i in seq(length(pArrList))){
   cat("\n\n...............................i=",i, ".........................................................................................................................................................\n")
   print(unlist(py_vars(par)))
   cat(".............................................................................................................................................................................................\n")
+
+  # if(TRUE){
+  #   # if(debug>=2) cat("\n\t>> overwriting storm days -")
+  #   stormDays <- nest$stormGen(par$stormFrq, par$stormDur,pyconfig,rng,stormDat, stFromFile=sett$stormFromFile,db=TRUE)
+  #   if(debug>=2) cat("\n\t>> storm days = ",stormDays)
+  #   survey    <- withCallingHandlers({obs$mk_surveys(stormDays, par$obsFreq, par$brDays, pyconfig,rng,db=debug)},
+  #   # survey    <- withCallingHandlers({obs$mk_surveys(stormDays, par$obsFreq, par$brDays, pyconfig,rng,complicate=FALSE,db=debug)},
+  #                                    error=function(e){ 
+  #                                      reticulate::py_last_error() 
+  #                                      # print(sys.calls()) # doesn't help if error in python
+  #                                    }  )
+  # }
+
   
 #---- LOOP THRU REPLICATES ------------------------------------------------------------------------------
   repID=0
@@ -77,7 +90,7 @@ for(i in seq(length(pArrList))){
     ## create the nest & observation data:
     nestData1 <- withCallingHandlers({
       nweeks = round(par$brDays/7)-2 # nweeks = floor(par$brDays/7)
-      obs$make_obs(par,rng,obsVarNum,stormDays,survey,pyconfig,initDat,nweeks,sett$initFromFile,pandas=FALSE)
+      obs$make_obs(par,rng,obsVarNum,stormDays,survey,pyconfig,initDat,stormUnk,nweeks,sett$initFromFile,pandas=FALSE)
     },
     error=function(e){
       skiptoNext <<- TRUE # need to use super-assignment
@@ -121,43 +134,28 @@ for(i in seq(length(pArrList))){
     nestData <- nestData1 |> filter(.data[[obsVar]]>0) # remove undiscovered nests
 
     #-~~~~debug~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    if(TRUE){
+    if(config$testing=="yes"){
+      num_disc <- nrow(nestData)
+      num_excl      <- sum(nestData$afate==7, na.rm=TRUE)
+      num_misclass  <- sum(nestData$fate!=nestData$afate,na.rm=TRUE)
+      num_misclass  <- num_misclass-num_excl
+      num_an        <- num_disc - num_excl
 
-      # num_disc <- nrow(nestData)
-      # num_excl      <- sum(nestData$afate==7, na.rm=TRUE)
-      # num_misclass  <- sum(nestData$fate!=nestData$afate,na.rm=TRUE)
-      # num_misclass  <- num_misclass-num_excl
-      # num_an        <- num_disc - num_excl
-      #
-      # mayfield_disc <- dsr$calc_dsr(nData=nestData,nestType="discovered", calcType="mayfield",
-      #                               conf=config,incTime=par$hatchTime,psurv=par$probSurv,debug=config$debugDSR)
-      #
-      # apparent_disc <- dsr$calc_dsr(nData=nestData,nestType="discovered", calcType="apparent",
-      #                               conf=config,incTime=par$hatchTime,psurv=par$probSurv,debug=config$debugDSR)
-      #
-      if(config$testing=="yes"){
-        num_disc <- nrow(nestData)
-        num_excl      <- sum(nestData$afate==7, na.rm=TRUE)
-        num_misclass  <- sum(nestData$fate!=nestData$afate,na.rm=TRUE)
-        num_misclass  <- num_misclass-num_excl
-        num_an        <- num_disc - num_excl
+      mayfield_disc <- dsr$calc_dsr(nData=nestData,nestType="discovered", calcType="mayfield",
+                                    conf=config,incTime=par$hatchTime,psurv=par$probSurv,debug=config$debugDSR)
 
-        mayfield_disc <- dsr$calc_dsr(nData=nestData,nestType="discovered", calcType="mayfield",
-                                      conf=config,incTime=par$hatchTime,psurv=par$probSurv,debug=config$debugDSR)
+      apparent_disc <- dsr$calc_dsr(nData=nestData,nestType="discovered", calcType="apparent",
+                                    conf=config,incTime=par$hatchTime,psurv=par$probSurv,debug=config$debugDSR)
 
-        apparent_disc <- dsr$calc_dsr(nData=nestData,nestType="discovered", calcType="apparent",
-                                      conf=config,incTime=par$hatchTime,psurv=par$probSurv,debug=config$debugDSR)
-
-        prop_excl     <- num_excl/num_disc
-        prop_misclass <- num_misclass/num_disc
-        disc_fld      <- sum(nestData$fate==2, na.rm=TRUE)
-        disc_hatch    <- sum(nestData$fate==0, na.rm=TRUE)
-        disc_longfin  <- sum(nestData$fint>par$obsFreq, na.rm=TRUE)
-        if(debug>=3) cat(sprintf("\n\t\t>>> discovered nests (length=%s):\n", num_disc))
-        if(debug>=3 & debug<6) qvcalc::indentPrint(head(nestData,25), indent=12)
-        if(debug>=6) qvcalc::indentPrint(nestData)
-        if(debug>=2) cat(sprintf("\t\t\tfor discovered nests: Mayfield DSR=%s ; apparent DSR=%s\n", mayfield_disc, apparent_disc))
-      }
+      prop_excl     <- num_excl/num_disc
+      prop_misclass <- num_misclass/num_disc
+      disc_fld      <- sum(nestData$fate==2, na.rm=TRUE)
+      disc_hatch    <- sum(nestData$fate==0, na.rm=TRUE)
+      disc_longfin  <- sum(nestData$fint>par$obsFreq, na.rm=TRUE)
+      if(debug>=3) cat(sprintf("\n\t\t>>> discovered nests (length=%s):\n", num_disc))
+      if(debug>=3 & debug<6) qvcalc::indentPrint(head(nestData,25), indent=12)
+      if(debug>=6) qvcalc::indentPrint(nestData)
+      if(debug>=2) cat(sprintf("\t\t\tfor discovered nests: Mayfield DSR=%s ; apparent DSR=%s\n", mayfield_disc, apparent_disc))
     }
     #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -223,123 +221,136 @@ for(i in seq(length(pArrList))){
   #---- Calculate true DSR: ----------------------------------------------------
       # maxSurveyDay  <- max(nestData1$init) + par$hatchTime
       ## predict for all initiation dates, then scale by num nests initiated on each day:
-      prDays  <- seq(1, max(nestData1$init)) # if(debug>=4) cat("\n\tdates for prediction: ", prDays, length(prDays))
+      # if(debug>=3) cat("\n\n\t[*] [*] [*] [*] [*] True DSR - make nest data [*] [*] [*] [*] [*] [*] [*] \n") # if (config$debugNests] =3) qvcalc::indentPrint(nestData1)
+      prDays_true  <- seq(1, max(nestData1$init)) # if(debug>=4) cat("\n\tdates for prediction: ", prDays, length(prDays))
 
       ## 1. basic calculation:
       simplePSR <- nVal["hat"] / par$numNests
       
-      ## 2. create inputs for calculating true DSR using logistic exposure:
+      ## 2. create inputs for calculating true DSR:
       ##    > needs to be all nests and all days (not just observed)
-      modData <- mk_logex_data( nestData1, survey=survey, pyconfig=pyconfig, exposure=1 ) 
+      # modData <- mk_logex_data( nestData1, survey=survey, pyconfig=pyconfig, expoVal=1 ) 
       mList_true <- c("Surv~1", "Surv~Date")                      ## models to fit
-      newDat <- data.frame(Date=prDays)                           ## data for prediction
+      newDat_true <- data.frame(Date=prDays_true)                           ## data for prediction
+      newDat <- data.frame(Date=prDays)
 
       ## 3. predict from glm - logit:
-
-    if(TRUE){
-
       if(debug>=3) cat("\n\n\t[*] [*] [*] [*] [*] True DSR - logit [*] [*] [*] [*] [*] [*] [*] \n") # if (config$debugNests] =3) qvcalc::indentPrint(nestData1)
+      # trueDSRlist <- mk_true_dsr(nestData1, mList_true, newDat_true, par, config)
+      trueDSRlist <- mk_true_dsr(nestData1, mList_true, newDat, par, config)
+      # numFill <- preDays - length(trueDSRlist[[2]])
+      # numFill <- preDays - max(nestData1$init)
+      # cat("\nnumFill & max init date=",numFill,class(numFill),max(nestData1$init),class(max(nestData1$init)),"\n")
+      # cat("\nnumFill & length of dsr list=",numFill,class(numFill),length(trueDSRlist[[2]]),class(length(trueDSRlist[[2]])),"\n")
+      # trueDSR_date <- c(trueDSRlist[[2]], rep(-1,numFill)) ## date covar 
+      # print(trueDSR_date)
+      # trueDSRmat[,r,i] <- trueDSR_date
+      trueDSRmat[,r,i] <- trueDSRlist
+      numInit     <- sapply(prDays, function(x) sum(nestData1$init==x))
+      propInit    <- numInit/par$numNests
+      propInitScl <- propInit/sum(propInit) ## make sure it sums to 1
+      print(propInitScl)
+      propInitmat[,r,i] <- propInitScl     
 
-      ret <- mk_true_dsr(nestData1, mList_true, newDat, par, config)
-      dsrT = ret[1]
-      psrT = ret[2]
-      psrT_date = ret[3]
+      # truePSRlist <- lapply(trueDSRlist, function(x) x ^ par$hatchTime)
+      # ret2 <- make_psr_list(nestData1,survey,mList_true,par,pyconfig,expo=1)
+      # print(ret2)
+      dsrT = trueDSRlist[[1]][1]
+      psrT = dsrT ^ par$hatchTime
+      # psrT_date = make_psr(trueDSRlist[[2]],nestData1$init,prDays_true,par,config)
+      out_true = make_psr(trueDSRlist[[2]],nestData1$init,prDays,par,config)
+      dsrT_date = out_true[[1]]
+      psrT_date = out_true[[2]]
+
+      # dsrT = ret[1]
+      # psrT = ret[2]
+      # psrT_date = ret[3]
+      # dsrT2 = ret2[[1]]
+      # psrT2 = ret2[[2]]
+      # psrT_date2 = ret2[[3]]
+
+      # rm(trueDSR_date)
+      rm(trueDSRlist)
 
       #-~~~~~debug~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
       if(config$testing=="yes"){
+        # if(debug>=3) cat("\n\n\t[*] [*] [*] [*] [*] True DSR - logit [*] [*] [*] [*] [*] [*] [*] \n") # if (config$debugNests] =3) qvcalc::indentPrint(nestData1)
+
         if(debug>=3) cat(sprintf("\n\t|> apparent PSR: %s [num hatch]/%s [num total] = %s):", nVal["hat"],par$numNests,simplePSR))
-        if(debug>=2) cat("\t|> true PSR, logit <date>:", ret[3])
+        # if(debug>=2) cat("\t|> true PSR, logit <date>:", ret[3])
+        if(debug>=2) cat("\t|> true DSR, logit <date>:", dsrT_date)
+        if(debug>=2) cat("\t|> true PSR, logit <date>:", psrT_date)
+        # if(debug>=2) cat("\t|> true PSR, logex <date>:", psrT2)
         # write(psrOut[[2]], file="out/psr_plot.txt", sep="\t", append=TRUE, ncolumns=130)
         # psrPlot_true <- 
-        if(debug>=3) cat("\t|> true DSR & PSR, logit <null>:", ret[c(1,2)])
+        # if(debug>=3) cat("\t|> true DSR & PSR, logit <null>:", ret[c(1,2)])
+        if(debug>=3) cat("\t|> true DSR & PSR, logit <null>:",dsrT,psrT)
+        # if(debug>=3) cat("\t|> true DSR & PSR, logexp <null>:", psrT2, psrT_date2)
       }
       #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    } 
-
-  #---- Mayfield: -----------------------------------------------------------------------------------------------
-    if(TRUE){
-      exposureNorm <- sum(nestData$j - nestData$i)
-      exposureFinal <- sum(nestData$k - nestData$j) * 0.5
-      exposure1 <- exposureNorm + exposureFinal
-      numFail  <- sum(nestData$afate!=0)
-      mayfDSR <- 1 - (numFail/exposure1)
-      if(debug>=3) cat("\n")
-      if(debug>=2) cat(sprintf("\t>> calculate Mayfield DSR: 1 - (%s[numFail]/%s[exposure]) = %s", numFail, exposure1,mayfDSR))
-    }
 
   #---- Logistic exposure: -----------------------------------------------------------------------------------------------
+
     if(config$logex){
-      dat2S <- mk_logex_data( nestData, survey=survey, pyconfig=pyconfig, exposure=0) 
-
-      #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-      if(config$testing=="yes"){
-        if(debug>=3) cat("\n\n\t[*] [*] [*] [*] [*] logistic exposure [*] [*] [*] [*] [*] [*] [*] \n") # if (config$debugNests] =3) qvcalc::indentPrint(nestData1)
-        if(config$debugLogEx>=4) {
-          cat("\n\n\t\t>>> dat2S:\n")
-          qvcalc::indentPrint(head(dat2S, 30), indent=8)
-        }
-      }
-      #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-      coefsArray <- calc_logexp(mList,dat2S,config=config)
-      nNest <- nrow(nestData) # cat("\nnumber of nests:", nNest)
-      # # nestObs <- nestData |> dplyr::select(ID, init, i, j, k, afate, totobs) # print(head(nestObs))
-      nestObs <- nestData |> dplyr::select(ID, init,end,fate, i, j, k, afate) # print(head(nestObs))
-      numObs <- nestData[,"totobs"]
-      if(any(coefsArray=="exception")){
-        cat("  go to next ~~")
+      if(debug>=3) cat("\n\n\t[*] [*] [*] [*] [*] logistic exposure [*] [*] [*] [*] [*] [*] [*] \n") # if (config$debugNests] =3) qvcalc::indentPrint(nestData1)
+      # how the age-specific paper did age-specific DSR:
+        # for(j in 1:(length(ac)-1)){ dsr_age[j] <- 1/(1+exp(-(intercept + eff_age*ac[j]))) } # ac=centered age on each day of interval (30 total); eff_age=coef for Age
+        # nsurv_byage <- prod(dsr_age)
+      # coefsArray <- calc_logexp(mList,dat2S,config=config)
+      ## not sure how to get scaled DSR to work
+      # out  <- make_psr_list(nestData, survey, mList, par, pyconfig)
+      # cat("\npredict from data:\n")
+      # print(out)
+      # if(any(out=="exception")){
+      #   cat("all_dsr.R:  go to next ~~")
+      # #     # coefs[,r,i] <- coefsArray
+      #   next
+      # }
+      #
+      # # DSRlist <- make_dsr_list(nestData,survey,mList,newDat,par,pyconfig)
+      # cat("\npredict from set of dates with fewer models:")
+      # DSRlist <- make_dsr_list(nestData,survey,mList_true,newDat,par,pyconfig)
+      # if(any(DSRlist=="exception")){
+      #   cat("all_dsr.R:  go to next ~~")
+      # #     # coefs[,r,i] <- coefsArray
+      #   next
+      # }
+      dat2S <- mk_logex_data( nestData, survey=survey, pyconfig=pyconfig, expoVal=0) 
+      DSRlist <- make_dsr_list(dat2S,survey,mList,par,pyconfig)
+      if(any(DSRlist=="exception")){
+        cat("all_dsr.R:  go to next ~~")
       #     # coefs[,r,i] <- coefsArray
         next
       }
-      if(config$coefSave!="none") coefs[,r,i] = unlist(coefsArray)
-    }
-
-  #---- Logexp DSR & PSR: -----------------------------------------------------------------------------------------------
-    if(config$logex){
-      dsr1        <- 1/(1+exp(-coefsArray[[1]][1,1]))
-      psr1        <- dsr1 ^ par$hatchTime
-      ## covariate = average date 
-      dsr2        <- 1/(1+exp(-coefsArray[[6]][1,1] + coefsArray[[6]][1,2] * dat2S$avDate))
-      psr2        <- dsr2 ^ par$hatchTime
-      psr2        <- psr2[1]
-      # print(psr2)
-      ## covariate = average date age of nest
-      dsr3        <- 1/(1+exp(-coefsArray[[6]][1,1] + coefsArray[[6]][1,2] * dat2S$avAge))
-      psr3        <- dsr3 ^ par$hatchTime
-      psr3        <- psr3[1] ## shoud all be the same value
-
-      dsrList <- make_pred(coefsArray, nmod, mList, newDat=dat2S,hTime=par$hatchTime, db=config$debugLogEx)
-      dsrList <- dsrList[-1]
-      allInits    <- nestData$init
-
-      psr <- sapply(dsrList, function(x){
-                       make_psr(x, allInits, dat2S$Date, par, config)
-                                    })
-
-      #-~~~~debug~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      print(DSRlist)
+      # numFill <- preDays - length(DSRlist[[2]])
+      # # cat("\nnumFill & max init date=",numFill,class(numFill),max(nestData$init),class(max(nestData$init)),"\n")
+      # cat("\nnumFill & length of dsr list=",numFill,class(numFill),length(DSRlist[[2]]),class(length(DSRlist[[2]])),"\n")
+      # trueDSR_date <- c(DSRlist[[2]], rep(-1,numFill)) ## date covar 
+      # dateDSRmat[,r,i] <- DSRlist[[2]]
+      dsr1 <- DSRlist[[1]][1]
+      # psr1 <- out[[2]]
+      psr1 <- dsr1^par$hatchTime
+      # allInits <- nestData$init
+      # allDates <- seq(1,preDays)
+      # psr_list <- make_psr(DSRlist[[2]],allInits,allDates,par,config)
+      # out_list <- make_psr(DSRlist[[2]],nestData$init,prDays,par,config)
+      out_list <- make_psr(DSRlist[[2]],nestData$init,dat2S$Date,par,config)
+      dsr_list <- out_list[[1]]
+      psr_list <- out_list[[2]]
+      logexVal <- unlist(tibble::lst(dsr1,psr1,psr_list))
       if(config$testing=="yes"){
-        # if(config$debugLogEx>=3) cat("\n\t\t>> psr (avg psrList weighted by nest initiation per day), excluding intercept-only model: ", unlist(psr), "\n")
-        if(config$debugLogEx>=3) cat("\n\t\t>> logistic exposure PSR (avg weighted by inits per day), excl null model: ",class(psr), unlist(psr), "\n")
-        # if(config$debugLogEx>=3) cat("\n\t\t>> psr22 (output of make_psr function), excluding intercept-only model: ", unlist(psr22), "\n")
-        # if(config$debugLogEx>=3) qvcalc::indentPrint(psr)
-        if(debug>=3){
+        # if(debug>=3) cat("\n\n\t[*] [*] [*] [*] [*] logistic exposure [*] [*] [*] [*] [*] [*] [*] \n") # if (config$debugNests] =3) qvcalc::indentPrint(nestData1)
+        if(config$debug>=3){
+          # cat("\n\t\t>> all_dsr.R: MAKING PSR LISTS\n")
+          cat("\n\t\t>> logistic exposure DSR (avg weighted by inits per day): ",class(dsr_list), unlist(dsr_list), "\n")
+          cat("\n\t\t>> logistic exposure PSR (avg weighted by inits per day): ",class(psr_list), unlist(psr_list), "\n")
           cat("\n\t|> logistic exposure DSR & PSR <null>:", dsr1, psr1)
-          # cat("\n|> logistic exposure DSR & PSR (average date):", dsr2,psr2)
-          # cat("\n\t|> logistic exposure PSR (mods 2-5):", paste(psr,collapse=" ; "))
-          cat("\n\t|> logistic exposure PSR (mods 2-5):", paste(psr,collapse=" ; "))
-          # cat("\n\t|> logistic exposure PSR (av date; av age):", dsr2,psr2,dsr3,psr3)
         }
       }
-      #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-      logexVal <- unlist(tibble::lst(dsr1,psr1,psr))
-      # logexVal <- unlist(tibble::lst(dsr1,psr1,psr[2:6]))
-      # logexVal        <- c(dsr1,psr1,psr[[1]],psr[[2]],psr[[3]],psr[[4]]) # logexVal <- c(dsr1,psr1,psr[[1]],psr[[2]],psr[[3]],psr[[4]])
-      # names(logexVal) <- lexp_name
     } else {
       logexVal <- c() }
-
 
   #---- MCMC model: ------------------------------------------------------------------------------------------------------
 
@@ -380,14 +391,29 @@ for(i in seq(length(pArrList))){
       #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   }
 
+  #---- Mayfield: -----------------------------------------------------------------------------------------------
+    if(TRUE){
+      exposureNorm <- sum(nestData$j - nestData$i)
+      exposureFinal <- sum(nestData$k - nestData$j) * 0.5
+      exposure1 <- exposureNorm + exposureFinal
+      numFail  <- sum(nestData$afate!=0)
+      mayfDSR <- 1 - (numFail/exposure1)
+      mayfPSR <- mayfDSR ^ par$hatchTime
+      if(debug>=3) cat("\n")
+      if(debug>=2) cat(sprintf("\t>> calculate Mayfield DSR: 1 - (%s[numFail]/%s[exposure]) = %s", numFail, exposure1,mayfDSR))
+    }
+
   #---- Add to DSR matrix: -----------------------------------------------------------------------------------------------
-    mayfVal = unlist(tibble::lst(mayfDSR))
+    # mayfVal = unlist(tibble::lst(mayfDSR))
+    mayfVal = unlist(tibble::lst(mayfDSR,mayfPSR))
     # if(FALSE){ ## if calculate true DSR is false (above) then this should be true
     #   dsrT = apparent_all
     #   psrT = dsrT ^ par$hatchTime
     #   if(config$mark) dVal <- c(dsrTrue,logexVal,mcmcVal,mayfVal,markVal)
     # }
-    dsrTrue = unlist(tibble::lst(dsrT,psrT,psrT_date))
+    # dsrTrue = unlist(tibble::lst(dsrT,psrT,psrT_date))
+    dsrTrue = unlist(tibble::lst(dsrT,psrT,dsrT_date,psrT_date))
+    # dsrTrue = unlist(tibble::lst(dsrT,psrT,psrT_date,dsrT2,psrT2,psrT_date2))
     # dVal <- c(dsrTrue,logexVal,mcmcVal,mayfDSR,mayfDSR_an)
     dVal <- c(dsrTrue,logexVal,mcmcVal,mayfVal)
     
