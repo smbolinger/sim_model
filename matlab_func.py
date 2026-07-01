@@ -21,8 +21,12 @@ from scipy import optimize
 rng = np.random.default_rng(seed=config.rngSeed)
 rng_key = jax.random.key(config.rngSeed)
 np.set_printoptions(suppress=True,precision=7)
+# print("loading optimization functions")
 from jax import config as jconfig
 jconfig.update("jax_enable_x64", True)
+# if config.testing=="yes":
+#   jconfig.update("jax_log_compiles", True)
+#   jconfig.update("jax_explain_cache_misses", True)
 
 def jrandom(rng_key,K,scl_fac):
   minv = scl_fac
@@ -34,9 +38,12 @@ def jrandom(rng_key,K,scl_fac):
 
 
 def nll_lookup(M, dVal, fateVal):
+# def nll_lookup(Mpower, dVal, fateVal):
+  ## NOTE called from w/in jPolyLike
   Mpower = [jnp.eye(3), M]
-  for _ in range(9):
-    Mpower.append(Mpower[-1] @ M)
+  # for _ in range(9):
+    # Mpower.append(Mpower[-1] @ M)
+  Mpower = [Mpower[-1]@M for _ in range(9)]
   mPowStack = jnp.stack(Mpower)
   mPowMatch = mPowStack[dVal][:,:,0].flatten()
   # print(f"\t\t{mPowStack=} {mPowMatch=}")
@@ -48,22 +55,25 @@ def nll_lookup(M, dVal, fateVal):
   return -jnp.sum(jnp.log(mPowFate))
   
 # def jPolyLike(pZero,obs,nObs):
-@jax.jit
-def jPolyLike(pZero,obs,nObs,scl_fac):
+# def jPolyLike(pZero,obs,nObs,scl_fac):
+# def jPolyLike(pZero,obs,nObs):
+## things that rely on pZero need to be created in this function
+## not the wrapper, so we can call hessian with same args
+# def jPolyLike(Mpower,dVal,fateVal):
+# @jax.jit
+def jPolyLike(pZero,dVal,fateVal,sclf):
   # K=2
   # nObs = obs.shape[0] ## jax cannot evaluate?
-  pZero = scl_fac*pZero
   ## NOTE: make sure this scaling constant matches scl_fac in PolyMort
   # pZero = 0.05*pZero
   # print(f"{pZero=}")
-  NLL = 0 ## initial NLL value
+  pZero = sclf*pZero
+  pZero = jnp.array(pZero)
   s0 = 1 - jnp.sum(pZero)
   m2 = 1 - s0 - pZero[0] # won't be used anyway if len(pVal) = 1
   arr = [[s0,0,0],[pZero[0],1,0],[m2,0,1]]
   M = jnp.array(arr,dtype=jnp.float64) # print(f"\t\t{mat=}") 
-  # if config.debugLL>=4: print(f"\t {type(M)=} {M.dtype=} {M.shape=}\n{M.flatten()=}")
-  dVal = obs[:,1].astype(jnp.int64)
-  fateVal = obs[:,2].astype(jnp.int64)
+  NLL = 0 ## initial NLL value
 
   NLL = nll_lookup(M,dVal,fateVal)
 
@@ -103,10 +113,23 @@ def jPolyLike(pZero,obs,nObs,scl_fac):
   # if config.debugLL>=4: print(f"\tjPolyLike: {NLL=} {type(NLL)=}")
   return NLL
 
+def jplWrapper(pZero,dVals,fates,sclf):
+  # if config.debugLL>=4: print(f"\t {type(M)=} {M.dtype=} {M.shape=}\n{M.flatten()=}")
+  ## Calls jPolyLike thru ll_valgrad to get val & gradient
+  loss, grad = ll_valgrad(pZero,dVals,fates,sclf)
+  # print(f"{val=} {type(val)=}")
+  # print(f"{grad=} {type(grad)=}")
+  return float(loss), np.array(grad)
+
+ll_valgrad = jax.value_and_grad(jPolyLike)
+
 # def PolyMort(obsData,survey,config,useJax=False,scl_fac=0.1,plt=True,suff=""):
 def PolyMort(obsData,survey,config,useJax=True,scl_fac=0.05,plt=False,suff=""):
 
   obs = mk_obs_mat(obsData,survey,config)
+  dVal = obs[:,1].astype(jnp.int64)
+  fateVal = obs[:,2].astype(jnp.int64)
+
   K = len(np.unique(obs[:,2])) - 1 ## number of different fates minus 1
   gtolr = 1e-6
   ftolr = 1e-6
@@ -115,9 +138,11 @@ def PolyMort(obsData,survey,config,useJax=True,scl_fac=0.05,plt=False,suff=""):
   fun = jPolyLike
   # met = config.optimizer
   met = "L-BFGS-B"
+  nObs = int(obs.shape[0])
+  # arg = (obs,nObs,scl_fac) ## extra args to pass to jplWrapper
+  arg = (dVal,fateVal,scl_fac) ## extra args to pass to jplWrapper
   lb, ub = 0.001, 1.0
   bnd = optimize.Bounds(lb,ub)
-  nObs = int(obs.shape[0])
   # ll_obj =  functools.partial(fun,obs=obs,nObs =nObs)
   # ll_obj =  functools.partial(fun,obs=obs,nObs =nObs,scl_fac=scl_fac)
 
@@ -139,7 +164,6 @@ def PolyMort(obsData,survey,config,useJax=True,scl_fac=0.05,plt=False,suff=""):
 
   ## NOTE specifying scl_fac inside of jPolyLike insteead of as arg
   # arg = (obs,nObs,)
-  arg = (obs,nObs,scl_fac)
 
   if plt: plot_jac(fun,arg,suff)
   # print(f"\t>> PolyMort: run optimizer - {met=} {gtolr=}; untransformed {pZero=}\n{fun=} {bnd=}")
@@ -160,7 +184,8 @@ def PolyMort(obsData,survey,config,useJax=True,scl_fac=0.05,plt=False,suff=""):
 
   # print(f"\t>> PolyMort: {out.success=} {out.message=} {out.nit=} {out.nfev=}")
   # print(f"*** PolyMort: {ans.dtype=} {ans.shape=} {ans=} {s=} ",end=" ")
-  hess      = np.asarray(jax.hessian(jPolyLike)(out.x,obs,nObs,scl_fac),dtype=np.float64)
+  # hess      = np.asarray(jax.hessian(jPolyLike)(out.x,obs,nObs,scl_fac),dtype=np.float64)
+  hess      = np.asarray(jax.hessian(jPolyLike)(out.x,*arg),dtype=np.float64)
   se = np.sqrt(np.diag(np.linalg.inv(hess))) * scl_fac
   ans = out.x * scl_fac
   s = 1-sum(ans) ## one minus sum of fitted values
@@ -174,20 +199,8 @@ def PolyMort(obsData,survey,config,useJax=True,scl_fac=0.05,plt=False,suff=""):
   return (s, ans[0], se[0])
 
 # def jplWrapper(pZero,obs,nObs):
-def jplWrapper(pZero,obs,nObs,sclf):
-  jpZero = jnp.array(pZero)
-  # loss, grad, hess = ll_valgrad(jpZero,obs,nObs)
-
-  # loss, grad = ll_valgrad(jpZero,obs,nObs)
-  loss, grad = ll_valgrad(jpZero,obs,nObs,sclf)
-  # val = float(loss)
-  # grad = np.array(grad,dtype=np.float64)
-  # print(f"{val=} {type(val)=}")
-  # print(f"{grad=} {type(grad)=}")
-  # return float(loss), np.array(grad), np.array(hess)
-  return float(loss), np.array(grad)
-
-ll_valgrad = jax.value_and_grad(jPolyLike)
+# def jplWrapper(pZero,obs,nObs,sclf):
+# def jplWrapper(pZero,dVals,fates,nObs,sclf):
 # def ll_valgrad(x,obs,nObs): ## obs is passed from w/in the Class instance
 # def ll_valgrad(x,obs,nObs,sclf): ## obs is passed from w/in the Class instance
 #   # val, grad = jax.value_and_grad(jPolyLike)(x,obs,nObs) 
@@ -277,69 +290,6 @@ class Optimized:
     self.jplCompute(pZero)
     return self.cached_grad
 
-# def PolyLikelihood(pZero,obs,M):
-def PolyLikelihood(pZero,obs,K,sclf):
-  # K = 2
-  nObs = obs.shape[0] # print(f"{nObs=}")
-  pZero = sclf*pZero
-  s0 = 1 - np.sum(pZero)
-  m2 = 1 - s0 - pZero[0] # won't be used anyway if len(pVal) = 1
-  arr = [[s0,0,0],[pZero[0],1,0],[m2,0,1]]
-  # arr = [[s0,0,0],[pZero[0],1,0],[pZero[1],0,1]]
-  ## need to calculate here bc it's not contant (pZero changes)
-  M = np.array(arr,dtype=np.float64) 
-  # if config.debugLL>=4: print(f"\t>> PolyLikelihood: {nObs=} {M.dtype=} {M.shape=} {M.flatten()=}")
-  NLL = 0 ## initial NLL value
-
-  for n in range(nObs):
-    d = obs[n,1] # print(f"{d=}",end=" ")
-    fate = obs[n,2] # print(f" {fate=}")
-    # if config.debugLL>=4: print(f"\t\tPolyLikelihood: nest ID: {obs[n,0]} {d=} {fate=}",end=" ")
-    M_to_the_d = np.linalg.matrix_power(M,d) # print(f"\t\t\t {M_to_the_d.flatten()=}",end=" ")
-    L = M_to_the_d[fate,0]
-    # if config.debugLL>=4: print(f"\t\t M_to_the_d[fate,0] {L=}")
-    NLL = NLL - np.log(L)
-
-  # if config.debugLL>=4: print(f"\t>> PolyLikelihood: {NLL=}")
-  return NLL
-
-
-def j_obs_mat(obsData,survey,config,exp1=False):
-  if isinstance(obsData, pd.DataFrame):
-    # obsData = obsData.to_numpy()
-    obsData = jnp.array(obsData.to_numpy())
-  elif not isinstance(obsData, jnp.ndarray):
-    obsData = jnp.array(obsData)
-  print(f"j_obs_mat: input data: {obsData=}")
-  nNest = obsData.shape[0]
-# colnames = c('ID', 'init', 'end', 'fate', 'i', 'j', 'k', 'afate', 'nobs', 'fint', 'totobs', 'sint')
-  print(f"j_obs_mat: unpack input data")
-  ID, init,end,tfate,ff, la, lc, afate,nObs = obsData.T
-  nrows    = int(jnp.sum(nObs))
-  nObs = jnp.array(nObs)
-  nObs = nObs.astype(jnp.int64)
-  if exp1:
-    first,last,fate = init,end,tfate
-  else:
-    first,last,fate = ff,la,afate
-  print(f"j_obs_mat: calculate exposure days")
-  expos, obsDay = calc_daily_expo(nNest,survey,first,last,config)
-  endDay = jnp.cumsum(nObs) -1 #+> zero-indexed
-  endDay = endDay.astype(jnp.int64)
-  print(f"j_obs_mat: {endDay=} {endDay.dtype=}")
-  print(f"j_obs_mat: {type(endDay)=} {type(nrows)=} {type(nObs)=} {type(nNest)=}")
-
-  IDcol = jnp.repeat(ID,nObs)
-  print(f"j_obs_mat: {IDcol=} {IDcol.dtype=}")
-  fatecol = jnp.ones(nrows,dtype=int)
-  fatecol = fatecol.at[endDay]=fate + 1
-  print(f"j_obs_mat: {fatecol=} {fatecol.dtype=}")
-
-  out = jnp.column_stack([IDcol,expos,fatecol])
-  ##+> check for NAs:
-  print(f"\t\tmk_obs_mat: {type(out)=} {np.isnan(out).sum(axis=0)=}\n {out[0:8,:]=}")
-  return out
-
 # def plot_jac(fun,obs,suff=""):
 def plot_jac(fun,arg,suff=""):
   beta1 = jnp.linspace(0,1,21)
@@ -364,113 +314,4 @@ def plot_jac(fun,arg,suff=""):
 ## define globally for some reason?
 valgrad =   jax.jit(jax.value_and_grad(jPolyLike), static_argnums=2 )
 hessFun =   jax.jit(jax.hessian(jPolyLike), static_argnums=2 )
-
-def PolyMort_new(obsData,survey,config,scl_fac=0.05,suff=""):
-  obs = mk_obs_mat(obsData,survey,config)
-  K = len(np.unique(obs[:,2])) - 1 ## number of different fates minus 1
-  obs = jnp.asarray(obs,dtype=jnp.float64)
-  gtolr = 1e-8
-  nObs = int(obs.shape[0]) 
-  pZero = rng.uniform(low=0.1,high=0.9,size=(K)) # print(f"untransformed {pZero=}")
-  s0 = 1 - np.sum(pZero)
-  print(f"PolyMort: {K=} {type(pZero)=} {pZero.dtype=} {pZero.shape=}",end=" ")
-  print(f"\t\t {type(obs)=} {obs.dtype=} {obs.shape=} ")
-
-  def obj_fun(x):
-    val, _ = valgrad(x, obs, nObs)
-    return float(val)
-  def grad_fun(x):
-    _, grad = valgrad(x, obs, nObs)
-    ## scipy requires flattened input?
-    return np.asarray(grad, dtype=np.float64).flatten()
-
-  lb = 0.00001
-  ub = 1.0
-  bnd = optimize.Bounds(lb,ub)
-  met = config.optimizer
-  ## don't need args because func being minimized is obj_fun?
-
-  out = optimize.minimize(obj_fun,
-                          pZero,
-                          method = met,
-                          bounds = bnd, # constraints = con,
-                          jac=grad_fun,
-                          options={'gtol':gtolr, 'disp':True},
-                          # options={'disp':True},
-                          )
-  print(f">> PolyMort: {out.success=} {out.message=} {out.nit=} {out.nfev=}")
-  ans = out.x * scl_fac
-  s = 1-sum(ans) ## one minus sum of fitted values
-  print(f"*** PolyMort: {ans.dtype=} {ans.shape=} {ans=} {s=} ",end=" ")
-
-  hess = np.asarray(hessFun(pZero,obs,nObs),dtype=np.float64)
-  se = np.sqrt(np.diag(np.linalg.inv(hess))) * scl_fac
-  seS = np.sqrt(np.sum(np.sum(np.linalg.inv(hess)))) * scl_fac
-  print(f"{se=} {seS=}",end=" ")
-  print(f" {hess.flatten()=}")
-  return (s, seS, ans[0], se[0])
-
-
-# optimizer = jaxopt.LBFGSB(fun=jPolyLike) ##+> should automatically calculate gradients
-
-# def run_optim(pZero,bnd,obs):
-# @jax.jit
-# def run_optim(pZero,obs,lb,ub):
-#
-#   # bnd = (jnp.array([0.00001,0.00001]),jnp.array([1.0,1.0]))
-#   bnd = (lb,ub)
-#   solvstate = optimizer.run(pZero, bounds=bnd, obs=obs)
-#   hess = jax.hessian(jPolyLike)(solvstate.params,obs)
-#   se = jnp.sqrt(jnp.diag(jnp.linalg.inv(hess)))
-#   seS = jnp.sqrt(jnp.sum(jnp.sum(jnp.linalg.inv(hess))))
-#
-#   return solvstate.params, hess, se, seS
-
-# NOTE try evaluating everything inside jax - doesn't use class Optimized
-# NOTE can't because of the for loop and indexing
-# def jPolyMort(obsData,survey,config,scl_fac=0.05,plt=False,suff=""):
-#
-#   obs = mk_obs_mat(obsData,survey,config) 
-#   obs = jnp.array(obs)
-#   K = len(np.unique(obs[:,2])) - 1 ##+> number of different fates minus 1
-#
-#   pZero = rng.uniform(low=0.1,high=0.9,size=(K)) # print(f"untransformed {pZero=}")
-#   # bnd = (jnp.array([0.00001,0.00001]),jnp.array([1.0,1.0]))
-#   lb = jnp.array([0.00001,0.00001])
-#   ub = jnp.array([1.0,1.0])
-#   if K==1:
-#     print("*** single value in pZero")
-#     ## zero-pad if only one input val so shape is same
-#     pZero = np.array([pZero[0],0.0]) 
-#     ## change second bound to 0 and 0 when using padded array
-#     # bnd = (jnp.array([0.00001,0.0]),jnp.array([1.0,0.0]))
-#     lb = jnp.array([0.00001,0.0])
-#     ub = jnp.array([1.0,0.0])
-#
-#   # s0 = 1 - np.sum(pZero)
-#
-#   print(f"PolyMort: {K=}",end=" ")
-#   print(f"\t\t {type(obs)=} {obs.dtype=} {obs.shape=} ")
-#
-#   pZero = jnp.array(pZero)
-#   # ans, hess = run_optim(pZero,bnd,obs)
-#   print(f">> PolyMort: run jaxopt.LBFGSB optimizer - untransformed {pZero=} {lb=} {ub=}")
-#   ans, hess, se, seS = run_optim(pZero,obs,lb,ub)
-#   ans = ans * scl_fac
-#   se = se * scl_fac
-#   seS = seS * scl_fac
-#   s = 1-sum(ans) ## one minus sum of fitted values
-#   print(f"*** PolyMort: {ans.dtype=} {ans.shape=} {ans=} {s=} ",end=" ")
-#
-#   # se = np.sqrt(np.diag(np.linalg.inv(hess))) * scl_fac
-#   # seS = np.sqrt(np.sum(np.sum(np.linalg.inv(hess)))) * scl_fac
-#   ## NOTE: do I need to multiple se by the scaling factor?
-#   print(f"{se=} {seS=}",end=" ")
-#   print(f" {hess.flatten()=}")
-#
-#   return(s, seS, ans[0], se[0])
-#
-#
-# # ll_valgrad = jax.value_and_grad(jPolyLike) ## value & gradient function
-# #   return out, jax.grad(lambda x
 
