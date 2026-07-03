@@ -28,6 +28,7 @@ from paramLists import (
   # parLists2,
   plTest, 
   plTest2,
+  plCtlTest,
   plTestFlood,
   plDebug,
   plSmall,
@@ -44,13 +45,14 @@ now_short  = datetime.today().strftime('%Y%m%d')
 # atype=""
 # atype_r = os.environ.get('atypeR')
 atype = os.environ.get('atypeR')
-mcType = os.environ.get('mcTypeR')
+# mcType = os.environ.get('mcTypeR')
 # debug=False
 use_pwrong=False
 nWeeks = 2
 initFromFile = True
 stormFromFile = True
-np.set_printoptions(precision=3) # NOTE this doesn't work outside np arrays?
+stormUnk = True ## explicitly mark storm nests unknown
+# np.set_printoptions(precision=7) # NOTE this doesn't work outside np arrays?
 printSettings = os.environ.get('printset')
 # if debug: print(f"\t\t>>{printSettings=}")
 
@@ -101,10 +103,16 @@ if len(opts)>0:
 
 # tests = ['debug', 'control','testing', 'storm', 'fixedtest', 'nstest']
 
+# tests = ['norm','range', 'test2','debug', 'small','small2','xtrastorm', 'fixedtest', 'nstest']
 # +> ANALYSIS TYPE - GROUPS:
-tests = ['norm','range', 'test2','debug', 'small','small2','xtrastorm', 'fixedtest', 'nstest']
-fullList  = ['nostorm', 'full', 'supp', 'logexp','subset']
+tests = ['norm','range','test2','debug','small','small2','xtrastorm',
+         'testmaxmin','testctrl','fixedtest','nstest1','nstest2','test100',
+         'test200','test500','setn','snrange']
+fullList = ['nostorm','full','supp','logexp','subset','full10rep']
 ctrlList = ['control']
+rangeList = ['range','snrange']
+ ## don't necessarily have to have different param set for each atype
+ ## can just set some values in the function
 
 #test2 is control vals; range is extremes at either end of param vals
 # ctrlList = ['control', 'test2']
@@ -131,6 +139,9 @@ def choose_config(atype,debug=False):
 
 def choose_parlist(atype, config,debug=False):
   match atype:
+    case "full10rep":
+      pLists = parLists
+      msg="\t\t|>not testing; using full param lists"
     case "full":
       pLists = parLists
       msg="\t\t|>not testing; using full param lists"
@@ -138,6 +149,7 @@ def choose_parlist(atype, config,debug=False):
       msg="\t\t|>full w/control values"
       pLists=plControl
       config.stormFate = 2
+      config.rangeVar = 1 ## probSurv is range of values
     case "predict":
       msg="\t\t|> full WITH PREDICTIONS"
       config.predSave="mean"
@@ -146,9 +158,19 @@ def choose_parlist(atype, config,debug=False):
     case "nostorm":
       msg=("\t\t|>run with no storms")
       pLists=plNoStorm
-    case "nstest":
+    case "nstest1":
       msg=("\t\t|>run with no storms")
       pLists=plNSTest
+      # pLists['propMC'] = list(np.linspace(0.0,0.4,9)),
+      #NOTE: why does this not work here if it works below??
+      # pLists['propMC'] = list(np.linspace(0.0,0.5,11))
+      # msg=msg+f"\t\t\t|> ***OVERRIDE: using {pLists["propMC"]=} & {pLists["propUnk"]=} "
+    case "nstest2":
+      msg=("\t\t|>run with no storms")
+      pLists=plNSTest
+      # pLists['propUnk'] = list(np.linspace(0.0,0.4,9)),
+      # pLists['propUnk'] = list(np.linspace(0.0,0.5,11))
+      # msg=msg+f"\t\t\t|> ***OVERRIDE: using {pLists["propMC"]=} & {pLists["propUnk"]=} "
     case "supp":
       msg=("\t\t|>run with supplemental param sets")
       pLists=plSupp
@@ -156,8 +178,30 @@ def choose_parlist(atype, config,debug=False):
       pLists = plTest
       # debug = True
       msg=("\t\t|>using test values.")
+    case "test100":
+      pLists = plTest # debug = True
+      msg=("\t\t|>using test values.")
+    case "test200":
+      pLists = plTest # debug = True
+      msg=("\t\t|>using test values.")
+    case "test500":
+      pLists = plTest # debug = True
+      msg=("\t\t|>using test values.")
+    case "setn":
+      pLists = plTest # debug = True
+      msg=("\t\t|>using test values.")
+    case "snrange":
+      pLists = plTest # debug = True
+      msg=("\t\t|>using test values.")
+    case "testmaxmin":
+      pLists = plTest # debug = True
+      msg=("\t\t|>using test values.")
     case "test2":
       pLists=plTest2
+      # initFromFile=False
+      msg=("\t\t|>testing w/chosen values")
+    case "testctrl":
+      pLists=plCtlTest
       # initFromFile=False
       msg=("\t\t|>testing with control vals")
     case "range":
@@ -165,6 +209,9 @@ def choose_parlist(atype, config,debug=False):
       pLists=plTestRange
     case "small":
       msg="\t\t|>small set of values"
+      pLists=plSmall
+    case "small2":
+      msg="\t\t|>small number of nests, no evidence decay"
       pLists=plSmall
       # initFromFile=False
       # staticPar['brDays'] = 25
@@ -180,41 +227,102 @@ def choose_parlist(atype, config,debug=False):
       pLists = plDefault # don't need to update any settings if not testing?
       msg="\t\t|>no type provided; using default param lists"
 
-  if config.hTime==0:
+  # if atype=="range" and config.rangeVar==1:
+  if (atype=="testmaxmin"):
+    # pLists['probSurv'] = [0.96,0.98]
+    pLists['stormFrq'] = [0, 4]
+    pLists['obsFreq'] = [3,7]
+    # pLists['hatchTime'] = [16,28]
+    pLists['stormFate'] = [True,False]
+    pLists['numNests'] = [250,500]
+
+    msg= msg + f"\t\t\t|> using max and min values for some params"
+
+  # if  atype=="range" and config.rangeVar==1:
+  if (atype=="control" or atype=="testctrl"):
+    pLists['probSurv'] = np.linspace(0.88,0.99, 12).tolist() 
+    pLists['decayRate'] = [0.0, 0.08]
+    msg= msg + f"\t\t\t|> using a range of values for probSurv"
+
+  # if  atype=="range" and config.rangeVar==1:
+  if  atype in rangeList and config.rangeVar==1:
+    pLists['probSurv'] = np.linspace(0.88,0.99, 12).tolist() 
+    msg= msg + f"\t\t\t|> using a range of values for probSurv"
+  elif atype in rangeList and config.rangeVar==2:
+    print(list(np.linspace(0.02,0.2, 19)))
+    # pLists['decayRate'] = list(np.linspace(0.02,0.2, 19)),  ## this one is class 'tuple'; propMC isn't??
+    pLists['decayRate'] = np.linspace(0.02,0.2, 19).tolist()  ## this one is class 'tuple'; propMC isn't??
+    print(f"{type(pLists['decayRate'])=}")
+    msg= msg + f"\t\t\t|> using a range of values for decayRate"
+  elif atype in rangeList and config.rangeVar==3:
+    pLists['discProb'] = np.linspace(0.7,1.0, 6).tolist() 
+    msg= msg + f"\t\t\t|> using a range of values for discProb"
+    
+  elif atype in rangeList and config.rangeVar==4:
+    pLists['stormFrq'] = [0,1,2,3,4,5]
+    msg= msg + f"\t\t\t|> using a range of values for stormFrq"
+  elif atype in rangeList and config.rangeVar==5:
+    pLists['obsFreq'] = [1,2,3,4,5,6,7]
+    msg= msg + f"\t\t\t|> using a range of values for obsFreq"
+  if config.hTime==1:
     pLists["hatchTime"] = [16]
     msg= msg + f"\t\t\t|>!OVERRIDE - using {pLists["hatchTime"]} as hatch time"
-  if config.hTime==1:
+  elif config.hTime==2:
     pLists["hatchTime"] = [20]
     msg= msg+f"\t\t\t|>!OVERRIDE - using {pLists["hatchTime"]} as hatch time"
-  if config.hTime==2:
+  elif config.hTime==3:
     pLists["hatchTime"] = [28]
     msg= msg+f"\t\t\t|>!OVERRIDE - using {pLists["hatchTime"]} as hatch time"
   else:
     msg= msg+f"\t\t\t|> using {pLists["hatchTime"]} as hatch time"
   # if config.hTime==3:
-  if config.stormFate==0:
+  if config.stormFate==1:
     pLists["stormFate"] = [False]
     msg= msg+f"\t\t>> override - using {pLists["stormFate"]} as storm fate"
-  elif config.stormFate==1:
+  elif config.stormFate==2:
     pLists["stormFate"] = [True]
     # print("using '2' as storm fate")
     msg=msg+f"\t\t>> override - using {pLists["stormFate"]} as storm fate"
   else:
     msg=msg+f"\t\t\t|> using {pLists["stormFate"]} as storm fate"
-  if config.mcType==0:
-    pLists['propMC'] = list(np.linspace(0.0,0.5,11))
+  if config.numNests==1:
+    # pLists['propMC'] = list(np.linspace(0.0,0.5,11))
+    pLists['numNests'] = [250]
+    print(f"{type(pLists['numNests'])=}")
+    msg=msg+f"\t\t\t|> ***OVERRIDE to change numNests: using {pLists["numNests"]=}"
+  elif config.numNests==2:
+    # pLists['propUnk'] = list(np.linspace(0.0,0.5,11))
+    pLists['numNests'] = [500]
+    msg=msg+f"\t\t\t|> ***OVERRIDE to change numNests: using {pLists["numNests"]=}"
+  else:
+    msg=msg+f"\t\t\t|> using {pLists["numNests"]=}"
+
+  if config.mcType==1:
+    # pLists['propMC'] = list(np.linspace(0.0,0.5,11))
+    pLists['propMC'] = list(np.linspace(0.0,0.8,17))
+    print(f"{type(pLists['propMC'])=}")
     msg=msg+f"\t\t\t|> ***OVERRIDE to change propMC: using {pLists["propMC"]=} & {pLists["propUnk"]=} "
-  elif config.mcType==1:
-    pLists['propUnk'] = list(np.linspace(0.0,0.5,11))
+  elif config.mcType==2:
+    # pLists['propUnk'] = list(np.linspace(0.0,0.5,11))
+    pLists['propUnk'] = list(np.linspace(0.0,0.8,17))
     msg=msg+f"\t\t\t|> ***OVERRIDE to change propUnk: using {pLists["propMC"]=} & {pLists["propUnk"]=} "
   else:
     msg=msg+f"\t\t\t|> using {pLists["propMC"]=} & {pLists["propUnk"]=} "
+
+  if config.other=="setn":
+    pLists['stormFrq'] = [0]
+    pLists['hatchTime'] = [20]
+    # pLists['probSurv'] = [0.966]
+    msg=msg+f"\t\t\t|> preset nest fates - using {pLists['stormFrq']=}"
   ## this might work better:
   # if atype == nstest:
 
-  if atype in ["small", "test2"]:
+  # if atype=="small2":
+
+  if atype in ["small", "testctrl"]:
     initFromFile=False
     stormFromFile=False
+
 
   if debug: print(msg)
   # NOTE could you collect messages and then print the msg so far on error?
@@ -250,9 +358,9 @@ def print_settings(config, atype, initFromFile, paramsArray, pListOut, confMsg):
         f"\n|>|>|>{len(paramsArray)} param sets x {config.nreps} reps ="
         f" {len(paramsArray)*config.nreps} total rows"
         )
-  if config.debug>=3:
-    print("\t\t|>|>param sets:")
-    print(pArrList)
+  # if config.debug>=5:
+  #   print("\t\t|>|>param sets:")
+  #   print(pArrList)
 
 
 # print(f"{atype=}\t\t{initFromFile=}")
@@ -263,6 +371,31 @@ configOut = choose_config(atype)
 config = configOut[0]
 debug = config.debug
 confMsg = configOut[1]
+if atype=="nstest1":
+  config.nreps=100
+  config.mcType=1
+if atype=="nstest2":
+  config.nreps=100
+  config.mcType=2
+if atype=="full10rep":
+  config.nreps=10
+# if atype=="test2":
+#   config.nreps=100
+if atype=="test100":
+  config.nreps=100
+if atype=="test200":
+  config.nreps=200
+if atype=="test500":
+  config.nreps=500
+if atype=="small2":
+  config.debugLL=4
+# if atype=="setn":
+if atype in ["setn","snrange"]:
+  config.other="setn"
+
+# if atype=="smalln":
+
+
 pListOut = choose_parlist(atype, config, debug=False)
 pLists = pListOut[0]
 # print(f"{pListOut=}")
@@ -271,21 +404,27 @@ pListMsg = pListOut[1]
 odir  = mk_outdir(now_short, con=config)
 # print(f"{odir=}")
 # paramsArray = mk_param_list_list(parL=pLists, fdir=odir, suf=f"{config.rngSeed}{atype}", debug=config.debug)
-paramsArray = mk_param_list_list(parL=pLists, fdir=odir, suf=f"{config.rngSeed}{atype}", debug=False)
+paramsArray = mk_param_list_list(parL=pLists, fdir=odir, suf=f"{config.rngSeed}{atype}", debug=True)
 pArrList = mk_param_list_list(parL=pLists, fdir=odir, suf=f"{config.rngSeed}{atype}", debug=False, listRet=True)
-rng = np.random.default_rng(seed=config.rngSeed)
+# rng = np.random.default_rng(seed=config.rngSeed)
 # stormDat      = sprob_from_csv(config.stormInit,debug=True)
 # initDat      = init_from_csv(config.stormInit,debug=True)
-config.mcType = int(mcType)
+# config.mcType = int(mcType)
 
 coniInit = [2,11,9,4,22,18,14,7,11,2,6,2,20]
 coniWeek = np.arange(4,16,1)
-leteInit = [4,74,67,48,51,33,42,41,34,28,36,10,7,96]
-leteWeek = np.arange(3,16,1)
+# leteInit = [4,74,67,48,51,33,42,41,34,28,36,10,7,96] ## 96=NAs
+# leteWeek = np.arange(3,16,1)
+leteInit = [4,74,67,48,51,33,42,41,34,28,36,10,7]
+leteWeek = np.arange(3,15,1)
 wiplInit = [1,7,18,7,8,6,1,5,11,3,1,6]
 wiplWeek = np.arange(1,12,1)
-inits = [1,7,22,83,86,63,56,60,71,58,42,39,38,16,9]
-weeks = np.arange(1,16,1)
+# inits = [1,7,22,83,86,63,56,60,71,58,42,39,38,16,9]
+# inits = [1,7,25,94,80,62,57,63,67,56,39,41,35,16,8]
+# weeks = np.arange(1,16,1)
+inits=leteInit
+weeks=np.arange(0,13,1)
+print("using LETE init dates")
 
 initProb = inits / np.sum(inits) # make them into probabilities again
 # init_weeks = np.arange(14,29,1)
@@ -293,33 +432,68 @@ initProb = inits / np.sum(inits) # make them into probabilities again
 weekStart = weeks * 7
 weekStart = weekStart.astype(int)
 initDat = [initProb, weekStart]
+if debug>=1: print(f"{type(paramsArray)=} ; {type(staticPar)=}")
 if debug>=0: print(f"\n\t\tinitProb by week & week start day [{len(initProb)=}]:")
 if debug>=0: dfPrint(np.array([initProb]), names=list(weekStart))
 
 # stormProb = [0.006,0.019,0.044,0.025,0.069,0.044,0.050,0.044,0.025,0.038,
 # stormProb = [0.019,0.044,0.025,0.069,0.044,0.050,0.044,0.025,0.038,
 #              0.050,0.057,0.031,0.069,0.025]
-stormNum = [2,2,2,3,5,8,7,4,7,5,3,14,5,5,5]
+# stormNum = [2,2,2,3,5,8,7,4,7,5,3,14,5,5,5]
+# stormNum = [1,2,2,3,5,8,7,4,7,5,3,14,5,5,5]
+# stormNum = [2,2,1,4,5,3,3,4,4,5,5,1,9,5,4,16]
+stormNum = [1,2,2,1,4,5,3,3,4,4,5,5,2,9,5,4]
+# stormNum = [1,2,3,5,8,7,4,7,5,3,14,5,5,5]
              # 0.050,0.057,0.031,0.069,0.025,0.069,0.038,0.082,0.031,0.038,
              # 0.063,0.050,0.031]
 stormProb = stormNum/np.sum(stormNum)
 # dfPrint(np.array([stormProb]), names=list(np.arange(23)))
 # stormWeek = np.arange(23)
 # stormWeek = np.arange(1,18,1)
-stormWeek = np.arange(2,17,1)
+# stormWeek = np.arange(2,17,1)
+stormWeek = np.arange(0,16,1)
 weekStart = stormWeek*7
 stormDat = [stormProb, weekStart]
 if debug>=0: print(f"\t\tstormProb by week & week start day [{len(stormProb)=}]:")
 if debug>=0: dfPrint(np.array([stormProb]), names=list(weekStart))
 
-if atype=="range":
-  config.nreps=50
-  config.debug=1
+if config.nreps>20 and config.nreps<51:
+  # print("nreps>20")
+  if config.debug>=3: config.debug=1
+  if config.debugObs>=2: config.debugObs=1
+  if config.debugNests>=2: config.debugNests=1
+  if config.debugDSR>=2: config.debugDSR=1
+  if config.debugLogEx>=2: config.debugLogEx=1
+  if config.debugLL>=2: config.debugLL=1
+  if config.debugFlood>=2: config.debugFlood=1
+  if config.debugSummary>=2: config.debugSummary=1
+elif config.nreps>50:
+  # print("nreps>50")
+  config.debug=0
+  config.debugObs=0
+  config.debugNests=0
+  config.debugDSR=0
+  config.debugLogEx=0
+  config.debugLL=0
+  config.debugFlood=0
+  config.debugSummary=0
+
+# print(config)
+vary=""
+# if atype=="range":
+# if atype=="range" or atype=="test2":
+# if atype in ["range", "test2","snrange"]:
+if atype in ["range", "testctrl","snrange"]:
+  config.nreps=100
+  config.debug=0
   config.debugNests=0
   config.debugLogEx=0
   config.debugDSR=0
   config.debugObs=0
   print(f"*** OVERRIDE atype=range; {config.debug=} {config.debugNests=} {config.debugObs=} {config.nreps=}")
+  print(f"{type(pLists)=}{pLists=}")
+  vary = [k for k,v in pLists.items() if len(v)>2]
+  print("vary the levels of ", vary)
 
 if printSettings == 'TRUE':
   print_settings(config, atype, initFromFile, paramsArray, pListMsg, confMsg )
