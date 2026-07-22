@@ -10,6 +10,10 @@ from statsmodels.genmod.families.links import Logit,Link
 class Params: # most importantly, Pylance recognizes the attributes, unlike 
               # dict keys
     stormFate:bool
+    # stormFate: int
+    stormUnk:  bool
+    # stormFail:bool
+    # stormUnk:bool
     pMortFl:  np.float32
     MCtype:   str
     # MCtype:  int 
@@ -24,12 +28,12 @@ class Params: # most importantly, Pylance recognizes the attributes, unlike
     probSurv: np.float32
     discProb: np.float32
     brDays:   int
-    whichLike:int
-    SprobSurv:np.float32
+    # whichLike:int
+    # SprobSurv:np.float32
     # fateCues: np.float32
-    useSMat:  bool
-    pWrong:   np.float32 
-    wType:    int   # type of incorrect fate value: 0, 2, 7
+    # useSMat:  bool
+    # pWrong:   np.float32 
+    # wType:    int   # type of incorrect fate value: 0, 2, 7
 
 @dataclass # type-secure (can't accidentally pass wrong type) & can be immutable
 class StrConfig: 
@@ -50,9 +54,14 @@ class Config:
     logex:      bool
     rngSeed:      int
     optimizer:   str
+    optimFunc:   str
+    optimGlob:   bool ## global optimizer?
     nreps:       int
     stormFate:   int
+    # sFateType:   int
+    numNests:   int
     mcType:     int
+    rangeVar:    int
     saveNData:   bool
     testing:     str
     predict:    bool
@@ -64,6 +73,7 @@ class Config:
     # debugObs:    bool
     # debugM:      bool
     # debugSummary: bool
+    startParID:  int
     debug:       int
     debugLL:     int
     debugNests:  int
@@ -84,6 +94,7 @@ class Config:
     numOut:      int
     fnUnique:    bool
     useWin:      bool
+    other:       str
     msg:         str
     # testing:     bool
     # likeFile:    str
