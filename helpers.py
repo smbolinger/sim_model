@@ -1,4 +1,5 @@
 from datetime import datetime
+import time
 import csv
 import functools
 import itertools
@@ -235,12 +236,13 @@ def mk_param_list_list(parL: Dict[str, list],stInd=0,fdir:str="", suf="", listRe
 
   """
   # TODO: could add ** to surround for docstrings?
-  if debug: print(f"\t\t>=> using the {parL} params lists")
+  # if debug:
+    # print(f"\t\t>=> using the {parL} params lists",end=" ")
   listVal = [parL[key] for key in parL]
   pL = list(itertools.product(*listVal))
   if fdir:
     plfile = os.path.join(fdir, f"param-lists_{suf}.csv")
-    if debug: print(f"\t\t|> param list file: {plfile}")
+    if debug: print(f"\n\t\t|> param list file: {plfile}")
     with open(plfile, 'w', newline='') as f:
       writer = csv.writer(f)
       writer.writerows(pL)
@@ -252,20 +254,136 @@ def mk_param_list_list(parL: Dict[str, list],stInd=0,fdir:str="", suf="", listRe
     # +> make this list of lists into a list of dicts with the original keys:
     # paramsList = [dict(zip(parList.keys(), p_List[x])) for x in range(len(p_List))]
     paramsList = [dict(zip(parL.keys(),pL[x])) for x in range(stInd,len(pL))]
-    if debug: print(f"\t\t{type(paramsList)=} \t\t{paramsList=}")
+    if debug:
+      # print(f"\t\t{type(paramsList)=} \t\t{paramsList=}")
+      print(f"\n\t\tParam list values ({type(paramsList)=}):")
+      # print("\t\t\t","\t\t".join(parL.keys()))
+      # print("\t\t","\t\t\t".join(str(val) for val in parL.values()))
+      widths = [max(len(str(k)),len(str(v))) for k,v in parL.items()]
+      print("\t\t"," ".join(f"{str(k):<{w}}" for k,w in zip(parL.keys(),widths)))
+      print("\t\t"," ".join(f"{str(v):<{w}}" for v,w in zip(parL.values(),widths)))
+      # print("\t\t"," ".join(str(val) for val in parL.values()))
     return(paramsList)
 
 def mk_param_list(par, pStatic, debug=False):
   """
   """
-  # if debug: print(f"{type(par)} ; {type(pStatic)}")
+  if debug: print(f"\t{type(par)=} ; {type(pStatic)=}")
+  if debug: print(f"\t{par=} ; {pStatic=}")
+  # time.sleep(2)
   # try:
+  
+  pStatic = {k: v for k, v in pStatic.items() if k not in par}
+  if debug: print(f"\tafter: {pStatic=}")
   par_merge = {**par, **pStatic}
+  if debug:
+
+    print("\t".join(par_merge.keys()))
+    print("\t".join(str(val) for val in par_merge.values()))
   # except TypeError as error:
     
   return Params(**par_merge)
 
+def calc_nests(nestData1, par,rng,survey, obsCol,repID, parID, config, db=0):
+  # rng = np.random.default_rng(seed=config.rngSeed) print("calling calc_nests")
+  obsCol = int(obsCol)
+  # print(f"{obsCol=}")
+  surveyInt = survey[1]
+  # print(f"{surveyInt=}")
+  # print(f"{nestData1=}")
+  longest_int = max(surveyInt)
+  flooded  = sum(nestData1[:,3]==2)
+  hatched  = sum(nestData1[:,3]==0)
+  # discover = nestData1[:,8]>0 ## where num obs > 0
+  # print(f"{nestData1[:,obsCol]=}")
+  discover = nestData1[:,obsCol]>0 ## where num obs > 0
+  # if db>=5: print(f"\t\t\t{discover=}")
+  # discover = nestData1[:,10]>0 ## where num obs > 0
+  nestData = nestData1[(discover),:] # +> remove undiscovered nests
+  # if db>=5: print(f"\t\t\t{nestData[:,2]=}")
+  # if db>=5: print(f"\t\t\t{nestData[:,4]=}")
+  flood_dsc  = sum(nestData[:,3]==2)
+  hatch_dsc  = sum(nestData[:,3]==0)
+  # if db>=3: print("\t\tcalc_nests: using column 8 to determine discovered/not")
+  # if db>=3: print(
+  #     f"\t\tcalc_nests: using column {obsCol} to determine discovered/not")
+  # if db>=5: print(f"\t\t>>calc_nests: discovered: {len(nestData)=}")
+  # if db>=3: print(f"{(nestData[:,5]==nestData[:,6])=}")
+  # short    = (nestData[:,4]==nestData[:,5]) ## where i==j
+  short    = (nestData[:,2]<nestData[:,4]) ## where end<i
+  # short    = np.zeros(len(nestData))
+  # if db>=5: print(f"\t\t\t{short.astype(int)=}")
+  # exclude  = ((nestData[:,7] == 7) or (nestData[:,5]==nestData[:,6]))
+  unknown  = (nestData[:,7]==7)
+  # if db>=5: print(f"\t\t\t{unknown.astype(int)=}")
+
+  # print(f"{(unknown.astype(int) + short.astype(int))=}")
+  # both = (unknown.astype(int) + short.astype(int))
+  # exclude = unknown or short
+  # can also use bitwise or (|) or np.logical_or():
+  exclude = (unknown.astype(int) + short.astype(int)) > 0 # at least one is true
+  # if db>=5: print(f"\t\t\t{exclude=}")
+  misclass = (nestData[:,7]!=nestData[:,3]) #+> out of discovered nests
+  nestData = nestData[~exclude,:] # +> remove undiscovered nests
+  flood_an  = sum(nestData[:,3]==2)
+  hatch_an  = sum(nestData[:,3]==0)
+  misclass2 = (nestData[:,7]!=nestData[:,3]) #+> out of discovered nests
+  # if db>=5: print(f"\t\t>>calc_nests: analyzed:{len(nestData)=}")
+  # if db>=2: print(f"{nestData[:,11]=}")
+  # misclass = misclass - unknown
+  avgFInt  = (nestData[:,9].sum()/len(discover))
+  sNest    = nestData1[:,11].sum()
+  avgK     = nestData[:,6].sum()/len(discover)
+  maxI     = np.max(nestData[:,4])
+  srand = rng.uniform(0.00, 10.00) # +> random init val for MARK
+  # mark_s = run_optim(minimizer="norm",
+  #                    fun=mark_wrapper,
+  #                    z=srand,
+  #                    arg=(nestData, par.brDays, config),
+  #                    met=config.optimizer
+  #                    )
+  appDSR  = calc_dsr(nData=nestData1,
+                      nestType="all",
+                      calcType="apparent",
+                      conf=config,
+                      incTime=par.hatchTime,
+                      psurv=par.probSurv,
+                      debug=config.debugDSR)
+  # markPSR = mark_s ** par.hatchTime
+  appPSR = appDSR ** par.hatchTime
+  # lVal = rep_loop(par=par, nData=nestData, storm=stormDays,
+  #                survey=survey,config=config)
+  # # llDSR = lVal[0]
+  # llDSR,llPSR,llDFR = lVal
+
+
+  mayfDSR_an   =  calc_dsr(nData=nestData,
+                           nestType="analysis",
+                           calcType="mayfield",
+                           conf=config,
+                           incTime=par.hatchTime,
+                           psurv=par.probSurv,
+                           debug=config.debugDSR) 
+  appDSR_an   = calc_dsr(nData=nestData,
+                          nestType="analysis",
+                          calcType="apparent",
+                          conf=config,
+                          incTime=par.hatchTime,
+                          psurv=par.probSurv,
+                          debug=config.debugDSR) 
+  nestVals = np.array([
+    # flooded,hatched,discover.sum(),exclude.sum(),unknown.sum(),
+    # misclass.sum(), avgFInt, avgK, appDSR, mark_s, repID, parID])
+    # parID,repID,flooded,hatched,sNest,discover.sum(),exclude.sum(),unknown.sum(),
+    parID,repID,flooded,hatched,flood_dsc,hatch_dsc,flood_an,hatch_an,
+    sNest,discover.sum(),exclude.sum(),unknown.sum(),
+    # misclass.sum()-unknown.sum(),avgFInt,avgK,appDSR,appPSR,mayfDSR_an,appDSR_an])
+    misclass.sum()-unknown.sum(),misclass2.sum(),avgFInt,avgK,maxI,longest_int,appDSR,appPSR,mayfDSR_an,appDSR_an])
+    # misclass.sum(), avgFInt, avgK, appDSR,appPSR, mark_s,markPSR])
+  if db>=5: print(f"\t\t{nestVals=}")
+  return nestVals
 # def mk_outdir(nowstr, seed:str="", suf="",con=config, unique=False):
+
 def mk_outdir(nowstr, con,seed:str="", suf="", unique=False, debug=False):
   """
     Create a directory w/ a unique name using datetime.today() & uniquify().
@@ -284,7 +402,9 @@ def mk_outdir(nowstr, con,seed:str="", suf="", unique=False, debug=False):
   """
   # TODO: decide whether I want to include seed in dir name, or just filenames
   # like_f_dir = con.likeDir
+  
   like_f_dir = "/home/wodehouse/Projects/sim_model/out/default"
+  # like_f_dir = "/home/wodehouse/Projects/sim_model/output"
   if not seed: seed=con.rngSeed
   seedStr = f"_{seed}"
   if unique:
@@ -350,10 +470,10 @@ def mk_fnames(nowstr,con,test=False,seed:str="",suf:str="",fdir=None,uniq=False)
   # fpath = Path(f_dir/ fname)
   # f_dir = con.likeDir
   # like_f_dir = con.likeDir
-  like_f_dir = "/home/wodehouse/Projects/sim_model/out/default"
+  # like_f_dir = "/home/wodehouse/Projects/sim_model/out/default"
   # fpath = like_f_dir + "/" + nowstr + "/" + fname
   fpath = str(likeF)
-  print("\t\t\t> fpath (written to txt file):",fpath)
+  # print("\t\t\t> fpath (written to txt file):",fpath)
   # with open('likeFile-name.txt', 'w' ) as f:
   lfname = Path(fdir / 'likeFile-name.txt')
   with open(lfname, 'w' ) as f:
