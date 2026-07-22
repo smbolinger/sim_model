@@ -4,7 +4,7 @@
 startTime <- Sys.time()
 # arg <- unlist(strsplit(commandArgs(trailingOnly=TRUE), split=" "))
 arg <- unlist(strsplit(commandArgs(trailingOnly=FALSE), split=" "))
-print(arg)
+# print(arg)
 # file_arg <- grep("(?<=^--file=)[A-Za-z]*\,[A-Za-z]", arg, value = TRUE)
 # file_arg <- grep("(?<=file=)(\\w+\\.\\w+)", arg, perl=TRUE, value = TRUE)
 if(length(arg)<2){
@@ -16,7 +16,7 @@ if(length(arg)<2){
   file_arg <- stringr::str_extract(arg, "(?<=file=)([A-Za-z0-9_/]+\\.\\w+)")
   file_arg <- file_arg[!is.na(file_arg)]
 }
-print(file_arg)
+# print(file_arg)
 # print( class(file_arg))
 library(reticulate)
 # Sys.setenv(script_name="all_dsr.R")
@@ -27,19 +27,21 @@ library(brglm2)
 library(tidyr)
 suppressPackageStartupMessages(library(dplyr)) # load dplyr last so as not to mask select?
 # arg <- unlist(strsplit(commandArgs(trailingOnly=TRUE), split=" "))
+
+## NOTE: these args should only be used to change config options that don't affect python, unlss I want to also apply them to pyconfig
 arg <- unlist(commandArgs(trailingOnly=TRUE))
 
 # library(jsonlite)
 #NOTE could make a counter of all times at least one survey int == 0
 # psrTrue = "date"
 psrTrue = "a"
-nruns = NA
-debug = ""
+nruns = NA ## doesn't affect python
+debug = "" ## NOTE: DOES affect python?
 # seedArg = NA
-rngSeed = NA
+rngSeed = NA ## doesn't affect python
 # startParArg = NA
-startParID = NA
-msg = ""
+startParID = NA ## doesn't affect python
+msg = "" ## doesn't affect python
 
 source("/home/wodehouse/.local/bin/r_func.R")
 options(width=1000, digits=5, scipen=999)
@@ -47,7 +49,7 @@ Sys.setenv(printset=TRUE)
 # arg <- unlist(strsplit(commandArgs(trailingOnly=TRUE), split=" "))
 py_vars <- import_builtins()$vars ## function to turn class instance into dictionary
 py_attr <- import_builtins()$setattr ## function to turn class instance into dictionary
-mcType=2 ## default value
+mcType=0 ## default value
 file.create("out/psr_plot.txt")
 file.create("out/storm_plot.txt")
 file.create("out/init_plot.txt")
@@ -59,11 +61,12 @@ if(length(arg)==0){
   atype=""
 } else {
   for(a in arg){
-    cat("length(arg) = ", length(arg),"arg = ",a)
+    # cat("length(arg) = ", length(arg),"arg = ",a)
+    cat("\t\tlength(arg) = ", length(arg))
     if(grepl("at\\w+", a)) atype <- stringr::str_extract(a, "(?<=at)\\w+") # extract words after "at"
     if(grepl("mc\\w+", a)) mcType <- stringr::str_extract(a, "(?<=mc)\\w+") # extract words after "at"
     if(grepl("r\\d+", a)) nruns <- stringr::str_extract(a, "(?<=r)\\d+") # extract words after "at"
-    if(grepl("db\\d+", a)) debug <- stringr::str_extract(a, "(?<=db)\\d+") # extract words after "db"
+    if(grepl("db\\d+", a)) debug <- as.numeric(stringr::str_extract(a, "(?<=db)\\d+")) # extract words after "db"
     if(grepl("par\\d+", a)) startParID <- stringr::str_extract(a, "(?<=par)\\d+") # extract words after "db"
     if(grepl("rng\\d+", a)) rngSeed <- stringr::str_extract(a, "(?<=rng)\\d+") # extract words after "db"
     if(grepl("msg:", a)) msg <- stringr::str_extract(a, "(?<=msg:).*") # extract words after "db"
@@ -75,10 +78,10 @@ if(length(arg)==0){
   }
   cat("\t\t>> atype =",atype)
   cat("\t\t>> nruns arg =",nruns)
-  cat("\t\t>> debug arg =",debug)
+  cat("\t\t>> debug arg =",debug,"type=",class(debug))
   cat("\t\t>> startParID arg =",startParID)
-  cat("\t\t>> rngSeed arg =",rngSeed)
-  cat("\t\t>> mcType arg =",mcType)
+  cat("\t\t>> rngSeed arg =",rngSeed) ## NOTE: changing rng seed here does not affect output dir
+  # cat("\t\t>> mcType arg =",mcType)
   cat("\t\t>> msg arg =",msg)
   # cat("\t\t>> debug =",debug)
   # if(a=="test") params$test <- TRUE
@@ -99,7 +102,7 @@ Sys.setenv(mcTypeR=mcType)
 
 ##--------------- IMPORT PYTHON FUNCTIONS: ----------------------------------------------
 if(TRUE){
-  cat("\t>> importing python functions \t")
+  cat("\n>> importing python functions \t")
   json <- import("json")
   dc <- import("dataclasses")
   pickle <- import("pickle")
@@ -110,13 +113,14 @@ if(TRUE){
   printFun <- import("print_func")
   dsr <- import("dsrCalc")
   funs <- import("helpers")
-  mod <- import("datsim")
+  # mod <- import("datsim")
   mlfun <- import("matlab_func")
   # mod <- import("scipy_datsim")
   # mod <- import("lmfit_datsim")
   # mod <- import("datsim_new")
   # logex <- import("log_exposure")
   cat("\t>> importing settings \t\n")
+  # Sys.sleep(3) ## keep python from printing too soon
   sett <- import("rsettings", convert=FALSE) # sett <- import("settings", )
   # cat("\n\t>> extracting config \t")
   # print(unlist(as.list(config)))
@@ -150,7 +154,17 @@ if(TRUE){
   # config <- py_vars(py_to_r(sett$config)) # I DO want to convert config, but not the param dicts
   # cat("\t\t>> seed =", config$rngSeed)
   # print(class(config))
+  if(debug!=""){
+    config$testing="yes"
+    cat("\t>> changing config$testing to ", config$testing)
+    # config$debug = debug else debug = config$debug
+  }
+  # if(debug!="") config$testing=="yes"
+  # cat("\n\t>> changing config$testing to ", config$testing)
   if(debug!="") config$debug = debug else debug = config$debug
+
+  cat("\n>> debug =",debug,"type=",class(debug))
+  cat("\t\t>> config$debug =",config$debug,"type=",class(config$debug))
   # if(!is.na(debug)) config.debug = debug else debug = config.debug
   # cat(":\nconfig:\n")
   # withr::with_options( list(width=120), print(unlist( py_vars(py_to_r(pyconfig)) )) )
@@ -167,6 +181,8 @@ if(TRUE){
   # print(config[debugVals])
   # config <- lapply(debugVals, function(x){
   for(x in debugNames) if(as.numeric(config[[x]])>=as.numeric(debug)) py_attr(config,x,debug)
+  cat("\ndebug vals & types:")
+  for(x in debugNames) cat("x:",config[[x]],class(config[[x]]))
 #   config <- lapply(debugNames, function(x){
 #                      ## debugVals are indices
 #                      # ifelse(as.numeric(config$x)>=as.numeric(debug), debug, config$x)
@@ -191,14 +207,17 @@ cat("\nCONFIG")
 
 # ------------------- CHANGE CONFIG VALUES BEFORE PRINTING: -------------------------------------------------------------------------------
 
-if msg!="" config$msg = paste(config$msg, msg, sep=";")
+
+if (msg!="") config$msg = paste(config$msg, msg, sep=";")
 rngSeed <- ifelse(!is.na(rngSeed), as.integer(rngSeed),as.integer(config$rngSeed))
 rng <- np$random$default_rng(seed=rngSeed)
 startParID <- ifelse(!is.na(startParID),as.integer(startParID), as.integer(config$startParID))
+nreps <- ifelse(!is.na(nruns), as.integer(nruns),config$nreps)
 
   # config$msg = sprintf("%s\t\t%s",config$msg, paste(msg, sep=" "))
 
-if(config$nreps>20) cat(" [ !! NOTE: large # of reps - force debug values low unless overridden by CL arg] ")
+# if(config$nreps>20) cat(" [ !! NOTE: large # of reps - force debug values low unless overridden by CL arg] ")
+if(nreps>20) cat(" [ !! NOTE: large # of reps - force debug values low unless overridden by CL arg] ")
 # if(config$nreps>20){
 #   cat(" [ !! NOTE: large # of reps - force debug values low ] ")
 #   config$debug=2
@@ -234,11 +253,10 @@ if(TRUE){
   obsVar = "totobs"
   obsVarNum = ifelse(obsVar=="nobs", 8, 10)
 
-  nreps <- config$nreps
   # debug <- config$debug
   suff <- sprintf("%s%s", config$rngSeed, atype)
   # rng <- sett$rng
-  stormUnk <- py_to_r(sett$stormUnk)
+  # stormUnk <- py_to_r(sett$stormUnk)
   # if(debug>=4) cat(sprintf("\t|> debug: %s |>numpy rng: %s %s \n", debug, rng, class(rng)))
   homeDir <- "/home/wodehouse/Projects/sim_model"
   odir <- sett$odir
@@ -255,6 +273,8 @@ if(TRUE){
   paramsArray <- sett$paramsArray
   pArrList <- sett$pArrList ## should be able to use in R? # if(debug>=2) print(pArrList)
   vary     <- py_to_r(sett$vary)
+  stormUnk <- py_to_r(staticPar$stormUnk)
+  stormUnk <- as.integer(stormUnk)
   # cat("\n\t|>debug = ", debug)
   # cat("\tvary=", vary)
 # +> automatic type conversion is NOT working for dicts. and neither is explicit conversion.
@@ -277,12 +297,14 @@ colnames = c('ID', 'init', 'end', 'fate', 'i', 'j', 'k', 'afate', 'nobs', 'fint'
 
 ##--------------- MODEL LISTS: ----------------------------------------------
 # mList <- c("Surv~1", "Surv~Date", "Surv~Date+I(Date^2)", "Surv~Age", "Surv~Age+Date", "Surv~avDate")
+# mList <- c("Surv~1", "Surv~Date", "Surv~Age", "Surv~Age+Date", "Surv~avDate")
 mList <- c("Surv~1", "Surv~Date", "Surv~Age", "Surv~Age+Date", "Surv~avDate")
 mList_supp <- c("Surv~avDate","Surv~avAge","Surv~avAge+avDate")
 # mNames <- c("m1", "m2", "m3", "m4","m5")
 mNames <- c("m1", "m2", "m3", "m4")
 nmod <- length(mList)
 # initDateList <- as.data.frame(py_to_r(nest$initDat))
+cat(sprintf("\n|>|> %s reps x %s param sets = %s rows", nreps, nparsets, nreps*nparsets))
 if(config$msg!="") cat("\n|>MSG: ", config$msg)
 cat("\nOTHER:")
 # qvcalc::indentPrint(unlist(py_to_r(pLists)))
@@ -295,6 +317,7 @@ cat("\texplicitly mark storm nests 'unknown'?", stormUnk)
 cat("\n\tmList = ", mList)
 cat(sprintf("\t\t| discovered nests = where %s > 0", obsVar))
 cat(sprintf("\n\t| number of days for prediction: %s <%s>",preDays,class(preDays)))
+cat(sprintf("\t\t| true number of reps: %s",nreps))
 cat(sprintf("\t\t| num param sets: %s",nparsets))
 cat(sprintf("\t\t| starting param set: %s",startParID))
 cat(sprintf("\t\t| starting rngSeed: %s",rngSeed))
@@ -331,7 +354,9 @@ mod_names <- c("_null","_date_int","_date_b1", "_age_int","_age_b1",
                "_agedate_int","_agedate_b1","_agedate_b2","_avdate_int","_avdate_b1")
 # coef_names <- do.call(paste0, expand.grid(coef_list, mod_names))
 coef_names <- unlist(lapply(coef_list, function(x) paste0(x,mod_names)))
-coef_names <- c(coef_names, "avg_expos")
+coef_names <- c(coef_names, "avg_expos","avg_age","avg_avdate")
+# if(debug>=0) print(seq(nreps))
+# if(debug>=0) print(class(nreps))
 coefsMat <- array(NA,
                dim=c(length(coef_names), nreps, length(pArrList)),
                dimnames=list(coef_names,seq(nreps), seq(length(pArrList))))
@@ -344,8 +369,21 @@ coefList <- list()
 if(config$logex){
   # lexp_name <- c("leDSR1","lePSR1","lePSR2","lePSR3","lePSR4","lePSR5","lePSR6")
   # lexp_name <- c("leDSR1","lePSR1","leDSR2","leDSR3","leDSR4","leDSR5","leDSR6","lePSR2","lePSR3","lePSR4","lePSR5","lePSR6")
-  lexp_name <- c("leDSR1","lePSR1","seDSR1","leDSR2","leDSR3","leDSR4","leDSR5","lePSR2","lePSR3","lePSR4","lePSR5")
-  lexp_se <- c("seDSR2","seDSR3","seDSR4","seDSR5")
+#   lexp_name_p <- c("leDSR1p","leDSR2p","leDSR3p","leDSR4p","leDSR5p","lePSR1p","lePSR2p","lePSR3p","lePSR4p","lePSR5p")
+#   lexp_se_p <- c("seDSR1p","seDSR2p","seDSR3p","seDSR4p","seDSR5p")
+#   lexp_name <- c("leDSR1","lePSR1","seDSR1","leDSR2","leDSR3","leDSR4","leDSR5","lePSR2","lePSR3","lePSR4","lePSR5")
+#   lexp_se <- c("seDSR2","seDSR3","seDSR4","seDSR5")
+# # lexp_supp <- c("leDSRava","lePSRava","leDSRavd","lePSRavd","leDSRavad","lePSRavad")
+#   lexp_supp <- c("leDSRavd","lePSRavd","leDSRava","lePSRava")
+#   lexp_all <- c(lexp_name,lexp_se,lexp_name_p,lexp_se_p)
+#   lexpMat <- array(NA,
+#                   dim=c(length(lexp_all), nreps,length(pArrList)),
+#                   dimnames=list(lexp_all,seq(nreps), seq(length(pArrList))))
+#   cat("\n\tlexp matrix dim:", dim(lexpMat))
+#   cat("\t\t& lexp val names:", lexp_all)
+  # lexp_name <- c("leDSR1","lePSR1","seDSR1","leDSR2","leDSR3","leDSR4","leDSR5","lePSR2","lePSR3","lePSR4","lePSR5")
+  lexp_name <- c("leDSR1","leDSR2","leDSR3","leDSR4","leDSR5","lePSR1","lePSR2","lePSR3","lePSR4","lePSR5")
+  lexp_se <- c("seDSR1","seDSR2","seDSR3","seDSR4","seDSR5")
 # lexp_supp <- c("leDSRava","lePSRava","leDSRavd","lePSRavd","leDSRavad","lePSRavad")
   lexp_supp <- c("leDSRavd","lePSRavd","leDSRava","lePSRava")
 # truedsr_name <- c("tDSR","tPSR","tDSRdate","tPSRdate","tDSRage","tPSRage")
@@ -389,7 +427,7 @@ cat("\t\t& DSR val names:", dsr_name)
 # nval_name <- c("parID","repID","fld", "hat", "sNest", "dsc", "excl","unk","mc",
                # "avfint","avk","maxi","aDSR","aPSR","mfDSR","appDSR")
 nval_name <- c("parID","repID","fld", "hat","fld_dsc","hat_dsc","fld_an","hat_an", "sNest",
-               "dsc", "excl","unk","mc", "avfint","avk","maxi","lint","aDSR","aPSR","mfDSR","appDSR")
+               "dsc", "excl","unk","mc","mc2", "avfint","avk","maxi","lint","aDSR","aPSR","mfDSR","appDSR")
 cat("\n\tnVal names:", nval_name)
 # dsr_name <- c("leDSR","lePSR1","lePSR2","lePSR3","lePSR4","lePSR5","mcmcDSR","mcmcPSR","mcmcDFR","markDSR","markPSR")
 # allval_name <- c(nval_name, dsr_name,mcmc_name,mark_name)
