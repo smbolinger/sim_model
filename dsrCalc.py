@@ -2,6 +2,7 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 from MCmatrix import logistic
+# from notr_MCmatrix import logistic
 from observer import svy_position
 from print_func import arrPrint, dfPrint
 # from settings import config
@@ -132,8 +133,14 @@ def calc_dsr(nData, nestType, calcType, conf, incTime=0, psurv=0, debug=0):
   # if nestType=="all":
   ## +> calc type 'true' means ???
   # if debug>=2: print(f"{nestType=} | {calcType=} |> ", end="   ")
-  # if debug>=2:
-    # print(f"\n\t\t\t|>{nestType=}|{calcType=}|{incTime=}|{psurv=}|>", end=" ")
+    # if conf.debugDSR>=4:
+    #   print(
+    #       f"\t\t>> calculate mayfield DSR: {expDays=:.3f}|{nNests-hatched=}|"
+    #       f"{dmr=:.3f}|{1-dmr=:.3f} "
+    #       # f"| expected DSR={psurv}"
+    #       )
+  #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
   if calcType=="apparent" or calcType=="all":
     # if debug>=3: 
     #   print("\t> exposure days calc type = 'true'")
@@ -145,12 +152,15 @@ def calc_dsr(nData, nestType, calcType, conf, incTime=0, psurv=0, debug=0):
     apparent = hatched/nNests
     appDSR   = 1-((nNests-hatched)/allDays) ## +> num failures/total days
 
-    if debug>=3:
-      print(
-          f"\t\t>> calculate apparent DSR: (1-(true_num_fail/total_days)):{appDSR:.3f} "
-          f"\t\t1 - (({nNests}-{hatched}) / {allDays}) = {appDSR:.3f} "
-          # f"| expected DSR: {psurv}"
-          )
+    #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # if conf.testing=="yes":
+    #   if conf.debugDSR>=4:
+    #     print(
+    #           f"\t\t>> calculate apparent DSR: (1-(true_num_fail/total_days)):{appDSR:.3f} "
+    #           f"\t\t1 - (({nNests}-{hatched}) / {allDays}) = {appDSR:.3f} "
+    #           # f"| expected DSR: {psurv}"
+    #           )
+    #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # if debug>=3: 
       # print(
             # f"\n\t\t\tapparent nest success s (hatched/total): {apparent:.3f} "
@@ -159,21 +169,33 @@ def calc_dsr(nData, nestType, calcType, conf, incTime=0, psurv=0, debug=0):
             # )
       # for n in range(5):
         # print(f"\t\t\t\texposure days: {nData[n,2]} - {nData[n,1]}")
+    #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
     return(appDSR)
   # else:
   elif calcType=="mayfield":
     expDays = calc_exp(nData[:,4:7], expPercent=0.4, cn=conf, debug=0)
     expDays = expDays[:,2].sum()
     hatched = sum(nData[:,7] == 0)
+    #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # if conf.testing=="yes":
+    #   if conf.debugDSR>=2:
+    #     print(f"\n\t\t\t|>{nestType=}|{calcType=}|{incTime=}|{psurv=}|>", end=" ")
+    #     print(f"\t\t>> calculate mayfield DSR: {expDays=:.3f}|{nNests-hatched=}|")
+    #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     dmr   = mayfield(num_fail=nNests-hatched, expo=expDays)
 
     ## +> now mayfield function prints instead..
-    if debug>=3:
-      print(
-          f"\t\t>> calculate mayfield DSR: {expDays=:.3f}|{nNests-hatched=}|"
-          f"{dmr=:.3f}|{1-dmr=:.3f} "
-          # f"| expected DSR={psurv}"
-          )
+    #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # if conf.testing=="yes":
+      # if conf.debugDSR>=4:
+      #   print(
+      #       f"\t\t>> calculate mayfield DSR: {expDays=:.3f}|{nNests-hatched=}|"
+      #       f"{dmr=:.3f}|{1-dmr=:.3f} "
+      #       # f"| expected DSR={psurv}"
+      #       )
+    #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
     return(1-dmr)
   # else:
 
@@ -202,53 +224,16 @@ def mayfield(num_fail, expo):
   # print(expo, type(expo))
   # mayf = num_fail / (expo.sum())
   mayf = num_fail / (expo) # expo is already the sum?
-  # print(f"\t\t> mayfield DSR = ({num_fail=}) / ({expo=}) = {mayf}")
-  # print(f"\t\t> mayfield DSR = ({num_fail=}) / ({expo=}) =", end=" ")
-  # if cn.debugM: print(">> Mayfield estimator of daily mortality (1-DSR) =", mayf) 
+  # if cn.debugM:
+    # print(f"\t\t> mayfield DSR = ({num_fail=}) / ({expo=}) = {mayf}")
+    # print(">> Mayfield estimator of daily mortality (1-DSR) =", mayf) 
 
   return(mayf)
-# -----------------------------------------------------------------------------
-
-def johnson(ndata, srn):
-  """
-    NOTE: Johnson (1979) provided a mathematical derivation that allowed the 
-        calculation of variance for the estimate.
-    He ALSO came to the conclusion that the Mayfield method is pretty much 
-    equivalent to his ML estimator, w/ adjustment for long intervals.
-    > for a single day:
-       > probability of survival is s  
-       > probability of failure is (1-s)
-    > for interval of length k days:
-       > prob of survival is s**k 
-       > prob of failure is s**(1/2k-1)(1-s)
-    > ex. - prob of a nest surviving three days and failing on the fourth is:
-        s*s*s*(1-s) 
-      > this assumes that a failed nest survived half (minus a day)
-        of interval and then failed
-    Johnson's rewriting of the Mayfield estimator:
-         mortality = (f1 + sum(ft)) / (h1 + sum(t*ht) + f1 + 0.5*sum(t*ft)) 
-    > created by differentiating the log-likelihood equation and setting to 
-      zero (maximizing)
-    > ht = hatched or survived til next visit; ft = failed by next visit
-    > f1 and h1 represent an interval between visits of one day, which is not 
-      used in our studies
-      > so we end up with: sum(ft) / (sum(t*ht) + 0.5*sum(t*ft)) 
-         where t = interval length, and 
-         f and h represent number of failures and hatches, respectively
-    Johnson's Mayfield-40 estimator: 
-         mortality = sum(ft) / (sum(t*ht) + 0.4*sum(t*ft))
-    Johnson's modified ML estimator:
-         1/s*(sum(t*ht)) = sum( (t * ft * s^t-1) / (1 - s^t))
-    ---------------------------------------------------------------------------
-  """
-  print("calculate Johnson estimator")
-  # jEst = (1/srn) * sum()
-
-# -----------------------------------------------------------------------------
 
 #---------------------------------------------------------------------------------
 # @profile
-def calc_daily_expo(numNests,surveyInts,surveyDays,firstDay,lastDay,config):
+# def calc_daily_expo(numNests,surveyInts,surveyDays,firstDay,lastDay,config):
+def calc_daily_expo(numNests,survey,firstDay,lastDay,config):
   """
     Calculate the daily exposure of each nest AND all survey days it's active
     ----
@@ -261,7 +246,9 @@ def calc_daily_expo(numNests,surveyInts,surveyDays,firstDay,lastDay,config):
   """
   # svyInd = svy_position(init, end, surveyDays)
   # print(f"{surveyInts=}")
-  db=config.debugLogEx
+  surveyDays, surveyInts = survey[0], survey[1]
+  # db=config.debugLogEx
+  db = config.debugDSR
   svyInd = svy_position(firstDay, lastDay, surveyDays,cn=config)
   initPos, endPos = svyInd
   # print(f"\t\t{initPos=} ; \n\t\t{endPos=}")
@@ -275,28 +262,30 @@ def calc_daily_expo(numNests,surveyInts,surveyDays,firstDay,lastDay,config):
     # NOTE becomes a list of arrays:
     # expo.append(surveyInts[initPos[n]:endPos[n]]) #+> probably slow
     #+> extend flattens the added arrays
-    # expo.extend(surveyInts[(initPos[n]+1):endPos[n]+1].tolist()) #+> probably slow
-    expo.extend(surveyInts[(initPos[n]):endPos[n]].tolist()) #+> probably slow
-    # sdays.extend(surveyDays[(initPos[n]+1):endPos[n]+1].tolist()) #+> probably slow
-    sdays.extend(surveyDays[(initPos[n]):endPos[n]].tolist()) #+> probably slow
+    expo.extend(surveyInts[(initPos[n]+1):endPos[n]+1].tolist()) #+> probably slow
+    # expo.extend(surveyInts[(initPos[n]):endPos[n]].tolist()) #+> probably slow
+    sdays.extend(surveyDays[(initPos[n]+1):endPos[n]+1].tolist()) #+> probably slow
+    # sdays.extend(surveyDays[(initPos[n]):endPos[n]].tolist()) #+> probably slow
     
     # expo.append(surveyInts[(initPos[n]+1):endPos[n]+1].tolist()) #+> probably slow
 
   #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  if db>=3:
+    # print(f"{numNests=} ")
+    print(
+        f"\t\t{firstDay=}\n {lastDay=} "
+        f"\n\t\t{len(initPos)=} {initPos=} "
+          f"\n\t\t{len(endPos)=} {endPos=}"
+          )
+    print(f"\t\t{len(surveyDays[initPos])=} {surveyDays[initPos]=} "
+          f"\n\t\t{len(surveyDays[endPos])=} {surveyDays[endPos]=}"
+          )
+    print(f"\t{len(expo)=} {expo=} ")
+    print(f"\t{len(sdays)=} {sdays=} ")
   # if db>=3:
-  #   # print(f"{numNests=} ")
-  #   print(f"\t\t{len(initPos)=} {initPos=} "
-  #         f"\n\t\t{len(endPos)=} {endPos=}"
-  #         )
-  #   print(f"\t\t{len(surveyDays[initPos])=} {surveyDays[initPos]=} "
-  #         f"\n\t\t{len(surveyDays[endPos])=} {surveyDays[endPos]=}"
-  #         )
-  #   print(f"\t{len(expo)=} {expo=} ")
-  #   print(f"\t{len(sdays)=} {sdays=} ")
-  #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  # if db>=3:
-  #   print(f"\t{surveyInts[initPos+1:endPos+1]=} ")
+    # print(f"\t{surveyInts[initPos+1:endPos+1]=} ")
     # print(f"\t{len(sdays2)=} {sdays2=} ")
+  #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   ## These don't work:
   # sdays2 = np.concatenate([surveyDays[initPos:endPos]])
@@ -340,12 +329,14 @@ def make_daily_logex_df(obsData,
   """
   #NOTE 04-Apr: getting errors about length of column replacements,
   #NOTE   but only for stormFate==True
-  db = config.debugLogEx
-  if db>=2: print("\t>-> making daily obs df",end=" ")
-  # if db>=2: print("\t\t>-> making daily obs df")
+  # db=config.debugLogEx
+  db = config.debugDSR
+  # if db>=2: print("\t>-> making daily obs df",end=" ")
+  # if db>=3: print("\t\t>-> making daily obs df")
   # cols = ["id", "survive", "exposure", "idate", "date"]
   # cols = ["Nest.ID", "Surv", "Exposure", "ffDate", "Date", "Age", "propInit"]
-  cols = ["Nest.ID", "Surv", "Exposure", "avDate", "Date","avAge", "Age"]
+  # cols = ["Nest.ID", "Surv", "Exposure", "avDate", "Date","avAge", "Age"]
+  cols = ["Nest.ID","Surv", "Exposure", "avDate", "Date","avAge", "Age", "aFate"]
 
   ## CONVERT TO NUMPY ARRAY IF NOT ALREADY:
   if isinstance(obsData, pd.DataFrame):
@@ -377,8 +368,6 @@ def make_daily_logex_df(obsData,
     first,last,fate = init,end,tfate
   else:
     first,last,fate = ff,la,afate
-  # if db>=4: print(f"\tpass to make_df:")
-  # if db>=4: print(f"\t\t|>{first=}\n\t\t|>{last=}\n\t\t|>{fate=}")
   # nObs[afate!=0] +=1
   # print(f"nrows = {np.sum(nObs)=} ; {nObs=} ")
   # if alldiff:
@@ -400,22 +389,32 @@ def make_daily_logex_df(obsData,
   # mat = make_df(ID,init,first,last,fate,nObs,nNest,expos,obsDay,cols,db=db)
   mat = make_df(ID,init,first,last,fate,nObs,nNest,expoList,cols,db=db)
   # mat = make_df(ID,init,first,last,fate,nObs,nNest,survey,cols,db=db)
-  # if db>=2: print(f"\t\t{mat.shape=}")
   dfNew = pd.DataFrame(mat, columns=cols)
-  # if db>=4: print(f"\t\tBEFORE: {dfNew.shape=}, AFTER:", end=" ")
+
+  #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  if db>=4: print(f"\tpassed to make_df:")
+  if db>=4: print(f"\t\t|>{first=}\n\t\t|>{last=}\n\t\t|>{fate=}")
+  if db>=2: print(f"\t\t{mat.shape=}")
+  if db>=4: print(f"\t\tBEFORE: {dfNew.shape=}, AFTER:", end=" ")
+  #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
   dfNew['log_expo'] = np.log(dfNew['Exposure'])
-  cols = ["Nest.ID", "Surv", "Exposure", "avDate", "Date","avAge", "Age", "log_expo"]
-  # if db>=3:
-    # print(f"\t\t{dfNew.shape=}")
-    # dfPrint(dfNew, names=cols)
-    # print(f"\t\t\t{dfNew=}")
-  # if db>=2: dfPrint(dfNew)
+  # cols = ["Nest.ID", "Surv", "Exposure", "avDate", "Date","avAge", "Age", "log_expo"]
+  cols = ["Nest.ID", "Surv", "Exposure", "avDate", "Date","avAge", "Age", "aFate", "log_expo"]
+
+  #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  if db>=3:
+    print(f"\t\t{dfNew.shape=}")
+    dfPrint(dfNew, names=cols)
+    print(f"\t\t\t{dfNew=}")
+  if db>=2: dfPrint(dfNew)
 
   # NOTE save df in outer function
   # if saveDF:
   #   fn = f"_{parID:04}_{repID:03}.npy"
   #       prOut = Path(odir/f"pred{config.rngSeed}"/prFile)
   #       prOut.parent.mkdir(parents=True, exist_ok=True)
+  #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   return dfNew
 
@@ -434,7 +433,6 @@ def make_df(ID,init, first, last, fate, nObs, nNest, expo, cols, db=0):
   """
   # nrows = np.sum(nObs)
   # svyDay, svyInt,stormSvy = survey
-  # if db>=4: print(f"\t\t{svyDay=}\n\t\t{svyInt=}")
   nrows    = int(np.sum(nObs))
   initDay  = np.repeat(init, nObs)
   ageStart = first-init 
@@ -445,7 +443,7 @@ def make_df(ID,init, first, last, fate, nObs, nNest, expo, cols, db=0):
   # expos    = np.diff(obsDay)
   expos,obsDay=expo
   expos,obsDay=expo
-  if db>=3: print(f"\t\t\t{expos=}{len(expos)}\n\t\t\t{obsDay=}{len(obsDay)}")
+
   #   print(f"\t\t\t{nrows=}{type(nrows)=}")
   #   print(f"\t\t\t{avAge=}")
   #   print(f"\t\t\t{initDay=}")
@@ -463,6 +461,7 @@ def make_df(ID,init, first, last, fate, nObs, nNest, expo, cols, db=0):
   # mat[:,0] = np.repeat(range(nNest), nObs) #+> repeat ID nObs times
   mat[:,0] = np.repeat(ID, nObs) #+> repeat ID nObs times
   mat[:,1][endDay] = fate ## nest status is 1 unless failed on last check
+  ## where did I change the coding of final fate??
   mat[:,2] = expos
   # mat[:,2] = expo2
   # mat[:,3] = np.repeat(ff, nObs)
@@ -470,8 +469,18 @@ def make_df(ID,init, first, last, fate, nObs, nNest, expo, cols, db=0):
   mat[:,4] = obsDay ## observation day
   mat[:,5] = np.repeat(avAge,nObs)
   mat[:,6] = obsDay - initDay
-  # if db>=3: print(f"\t\t\t{mat.shape=} \n\t{mat=}")
-  # if db>=4: dfPrint(mat,nprint=20,names=cols)
+  mat[:,7] = np.repeat(fate,nObs)
+
+  #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  # if conf.testing=="yes":
+    # if db>=5: print(f"\t\t{svyDay=}\n\t\t{svyInt=}")
+  if db>=2: print(f"\t\t\t{nObs=}{type(nObs)=}")
+  if db>=2: print(f"\t\t\t{nrows=}{type(nrows)=}")
+  if db>=5: print(f"\t\t\t>>make_df:{mat.shape=} \n\t{mat=}")
+  if db>=4: print(f"\t\t\t>>make_df:{fate=} {len(fate)}")
+  if db>=4: print(f"\t\t\t>>make_df:{expos=}{len(expos)}\n\t\t\t{obsDay=}{len(obsDay)}")
+    # if db>=4: dfPrint(mat,nprint=20,names=cols)
+  #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   return mat
 
@@ -564,4 +573,41 @@ def mark_wrapper(srn, ndata, nocc, conf):
   return ret
 
 
+# -----------------------------------------------------------------------------
 
+def johnson(ndata, srn):
+  """
+    NOTE: Johnson (1979) provided a mathematical derivation that allowed the 
+        calculation of variance for the estimate.
+    He ALSO came to the conclusion that the Mayfield method is pretty much 
+    equivalent to his ML estimator, w/ adjustment for long intervals.
+    > for a single day:
+       > probability of survival is s  
+       > probability of failure is (1-s)
+    > for interval of length k days:
+       > prob of survival is s**k 
+       > prob of failure is s**(1/2k-1)(1-s)
+    > ex. - prob of a nest surviving three days and failing on the fourth is:
+        s*s*s*(1-s) 
+      > this assumes that a failed nest survived half (minus a day)
+        of interval and then failed
+    Johnson's rewriting of the Mayfield estimator:
+         mortality = (f1 + sum(ft)) / (h1 + sum(t*ht) + f1 + 0.5*sum(t*ft)) 
+    > created by differentiating the log-likelihood equation and setting to 
+      zero (maximizing)
+    > ht = hatched or survived til next visit; ft = failed by next visit
+    > f1 and h1 represent an interval between visits of one day, which is not 
+      used in our studies
+      > so we end up with: sum(ft) / (sum(t*ht) + 0.5*sum(t*ft)) 
+         where t = interval length, and 
+         f and h represent number of failures and hatches, respectively
+    Johnson's Mayfield-40 estimator: 
+         mortality = sum(ft) / (sum(t*ht) + 0.4*sum(t*ft))
+    Johnson's modified ML estimator:
+         1/s*(sum(t*ht)) = sum( (t * ft * s^t-1) / (1 - s^t))
+    ---------------------------------------------------------------------------
+  """
+  print("calculate Johnson estimator")
+  # jEst = (1/srn) * sum()
+
+# -----------------------------------------------------------------------------
