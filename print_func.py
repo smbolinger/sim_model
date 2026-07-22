@@ -1,10 +1,13 @@
 import numpy as np
 import pandas as pd
 import pickle
+import functools
+# from helpers import print
 pd.set_option('display.float_format', '{:.2f}'.format)
 pd.set_option('display.max_columns', None) ##+> print all columns
 pd.set_option('display.width', 999)
 np.set_printoptions(linewidth=150)
+print = functools.partial(print, flush=True)
 
 def dfPrint(x,abbr=True,nprint=10,ind=6,wd=90,concat="no",names:list=[]):
   """
@@ -13,15 +16,18 @@ def dfPrint(x,abbr=True,nprint=10,ind=6,wd=90,concat="no",names:list=[]):
     ARGS:
       x = df-like object (2D array, df, etc)
           or list of df-like objects
-      abbr = print only first 10 rows
+      abbr = print only first x rows (default=10)
+      nprint = (optional) number of rows to print
       ind = number of spaces to indent
       wd  = width of output
       names = df names; can be list if cwise concat
-              defaults to "V1" etc if none provided
-      concat = concatenate the dataframes? options: cwise, rwise
+          default "V1,V2..." if none 
+      concat = concatenate the dataframes?
+          options: cwise, rwise
     ----
     NOTES:
       Converts object to pandas DataFrame if needed
+    ------
   """
   spaces = ind * ' '
   if not isinstance(x, list):
@@ -47,17 +53,6 @@ def dfPrint(x,abbr=True,nprint=10,ind=6,wd=90,concat="no",names:list=[]):
     print(pd.concat(dfList, axis=1).head(nrow))
   elif concat=="rwise":
     print(pd.concat(dfList, axis=0).head(nrow))
-
-def indPrint(x:str, ntabs:int=2, nl=False): #+> print strings, indented
-  # ntabs = ind/2 ## +> turns it into a float, which doesn't multiply w/str
-  tabs = '\t' * ntabs
-  print('\n',tabs,x) if nl else print(tabs,x) 
-
-def objPrint(x, ntabs:int=2, nl=False): #+> print objects, indented
-  #+> dunno if this one will work; probably prints 'x' instead of name of obj
-  tabs = '\t' * ntabs
-  print("\n",tabs,f"{x=}") if nl else print(tabs,f"{x=}") 
-  # TODO: fix this
 
 def arrPrint(x, ind=6,abbr=True,abval=12,comp=True, wd=90, sep=" "): #+> print arrays, indented
   """
@@ -87,6 +82,62 @@ def arrPrint(x, ind=6,abbr=True,abval=12,comp=True, wd=90, sep=" "): #+> print a
   else:
     x = np.array2string(x, precision=3, separator=sep, prefix=tabs)
     print(tabs, x, xlen) #+> print 'tabs' again here to indent the first line
+
+def indPrint(x:str, ntabs:int=2, nl=False): #+> print strings, indented
+  # ntabs = ind/2 ## +> turns it into a float, which doesn't multiply w/str
+  tabs = '\t' * ntabs
+  print('\n',tabs,x) if nl else print(tabs,x) 
+
+def objPrint(x, ntabs:int=2, nl=False): #+> print objects, indented
+  #+> dunno if this one will work; probably prints 'x' instead of name of obj
+  tabs = '\t' * ntabs
+  print("\n",tabs,f"{x=}") if nl else print(tabs,f"{x=}") 
+  # TODO: fix this
+
+def print_prop(nData, obsColNum):  
+    # nData = nData[nData[:,4]!=0]
+  obsColNum = int(obsColNum)
+  print(f"\t\t|> NEST FATE PROPORTIONS (discovered = where column {obsColNum} > 0):")
+  nstrList=["ALL", "DISCOVERED", "ANALYZED"]
+  nDataDisc = nData[nData[:,obsColNum]>0]
+  nDataAn = nDataDisc[nDataDisc[:,7]!=7]
+  # print(f"{nDataAn=}")
+  nDataAn = nDataAn[nDataAn[:,2]>nDataAn[:,4]]
+  # print(f"{nDataAn=}")
+  ndataList = [nData, nDataDisc, nDataAn]
+  for n in range(0,len(nstrList)):
+    nstr = nstrList[n]
+    nestData = ndataList[n]
+    mk_print_prop(nestData, nstr, obsColNum)
+
+  # nData = nData
+def mk_print_prop(nData, nstr, obsColNum):
+  assignedFate, trueFate = nData[:,7], nData[:,3]
+  # print(f"{nData.shape[0]=}")
+  aFates = [np.sum((assignedFate == x)) for x in [0,1,2,7]]
+  # this proportion needs to be out of nests discovered AND assigned
+  aFatesProp = [np.sum((assignedFate == x))/(nData.shape[0]) for x in [0,1,2,7]]
+  aFatesProp = [f"{n:.3f}" for n in aFatesProp]
+
+  tFates = [np.sum((trueFate == x)) for x in range(3)]
+  tFatesProp = [np.sum((trueFate == x))/(nData.shape[0]) for x in range(3)]
+  tFatesProp = [f"{n:.3f}" for n in tFatesProp]
+
+  uFates = [np.sum((assignedFate==7) & (trueFate==x)) for x in range(3)]
+  # print(f"{uFates=}")
+  
+  uFatesProp = [np.sum((assignedFate==7) & (trueFate==x))/(nData.shape[0]) for x in range(3)]
+  uFatesProp = [f"{n:.3f}" for n in uFatesProp]
+  # uFatesProp = uFates / nData.shape[0]
+  print(
+      f"\t\t\t==> {nstr} NESTS - count (proportion):"
+      # f"\t\t>> assigned [H D Fl U]: {" ".join(aFates)} ({" ".join(aFatesProp)})", 
+      # f"\t\t>> true [H D Fl]: {" ".join(tFates)} ({" ".join(tFatesProp)})", 
+      # f"\t\t>> marked unknown [H D Fl]: {" ".join(tFates)} ({" ".join(tFatesProp)})", 
+      f"\t\t>> assigned [H D Fl U]: {aFates} ({" ".join(aFatesProp)})", 
+      f"\t\t>> true [H D Fl]: {tFates} ({" ".join(tFatesProp)})", 
+      f"\t\t>> marked unknown [H D Fl]: {tFates} ({" ".join(tFatesProp)})", 
+      )
 
 def print_all(sums, nestData, par, debug=0):
   """
@@ -223,33 +274,53 @@ def print_nd(nestData, nDisc, pSurv, hatchTime):
     np.where(nestData[:,9] == 7)
     ) 
 
-def fate_prop(assignedFate, trueFate, discovered):
-  aFates = [np.sum((assignedFate == x)[discovered==True]) for x in range(4)]
+def fate_prop(assignedFate, trueFate):
+  """
+    ARGS: assigned fates & true fates for a given group of nests
+      (all nests, discovered nests, analyzed nests, etc...)
+  """
+  fates=[0,1,2,7]
+  numNests = len(assignedFate)
+  print(f"{numNests=}")
+  aFates = [np.sum((assignedFate == x)) for x in fates]
   # this proportion needs to be out of nests discovered AND assigned
-  aFatesProp = [np.sum((assignedFate == x)[discovered==True])/(np.sum(discovered==True)) for x in range(4)]
-  tFates = [np.sum((trueFate == x)[discovered==True]) for x in range(4)]
-  tFatesProp = [np.sum((trueFate == x)[discovered==True])/(np.sum(discovered==True)) for x in range(4)]
+  aFatesProp = [np.sum((assignedFate == x))/(numNests) for x in fates]
+  tFates = [np.sum((trueFate == x)) for x in fates]
+  tFatesProp = [np.sum((trueFate == x))/(numNests) for x in fates]
 
-def print_prop(nData, whichNests):  
-  if whichNests == "disc":
-    nData = nData[nData[:,4]!=0]
-    nstr  = "DISCOVERED"
-  else:
-    nData = nData
-    nstr="ALL"
-  assignedFate, trueFate = nData[:,7], nData[:,3]
-  aFates = [np.sum((assignedFate == x)) for x in [0,1,2,7]]
-  # this proportion needs to be out of nests discovered AND assigned
-  aFatesProp = [np.sum((assignedFate == x))/(nData.shape[0]) for x in [0,1,2,7]]
+# def fate_prop(assignedFate, trueFate, discovered):
+#   aFates = [np.sum((assignedFate == x)[discovered==True]) for x in range(4)]
+#   # this proportion needs to be out of nests discovered AND assigned
+#   aFatesProp = [np.sum((assignedFate == x)[discovered==True])/(np.sum(discovered==True)) for x in range(4)]
+#   tFates = [np.sum((trueFate == x)[discovered==True]) for x in range(4)]
+#   tFatesProp = [np.sum((trueFate == x)[discovered==True])/(np.sum(discovered==True)) for x in range(4)]
 
-  tFates = [np.sum((trueFate == x)) for x in range(3)]
-  tFatesProp = [np.sum((trueFate == x))/(nData.shape[0]) for x in range(3)]
-  uFates = [np.sum((assignedFate==7) & (trueFate==x)) for x in range(3)]
-  print(
-      f"\t\t==> {nstr} NESTS - count (proportion):"
-      f"\t\t>> assigned [H D Fl U]: {aFates} ({aFatesProp})", 
-      f"\t\t>> true [H D Fl]: {tFates} ({tFatesProp})", 
-      )
+# def print_prop(nData, whichNests, obsColNum):  
+#   if whichNests == "disc":
+#     # nData = nData[nData[:,4]!=0]
+#     nData = nData[nData[:,obsColNum]>0]
+#     nstr  = "DISCOVERED"
+#   elif whichNests == "an":
+#     nData = nData[nData[:,4]!=0]
+#     nstr  = "ANALYZED"
+#   else:
+#     nData = nData
+#     nstr="ALL"
+#   assignedFate, trueFate = nData[:,7], nData[:,3]
+#   aFates = [np.sum((assignedFate == x)) for x in [0,1,2,7]]
+#   # this proportion needs to be out of nests discovered AND assigned
+#   aFatesProp = [np.sum((assignedFate == x))/(nData.shape[0]) for x in [0,1,2,7]]
+#
+#   tFates = [np.sum((trueFate == x)) for x in range(3)]
+#   tFatesProp = [np.sum((trueFate == x))/(nData.shape[0]) for x in range(3)]
+#   uFates = [np.sum((assignedFate==7) & (trueFate==x)) for x in range(3)]
+#   uFatesProp = uFates / nData.shape[0]
+#   print(
+#       f"\t\t==> {nstr} NESTS - count (proportion):"
+#       f"\t\t>> assigned [H D Fl U]: {aFates} ({aFatesProp})", 
+#       f"\t\t>> true [H D Fl]: {tFates} ({tFatesProp})", 
+#       f"\t\t>> marked unknown [H D Fl]: {tFates} ({tFatesProp})", 
+#       )
 
 def print_prop_all(nData):  
   assignedFate, trueFate = nData[:,7], nData[:,3]
