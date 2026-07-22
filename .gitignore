@@ -4,6 +4,8 @@
 *.lprof
 *.docx
 *.png
+outval.txt
+nodebug*
 lib64
 
 # directories:

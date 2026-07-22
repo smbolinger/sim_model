@@ -13,9 +13,13 @@
 
 import numpy as np 
 import scipy.stats as stats
+import numdifftools as ndt
+from statsmodels.tools.numdiff import approx_hess2
+import lmfit
 import csv
 import decimal
 import itertools
+import functools
 import os
 import pprint
 import sys
@@ -38,6 +42,7 @@ from pathlib import Path
 import rpy2.robjects as robjects
 from scipy import optimize
 from scipy.stats.kde import gaussian_kde
+from scipy.differentiate import hessian
 # from traceback import TracebackException
 from typing import Dict, Generator
 
@@ -50,11 +55,17 @@ from print_func import arrPrint,dfPrint,printLL, print_all, print_nestdata,print
 from makeNests import stormGen
 from observer import make_obs, mk_surveys
 from dsrCalc import calc_dsr, mark_wrapper, mayfield
-from MCmatrix import like_smd, triangle, logistic
-from log_exposure import calc_daily_expo, make_daily_logex_df
+from MCmatrix import like_smd, triangle, logistic, logit,log_transform,tri_transform
+# from notr_MCmatrix import like_smd, triangle, logistic
+# from log_exposure import calc_daily_expo, make_daily_logex_df
 
+# imported = sorted(list(sys.modules.keys()))
+imported = sys.modules
+calc_hess=True
+randInit = True
+# log_transform = False
 r = robjects.r
-np.set_printoptions(precision=5)
+# np.set_printoptions(suppress=True,precision=5)
 # debug = config.debug
 # print("\t\t|>|>|>debug value:", debug, end=" ")
 #+> seearch for #\~ to find the dbug statements
@@ -63,6 +74,7 @@ np.set_printoptions(precision=5)
 ## TODO:   account for nsts that survivd storms.
 
 ## TODO: mark "storm nsts" and add an xtra day to one intrval?
+
 
 def randArgs(config,rng):
   """
@@ -80,17 +92,116 @@ def randArgs(config,rng):
   # rng = np.random.default_rng(seed=config.rngSeed)
   # s   = rng.uniform(-10.0, 10.0)     
   # mp  = rng.uniform(-10.0, 10.0)
-  s   = rng.uniform(0.0, 10.0)     
-  mp  = rng.uniform(0.0, 10.0)
+  if randInit:
+    if log_transform:
+      s   = rng.uniform(2.0, 10.0)     
+      mp  = rng.uniform(-5.0, 2)
+      # s   = rng.uniform(0.0, 10.0)     
+      # mp  = rng.uniform(0.0, 10.0)
+    else:
+      # s   = rng.uniform(0.6, 0.98)     
+      mp  = rng.uniform(0.001, 0.1)
+      mf = rng.uniform(0.001,0.1)
+
+    # if tri_transform:
+    #   z = np.array([s, mp], dtype=np.float32)
+    # else:
+    #   # mf = 1 - mp - s
+    #   mf = logit(1-logistic(mp) - logistic(s)) if log_transform else 1 - mp - s
+    #   z = np.array([s, mp, mf], dtype=np.float32)
+  else:
+    if log_transform:
+      s = mp = mf = logit(0.33)
+      z = np.array([s, mp, mf], dtype=np.float32)
+    else: 
+      s = mp = mf = 0.33
+      z = np.array([s, mp, mf], dtype=np.float32)
+
+
   # ss  = rng.uniform(-10.0, 10.0)
   # mps   = rng.uniform(-10.0, 10.0)
   # srand = rng.uniform(-10.0, 10.0) # should the MARK and matrix MLE start @ same value?
-  srand = rng.uniform(0.0, 10.0) # should the MARK and matrix MLE start @ same value?
+  # srand = rng.uniform(0.0, 10.0) # should the MARK and matrix MLE start @ same value?
   # z = np.array([s, mp, ss, mps, srand])
-  z = np.array([s, mp])
+  z = np.array([mp, mf], dtype=np.float32)
+  # print(f"randArgs: {z=} {type(z[0])=}")
   return(z)
 
+def randArgs2(config,rng):
+  """
+    Choose random initial values for the optimizer.
+    These will be log-transformed before going through the likelihood function
+    
+    RETURNS:
+      array of s, mp, ss, mps (for like_smd) and srand (for mark_wrapper)
+    ----
+    note that the estimates from these initial vals seem to be consistently
+    biased positive. So maybe not an issue with the starting vals... but
+    starting with the Mayfield estimate could make the process faster
+  """
+  # rng =
+  # rng = np.random.default_rng(seed=config.rngSeed)
+  # s   = rng.uniform(-10.0, 10.0)     
+  # mp  = rng.uniform(-10.0, 10.0)
+  s   = rng.uniform(5.0, 10.0)     
+  mp  = rng.uniform(-4.0, 2.0)
+  # ss  = rng.uniform(-10.0, 10.0)
+  # mps   = rng.uniform(-10.0, 10.0)
+  # srand = rng.uniform(-10.0, 10.0) # should the MARK and matrix MLE start @ same value?
+  # srand = rng.uniform(0.0, 10.0) # should the MARK and matrix MLE start @ same value?
+  # z = np.array([s, mp, ss, mps, srand])
+  # z = np.array([s, mp])
+  # print("calling randArgs2 - create params")
+  z = lmfit.Parameters()
+  # z.add('s', value=rng.uniform(5.0,10.0))
+  # z.add('mp', value=rng.uniform(-4.0,2.0))
+  z.add('mp', value=rng.uniform(0.001,0.1))
+  z.add('mf', value=rng.uniform(0.001,0.1))
+  # z.add('s', value=rng.uniform(0.7,0.98),max=1,min=0)
+  # print(f"{1-z['s']=}")
+  # z.add('mp', value=rng.uniform(0.0001,1-z['s']),max=1,min=0)
+  # z.add('mf', expr='1-s-mp',min=0,max=1)
+  # print(f"randArgs: {z=} {type(z['s'])=}")
+  return(z)
+
+# def hess()
 # def mayfInit(mayfEstim, ):
+def calc_se(arg, an):
+  print("\t\t>> calculating hessian")
+  dat,frq,storm,survey,conf=arg
+  # smd_obj = functools.partial(like_smd,*arg)
+  smd_obj = functools.partial(like_smd,
+                              obsData=dat,
+                              obsFreq=frq,
+                              stormDays=storm,
+                              surveyDays=survey,
+                              config=conf)
+  # hess = hessian(lambda z: like_smd(z,*arg),out.x)
+  # hess = hessian(smd_obj,an)
+  # hess = ndt.Hessian(smd_obj)(out.x)
+  hess = ndt.Hessian(smd_obj)(an)
+  hess2 = approx_hess2(an, smd_obj)
+  print(f"{hess=} {type(hess)=}")
+  print(f"{hess2=} {type(hess2)=}")
+  # try:
+  #   with warnings.catch_warnings(): #+> treeat warnings as exceptions here
+  #     warnings.simplefilter("error")
+  #     se = np.sqrt(np.diag(np.linalg.inv(hess)))
+  # except RuntimeWarning as warn:
+  #   print(f"{warn} - use pseudo-inverse")
+  #   # logit_se = np.sqrt(np.diag(np.linalg.pinv(hess)))
+  #   se = np.sqrt(np.diag(np.linalg.pinv(hess)))
+  se = np.sqrt(np.diag(np.linalg.inv(hess)))
+  seS = np.sqrt(np.sum(np.sum(np.linalg.inv(hess))))
+
+  # print(f"{logit_se=} {type(logit_se)=}")
+  # lse1, lse2 = logit_se
+  # se = [logistic(lse1), logistic(lse2)]
+  print(f"\t{se=} {type(se)=}")
+  print(f"\t{seS=} {type(seS)=}")
+  # return logit_se
+  # return se
+  return (se[0],se[1],seS)
 
 
 # NOTE I have no real reason for choosing Nelder-Mead. Try another
@@ -100,7 +211,8 @@ def randArgs(config,rng):
 ## +>loop thru param combinations; within loop, unpack params & run optimizer
 # @profile
 ##+> add debug to print starting vals for basinhopping
-def run_optim(minimizer, fun, z, arg, met='Nelder-Mead', db=False):
+# def run_optim(minimizer, fun, z, arg, met='Nelder-Mead', db=False):
+def run_optim(minimizer, fun, z, arg, met='nelder', db=False):
   """
     Run scipy.optimize.minimize on 'fun'. Will return value of -1 or -2 if exceptions occur.
 
@@ -110,10 +222,13 @@ def run_optim(minimizer, fun, z, arg, met='Nelder-Mead', db=False):
     Returns:
       the transformed output.
   """
+  # print("calling run_optim")
   counter=0
+  print(f">> run_optim: {met=}\t{minimizer=}\t{fun=}")
   try:
     with warnings.catch_warnings(): #+> treeat warnings as exceptions here
       warnings.simplefilter("error")
+      # print("calling choose_alg")
 
       out = choose_alg(minimizer, fun, z, arg, met,debug=db)
       last_ex = 0.0
@@ -150,51 +265,215 @@ def run_optim(minimizer, fun, z, arg, met='Nelder-Mead', db=False):
       return(last_ex)
   # print("Success?", out.success, out.message, "answer=", out.x)
   if fun==like_smd: 
+    
     # print("Success?", out.success, out.message, "answer=", out.x)
-    res = ansTransform(ans=out.x)
+    # print("\nSuccess?", out.success, out.message, f"{out.x=}")
+    # # outmin = out[0]
+    # # hess   = out[0]
+    # # se   = out[1]
+    # print(f"\n{arg=}")
+    # print(f"{len(arg)=}")
+      # print(lmfit.fit_report(out))
+    # res = out.x
+    if minimizer in ["norm_lmfit","bh_lmfit"]:
+      an = (out.params['s'].value,out.params['mp'].value)
+      # res = ansTransform(ans=an)
+      if db:
+        print(f"{out.params=}")
+        print(f"{out.params['s'].stderr=}")
+        print(f"{out.params['mp'].stderr=}")
+        # print(f"{out.params['mf'].stderr=}")
+        print(f"{out.residual=}")
+    else:
+      an = out.x
+      # res = ansTransform(ans=an)
+      print(f"\t\t{out.x=}")
+      # print(f" {out.hess_inv=} {type(out.hess_inv)=}")
+      # hess = out.hess_inv ## probably not good for calculating se
+      # logit_se = np.sqrt(np.diag(np.linalg.inv(hess)))
+      # print(f"{logit_se=} {type(logit_se)=}")
+    # se = ansTransform(ans=out.)
+    # print(f"{res=}")
+    # print(f"{type(out.x)=}{out.x.shape=}")
+    # print(f"{out.x[1]=}")
+    # funArr  =  like_smd(z,*arg)
+    # funArr  =  [z,*arg]
+    # hessFun = ndt.Hessian(funArr,full_output=True)
+    # hessFun = ndt.Hessian(funArr['x'],full_output=True)
+    # hessFun = ndt.Hessian(funArr['x'],full_output=True)
+    # hessFun = ndt.Hessian(like_smd,full_output=True)
+    # hessFun = ndt.Hessian(lambda x: like_smd(z,*arg))
+    # hessFun = ndt.Hessian(lambda x: like_smd(z,*arg))
+    # print(f"{hessFun=} {type(hessFun)=}")
+    # hess, info = hessFun(out['x'])
+    # hess = ndt.Hessian(lambda x: like_smd(z,*arg))(out.x)
+    # print("creating partial function")
+    # if calc_hess:
+    #   print("calculating hessian")
+    #   dat,frq,storm,survey,conf=arg
+    #   # smd_obj = functools.partial(like_smd,*arg)
+    #   smd_obj = functools.partial(like_smd,
+    #                               obsData=dat,
+    #                               obsFreq=frq,
+    #                               stormDays=storm,
+    #                               surveyDays=survey,
+    #                               config=conf)
+    #   # hess = hessian(lambda z: like_smd(z,*arg),out.x)
+    #   # hess = hessian(smd_obj,an)
+    #   # hess = ndt.Hessian(smd_obj)(out.x)
+    #   hess = ndt.Hessian(smd_obj)(an)
+    #   print(f"{hess=} {type(hess)=}")
+    #   try:
+    #     with warnings.catch_warnings(): #+> treeat warnings as exceptions here
+    #       warnings.simplefilter("error")
+    #       logit_se = np.sqrt(np.diag(np.linalg.inv(hess)))
+    #   except RuntimeWarning as warn:
+    #     print(f"{warn} - use pseudo-inverse")
+    #     logit_se = np.sqrt(np.diag(np.linalg.pinv(hess)))
+    #
+    #   print(f"{logit_se=} {type(logit_se)=}")
+      # se = ansTransform(logit_se)
+    # res = ansTransform(ans=outmin.x,se=se)
+    # hess = ndt.Hessian()
     # if res[1] < 0.6:
     #   print("run optimizer again with basinhopping")
     #   arg=
     #   try:
     #     out = optimize.minimize(fun, z, args=)
-  else:
+  # else:
     # res=ansTransform(ans, unpack=False)
     # res=ansTransform(ans=out)
-    res = logistic(out.x[0])
+    # res = logistic(out.x[0])
     # print("\t", res)
-  return(res)
+  # res = ()
+  # print(f"\t|> |> |> {res=}")
+  return an
+  # return(an,logit_se)
+  # return(res,se)
 
+def constr(x):
+  return sum(x)-1 ## equality constraint - must equal zero
+
+# def choose_alg(minim, fun, z, arg, met, debug=False):
 def choose_alg(minim, fun, z, arg, met, debug=False):
-  if minim=="norm":
-    minimizer = optimize.minimize(fun, z, args=arg, method=met) 
-  elif minim=="bh":
-    min_kwargs={"args": arg}
+  print(f">> choose_alg: - {minim=} {z=} {len(z)=}")
+  
+  constrs = ({'type': 'eq', 'fun': constr}) ## type=equality
+  # bounds = [(0.00001, 1),(0.00001,1),(0.00001,1)]
+  bounds = [(0.000001,.1),(0.000001,.1)]
+  if minim=="norm_scipy":
+    
+    if met in ["SLSQP", "trust-constr", "L-BFGS-B"]:
+      # minimizer = optimize.minimize(fun,z,args=arg,method=met,bounds=bounds,constraints=constrs)
+      minimizer = optimize.minimize(fun,z,args=arg,method=met,bounds=bounds)
+    else:
+      minimizer = optimize.minimize(fun, z, args=arg, method=met) 
+    res=minimizer
+    # if debug: print("\nSuccess?", minimizer.success, minimizer.message)
+    # minimizer = optimize.minimize(fun,minimizer1.x,args=arg,method="BFGS")
+    # if debug: print("\nSecond run - success?", minimizer1.success, minimizer1.message)
+  elif minim=="norm_lmfit":
+    minimizer = lmfit.minimize(fun, z, args=arg, method=met,calc_covar=True) 
+    if debug: print("\nSuccess?", minimizer.success, minimizer.message)
+    # with np.printoptions(precision=12): print(f"{minimizer.x=}{minimizer.params=}")
+    with np.printoptions(precision=12): print(f"{minimizer.params=}")
+    # with np.printoptions(precision=12): print(f"{minimizer.x=}")
+    if debug: print(lmfit.fit_report(minimizer))
+    try:
+      with np.printoptions(precision=12): print(lmfit.conf_interval(lmfit.minimize,minimizer))
+    except lmfit.minimizer.MinimizerException as error:
+      print(f"ERROR: {error}")
+    # with np.printoptions(precision=12): print(lmfit.conf_interval(lmfit.minimize,minimizer))
+    ##NOTE doesn't work bc 'leastsq' requires len(out) >= len(inp)
+    # z = minimizer.params
+    # print(f"{z=} {len(z)=}")
+    # minimizer = lmfit.minimize(fun, z, args=arg, method='leastsq') 
+  elif minim=="bh_scipy":
+    if met in ["SLSQP", "trust-constr","L-BFGS-B"]:
+      # min_kwargs={"args": arg, "method": met, "bounds": bounds, "constraints": constrs} ## will run the local optimization 
+      min_kwargs={"args": arg, "method": met, "bounds": bounds} ## will run the local optimization 
+    else:
+      min_kwargs={"args": arg, "method": met} ## will run the local optimization 
     minimizer = optimize.basinhopping(fun, z, minimizer_kwargs=min_kwargs)
+    res = minimizer.lowest_optimization_result
+    
+    # if debug: print("\n<bh>Success?", minimizer.success, minimizer.message)
+    # minimizer = optimize.minimize(fun,minimizer1.x,args=arg,method="BFGS")
+    # if debug: print("\n<bh>Second run - success?", minimizer1.success, minimizer1.message)
+  elif minim=="bh_lmfit":
+    # print(f"{z=} {len(z)=}")
+    minimizer = lmfit.minimize(fun, z, args=arg, method='basinhopping',calc_covar=True) 
+    try:
+      with np.printoptions(precision=12): print(lmfit.conf_interval(lmfit.minimize,minimizer))
+    except lmfit.minimizer.MinimizerException as error:
+      print(f"ERROR: {error}")
+
+    # z = minimizer.params
+    # print(f"{z=} {len(z)=}")
+    # minimizer = lmfit.minimize(fun, z, args=arg, method='leastsq') 
     # if debug: print(f"{z=}", end=" ")
     
-  return(minimizer)
+
+  # funArr  = 
+  # hessFun = ndt.Hessian(fun,full_output=True)
+  # # print(f"{hessFun=} {type(hessFun)=}")
+  # hess, info = hessFun(minimizer['x'])
+  # # print(f"{hess=} {type(hess)=}")
+  # se = np.sqrt(np.diag(np.linalg.inv(hess)))
+  # print(f"{se=} {type(se)=}")
+  return res
+  # return(minimizer)
+  # return [minimizer,hess]
+  # return (minimizer,hess)
+  # return (minimizer,se)
+
   
 def ansTransform(ans):
+# def ansTransform(ans,se):
   """
     Transform the optimizer output so that it is between 0 and 1, and the 3 
     probabilities sum to 1. 
 
     'ans' is an object of type 'OptimizeResult', which has a number of components
   """
+  # print("calling ansTransform")
   # if unpack:
     # ans = ans.x  
   # s0   = ans.x[0]     # Series of transformations of optimizer output.
-  s0   = ans[0]     # Series of transformations of optimizer output.
-  mp0  = ans[1]     # These make sure the output is between 0 and 1, 
   # ss0  = ans[2]     # and that the three fate probabilities sum to 1.
   # mps0 = ans[3]
+  print(f"ansTransform: transform output {ans=}")
+  # est, se = ans
+  #
+  # if log_transform:
+  #   s0   = est[0]     # Series of transformations of optimizer output.
+  #   mp0  = est[1]     # These make sure the output is between 0 and 1, 
+  #   s1   = logistic(s0)
+  #   mp1  = logistic(mp0)
+  #   sse0   = se[0]     # Series of transformations of optimizer output.
+  #   mpse0  = se[1]     # These make sure the output is between 0 and 1, 
+  #   sse1   = logistic(sse0)
+  #   mpse1  = logistic(mpse0)
+  # else:
+  #   s1   = est[0]     # Series of transformations of optimizer output.
+  #   mp1  = est[1]     # These make sure the output is between 0 and 1, 
+  #   sse1   = se[0]     # Series of transformations of optimizer output.
+  #   mpse1  = se[1]     # These make sure the output is between 0 and 1, 
 
-  s1   = logistic(s0)
-  mp1  = logistic(mp0)
+  if log_transform:
+    s0   = ans[0]     # Series of transformations of optimizer output.
+    mp0  = ans[1]     # These make sure the output is between 0 and 1, 
+    s1   = logistic(s0)
+    mp1  = logistic(mp0)
+  else:
+    s1   = ans[0]     # Series of transformations of optimizer output.
+    mp1  = ans[1]     # These make sure the output is between 0 and 1, 
+
   # ss1  = logistic(ss0)
   # mps1 = logistic(mps0)
 
   ret2 = triangle(s1, mp1)
+  # ret2 = triangle(s0, mp0)
   s2   = ret2[0]
   mp2  = ret2[1]
   mf2  = 1.0 - s2 - mp2
@@ -206,6 +485,8 @@ def ansTransform(ans):
   
   # ansTransformed = np.array([s2, mp2, mf2, ss2, mps2, mfs2], dtype=np.longdouble)
   ansTransformed = np.array([s2, mp2, mf2], dtype=np.longdouble)
+  # ansTransformed = np.array([s2, mp2, mf2, sse1, mpse1], dtype=np.longdouble)
+  # ansTransformed = np.array([s2, mp2, mf2, se], dtype=np.longdouble)
   return(ansTransformed)
 
 # -----------------------------------------------------------------------------
@@ -232,65 +513,118 @@ def rep_loop(par,rng, nData, storm, survey, config, random=True,to_r=False):
   # if config.debug>=2:
     # print("check:")
     # arrPrint(dat)
-  arg=(dat, par.obsFreq, par.useSMat, storm, survey, par.whichLike, config)
+  # arg=(dat, par.obsFreq, par.useSMat, storm, survey, par.whichLike, config)
+  arg=(dat, par.obsFreq, storm, survey, config)
   # zargs = randArgs() if random==True else mayfInit()
   # TODO: integrate warning capture with function in helpers.py
-  if config.optimizer=="global":
-    res    = run_optim(minimizer="bh",
-                       fun=like_smd,
-                       z=randArgs(config,rng),
-                       arg=arg,
-                       )
+  if config.optimFunc=="scipy":
+    init = randArgs(config,rng)
+    minimSuff = "scipy"
   else:
-    res    = run_optim(minimizer="norm",
+    init = randArgs2(config,rng)
+    minimSuff = "lmfit"
+  bh_minim = "bh_" + minimSuff
+  norm_minim = "norm_" + minimSuff
+  # if config.optimizer=="global":
+  if config.optimGlob:
+    # res    = run_optim(minimizer="bh",
+    # print(f">> rep_loop: RUN OPTIMIZER w/ {bh_minim}")
+    print(f">> rep_loop: RUN OPTIMIZER w/ ", end= " ")
+    out    = run_optim(minimizer=bh_minim,
                        fun=like_smd,
-                       z=randArgs(config,rng),
+                       # z=randArgs(config,rng),
+                       # z=randArgs2(config,rng),
+                       z=init,
                        arg=arg,
                        met=config.optimizer,
                        )
-  if res[0] < 0.8:
-    print(f"\t\t\t\t{res[0]=:.4f}; run optimizer again with basinhopping; ", end=" ")
-    res = run_optim(minimizer="bh",fun=like_smd,z=randArgs(config,rng),arg=arg,db=True)
-    # print(f"\t\t|>NEW {res[0]=:.4f}")
+  else:
+    # print("\nrep_loop: RUN OPTIMIZER\n")
+    # res    = run_optim(minimizer="norm",
+    # print(f">> rep_loop: RUN OPTIMIZER w/ {norm_minim}")
+    print(f">> rep_loop: RUN OPTIMIZER w/ ", end= " ")
+    out    = run_optim(minimizer=norm_minim,
+                       fun=like_smd,
+                       # z=randArgs2(config,rng),
+                       z=init,
+                       arg=arg,
+                       met=config.optimizer,
+                       )
+  # res = ansTransform(out)
+  res = out
+  print(res)
+  if False:
     if res[0] < 0.8:
-      # discover = nData[nData[:,6]!=0]
-      # discover = nData[nData[:,8]>0] ## +> n obs > 0 - obs before fail
-      # discover = nData[nData[:,6]>0] ## +> k > 0
-      #+> but nobs is now num obs while active, so some failed nests have nobs=0
-      ## but using total obs is somehoww leading to larger overestimate? or is it?
-      discover = nData[nData[:,10]>0] ## +> TOTAL obs > 0
-      discovered = discover.shape[0]
-      # if config.debug>=3:
-        # print(f"discovered nests ({discover.shape=}):")
-        # dfPrint(discover)
-      # excl = ((discover[:,7] == 7) | (discover[:,4]==discover[:,5]))
-      # excl = ((discover[:,7] == 7) | discover[:,8]>0)
-      excl = (discover[:,7] == 7)
-      excluded  = np.sum(excl)            
-      hatched = np.sum(discover[:,3]==0)
-      unknown = np.sum(discover[:,7]==7)
-      # print(f"\t\t\t\t\t{discovered=}|>{excluded=}&{hatched=}&{unknown=}", end=" ")
-      # print(f"{res[0]=:.4f}; AGAIN with bh", end=" ")
-      res0 = run_optim(minimizer="bh",fun=like_smd,z=randArgs(config,rng),arg=arg,db=True)
-      res1 = run_optim(minimizer="bh",fun=like_smd,z=randArgs(config,rng),arg=arg,db=True)
-      res2 = run_optim(minimizer="bh",fun=like_smd,z=randArgs(config,rng),arg=arg,db=True)
-      # print(f"\t\t\t\t\t|>NEW {res0[0]=:.4f}{res1[0]=:.4f}{res2[0]=:.4f}", end=" ")
-      # resList = np.array(res1, res2, res3)
-      # resArr= np.concatenate((res1, res2, res3), axis=0)
-      first_vals = [arr[0] for arr in [res0, res1, res2]]
-      
-      resName = "res" + str(first_vals.index(max(first_vals)))
-      # res = eval(resName)
-      res = locals()[resName]
-      # res = resArr[np.argmax(resArr[:,0])]
+      print(f"\t\t\t\t>> rep_loop: {res[0]=:.4f}; run optimizer again with basinhopping; ", end=" ")
+      if config.optimFunc=="scipy":
+        init = randArgs(config,rng)
+      else:
+        init = randArgs2(config,rng)
+      # res = run_optim(minimizer="bh",fun=like_smd,z=randArgs2(config,rng),arg=arg,db=True)
+      # res = run_optim(minimizer=bh_minim,fun=like_smd,z=init,arg=arg,met="basinhopping",db=True)
+      out = run_optim(minimizer=bh_minim,fun=like_smd,z=init,arg=arg,met=config.optimizer,db=True)
+      # res = ansTransform(out)
+      res = out
+      # print(f"\t\t|>NEW {res[0]=:.4f}")
+      if res[0] < 0.8:
+        # discover = nData[nData[:,6]!=0]
+        # discover = nData[nData[:,8]>0] ## +> n obs > 0 - obs before fail
+        # discover = nData[nData[:,6]>0] ## +> k > 0
+        #+> but nobs is now num obs while active, so some failed nests have nobs=0
+        ## but using total obs is somehoww leading to larger overestimate? or is it?
+        discover = nData[nData[:,10]>0] ## +> TOTAL obs > 0
+        discovered = discover.shape[0]
+        # if config.debug>=3:
+          # print(f"discovered nests ({discover.shape=}):")
+          # dfPrint(discover)
+        # excl = ((discover[:,7] == 7) | (discover[:,4]==discover[:,5]))
+        # excl = ((discover[:,7] == 7) | discover[:,8]>0)
+        excl = (discover[:,7] == 7)
+        excluded  = np.sum(excl)            
+        hatched = np.sum(discover[:,3]==0)
+        unknown = np.sum(discover[:,7]==7)
+        # print(f"\t\t\t\t\t{discovered=}|>{excluded=}&{hatched=}&{unknown=}", end=" ")
+        print(f"{res[0]=:.4f}; AGAIN with bh", end=" ")
+        # res0 = run_optim(minimizer="bh",fun=like_smd,z=randArgs2(config,rng),arg=arg,db=True)
+        
+        if config.optimFunc=="scipy":
+          out0 = run_optim(minimizer=bh_minim,fun=like_smd,z=randArgs(config,rng),arg=arg,met=config.optimizer,db=True)
+          out1 = run_optim(minimizer=bh_minim,fun=like_smd,z=randArgs(config,rng),arg=arg,met=config.optimizer,db=True)
+          out2 = run_optim(minimizer=bh_minim,fun=like_smd,z=randArgs(config,rng),arg=arg,met=config.optimizer,db=True)
+        else:
+          out0 = run_optim(minimizer=bh_minim,fun=like_smd,z=randArgs2(config,rng),arg=arg,met=config.optimizer,db=True)
+          out1 = run_optim(minimizer=bh_minim,fun=like_smd,z=randArgs2(config,rng),arg=arg,met=config.optimizer,db=True)
+          out2 = run_optim(minimizer=bh_minim,fun=like_smd,z=randArgs2(config,rng),arg=arg,met=config.optimizer,db=True)
+        # res0 = ansTransform(out0)
+        # res1 = ansTransform(out1)
+        # res2 = ansTransform(out2)
+        res0 = out0
+        res1 = out1
+        res2 = out2
+        # print(f"\t\t\t\t\t|>NEW {res0[0]=:.4f}{res1[0]=:.4f}{res2[0]=:.4f}", end=" ")
+        # resList = np.array(res1, res2, res3)
+        # resArr= np.concatenate((res1, res2, res3), axis=0)
+        first_vals = [arr[0] for arr in [res0, res1, res2]]
+        
+        resName = "res" + str(first_vals.index(max(first_vals)))
+        # res = eval(resName)
+        res = locals()[resName]
+        # res = resArr[np.argmax(resArr[:,0])]
 
-      # res = np.max([res1,res2,res3])
-      # print(f"\t\t\t\t\t|>NEW {res[0]=:.4f}")
-  # srand = rng.uniform(-10.00, 10.00)
-  s2, mp2 = res[0], res[1]
+        # res = np.max([res1,res2,res3])
+        print(f"\t\t\t\t\t|>NEW {res[0]=:.4f}")
+    # srand = rng.uniform(-10.00, 10.00)
+    # s2, mp2, sse, mpse = res[0], res[1], res[3], res[4]
+
+  # s2, mp2 = res[0], res[1]
+  mf2, mp2 = res[0], res[1]
+  s2 = 1 - mf2 - mp2
+  print(f"*** {s2=} ***")
   # if config.debug>=4:
   #   print(f"{s2=} {mp2=}")
   psr = s2 ** par.hatchTime
+  se = calc_se(arg, out)
+  se1, se2, se3 = se
 
   if False:
     if config.mayfStart:
@@ -325,37 +659,74 @@ def rep_loop(par,rng, nData, storm, survey, config, random=True,to_r=False):
     like_val = np.array([ mark_s,s2,mp2], dtype=np.longdouble)
   #~#if config.debugLL>=2: print(f"\t\t>> like_val: MARK={like_val[0]}, MCMC-surv={like_val[1]}, MCMC-pred={like_val[2]}")
   if to_r:
-    like_val = [s2,psr,mp2]
+    like_val = [s2,psr,mp2,se1,se2]
   else:
-    like_val = np.array([s2,psr,mp2], dtype=np.longdouble)
+    like_val = np.array([s2,psr,mp2,se1,se2], dtype=np.longdouble)
     # like_val = 
+  if config.testing=="yes":
+    print(f"{out=} {res=}")
+    # np.savetxt("outval.txt")
+    with open("outval.txt", "a") as f:
+      np.savetxt(f,[res], delimiter=" ")
+      # f.write("\n")
+      np.savetxt(f,[out], delimiter=" ")
+      f.write("\n")
+    #   f.write(out)
+    #   f.write(res)
+      # f.write(res)
   return(like_val)
   
-def calc_nests(nestData1, par,rng, repID, parID, config, db=0):
-  # rng = np.random.default_rng(seed=config.rngSeed)
+def calc_nests(nestData1, par,rng,survey, obsCol,repID, parID, config, db=0):
+  # rng = np.random.default_rng(seed=config.rngSeed) print("calling calc_nests")
+  obsCol = int(obsCol)
+  # print(f"{obsCol=}")
+  surveyInt = survey[1]
+  # print(f"{surveyInt=}")
+  # print(f"{nestData1=}")
+  longest_int = max(surveyInt)
   flooded  = sum(nestData1[:,3]==2)
   hatched  = sum(nestData1[:,3]==0)
   # discover = nestData1[:,8]>0 ## where num obs > 0
-  discover = nestData1[:,10]>0 ## where num obs > 0
+  # print(f"{nestData1[:,obsCol]=}")
+  discover = nestData1[:,obsCol]>0 ## where num obs > 0
+  # if db>=5: print(f"\t\t\t{discover=}")
+  # discover = nestData1[:,10]>0 ## where num obs > 0
   nestData = nestData1[(discover),:] # +> remove undiscovered nests
-  if db>=4: print(f"\t\t>>calc_nests: discovered: {len(nestData)=}")
+  # if db>=5: print(f"\t\t\t{nestData[:,2]=}")
+  # if db>=5: print(f"\t\t\t{nestData[:,4]=}")
+  flood_dsc  = sum(nestData[:,3]==2)
+  hatch_dsc  = sum(nestData[:,3]==0)
+  # if db>=3: print("\t\tcalc_nests: using column 8 to determine discovered/not")
+  # if db>=3: print(
+  #     f"\t\tcalc_nests: using column {obsCol} to determine discovered/not")
+  # if db>=5: print(f"\t\t>>calc_nests: discovered: {len(nestData)=}")
   # if db>=3: print(f"{(nestData[:,5]==nestData[:,6])=}")
   # short    = (nestData[:,4]==nestData[:,5]) ## where i==j
-  short    = np.zeros(len(nestData))
-  if db>=4: print(f"\t{short=}")
+  short    = (nestData[:,2]<nestData[:,4]) ## where end<i
+  # short    = np.zeros(len(nestData))
+  # if db>=5: print(f"\t\t\t{short.astype(int)=}")
   # exclude  = ((nestData[:,7] == 7) or (nestData[:,5]==nestData[:,6]))
   unknown  = (nestData[:,7]==7)
-  if db>=4: print(f"\t{unknown=}")
+  # if db>=5: print(f"\t\t\t{unknown.astype(int)=}")
+
+  # print(f"{(unknown.astype(int) + short.astype(int))=}")
+  # both = (unknown.astype(int) + short.astype(int))
   # exclude = unknown or short
   # can also use bitwise or (|) or np.logical_or():
-  exclude = unknown + short > 0 # at least one is true
-  if db>=4: print(f"\t{exclude=}")
+  exclude = (unknown.astype(int) + short.astype(int)) > 0 # at least one is true
+  # if db>=5: print(f"\t\t\t{exclude=}")
   misclass = (nestData[:,7]!=nestData[:,3]) #+> out of discovered nests
   nestData = nestData[~exclude,:] # +> remove undiscovered nests
-  if db>=4: print(f"\t\t>>calc_nests: analyzed:{len(nestData)=}")
+  flood_an  = sum(nestData[:,3]==2)
+  hatch_an  = sum(nestData[:,3]==0)
+  misclass2 = (nestData[:,7]!=nestData[:,3]) #+> out of discovered nests
+  # if db>=5: print(f"\t\t>>calc_nests: analyzed:{len(nestData)=}")
+  # if db>=2: print(f"{nestData[:,11]=}")
   # misclass = misclass - unknown
   avgFInt  = (nestData[:,9].sum()/len(discover))
+  sNest    = nestData1[:,11].sum()
   avgK     = nestData[:,6].sum()/len(discover)
+  maxI     = np.max(nestData[:,4])
   srand = rng.uniform(0.00, 10.00) # +> random init val for MARK
   # mark_s = run_optim(minimizer="norm",
   #                    fun=mark_wrapper,
@@ -395,10 +766,13 @@ def calc_nests(nestData1, par,rng, repID, parID, config, db=0):
   nestVals = np.array([
     # flooded,hatched,discover.sum(),exclude.sum(),unknown.sum(),
     # misclass.sum(), avgFInt, avgK, appDSR, mark_s, repID, parID])
-    parID,repID,flooded,hatched,discover.sum(),exclude.sum(),unknown.sum(),
-    misclass.sum()-unknown.sum(),avgFInt,avgK,appDSR,appPSR,mayfDSR_an,appDSR_an])
+    # parID,repID,flooded,hatched,sNest,discover.sum(),exclude.sum(),unknown.sum(),
+    parID,repID,flooded,hatched,flood_dsc,hatch_dsc,flood_an,hatch_an,
+    sNest,discover.sum(),exclude.sum(),unknown.sum(),
+    # misclass.sum()-unknown.sum(),avgFInt,avgK,appDSR,appPSR,mayfDSR_an,appDSR_an])
+    misclass.sum()-unknown.sum(),misclass2.sum(),avgFInt,avgK,maxI,longest_int,appDSR,appPSR,mayfDSR_an,appDSR_an])
     # misclass.sum(), avgFInt, avgK, appDSR,appPSR, mark_s,markPSR])
-  if db>=4: print(f"{nestVals=}")
+  if db>=5: print(f"\t\t{nestVals=}")
   return nestVals
 
 def r_logexp():

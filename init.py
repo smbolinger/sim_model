@@ -5,7 +5,7 @@ from datetime import datetime
 from helpers import print
 
 scriptName = os.environ.get('script_name')
-dtime = datetime.today().strftime('%d %b %Y @ %H:%M')
+dtime = datetime.today().strftime('%d %b %Y @ %H:%M:%S')
 # atype = os.environ.get('atypeR')
 # nWeeks = 2
 # initFromFile = True
@@ -15,7 +15,7 @@ dtime = datetime.today().strftime('%d %b %Y @ %H:%M')
 print("\n\n+ + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + ")
 print(" + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + ")
 # print(f"\n <> <> <> <> <> <> <> <> datsim.py - {dtime} <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <>")
-print(f"\n <> <> <> <> <> <> <> <> {scriptName} - {dtime} <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <>\n")
+print(f"\n <> <> <> <> <> <> {scriptName} - {dtime} <> <> <> <> <> <> <> <> <> <> <>\n")
 print("+ + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + ")
 print(" + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + \n")
 

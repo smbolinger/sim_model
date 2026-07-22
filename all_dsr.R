@@ -110,7 +110,8 @@ for(i in seq(startParID,length(pArrList))){
     # print(survey)
 
     ## calculate some values from the nest data:
-    nVal <- mod$calc_nests(nestData1, par, rng,survey, obsVarNum, repID, parID,pyconfig,db=config$debugNests)
+    # nVal <- mod$calc_nests(nestData1, par, rng,survey, obsVarNum, repID, parID,pyconfig,db=config$debugNests)
+    nVal <- dsr$calc_nests(nestData1, par, rng,survey, obsVarNum, repID, parID,pyconfig,db=config$debugNests)
     # nVal <- obs$calc_nests(nestData1, par, rng,survey, obsVarNum, repID, parID,pyconfig,db=config$debugNests)
     names(nVal) <- nval_name
 

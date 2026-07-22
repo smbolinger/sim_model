@@ -54,7 +54,7 @@ file.create("out/psr_plot.txt")
 file.create("out/storm_plot.txt")
 file.create("out/init_plot.txt")
 # file_arg <- grep("^--file=", arg, value = TRUE)
-print(arg)
+# print(arg)
 
 if(length(arg)==0){
   message("** NO atype ARGUMENT PROVIDED; USING DEFAULT")
@@ -62,7 +62,7 @@ if(length(arg)==0){
 } else {
   for(a in arg){
     # cat("length(arg) = ", length(arg),"arg = ",a)
-    cat("\t\tlength(arg) = ", length(arg))
+    # cat("\t\tlength(arg) = ", length(arg))
     if(grepl("at\\w+", a)) atype <- stringr::str_extract(a, "(?<=at)\\w+") # extract words after "at"
     if(grepl("mc\\w+", a)) mcType <- stringr::str_extract(a, "(?<=mc)\\w+") # extract words after "at"
     if(grepl("r\\d+", a)) nruns <- stringr::str_extract(a, "(?<=r)\\d+") # extract words after "at"
@@ -92,7 +92,13 @@ if(length(arg)==0){
 # Sys.setenv(atypeR=atype, script_name="logexp.R")
 mc_file = "MCmatrix"
 # mc_file = "notr_MCmatrix"
-Sys.setenv(atypeR=atype) 
+cat("\nlexp_setup: atype:",atype)
+atype_name <- "atypeR"
+atype_arg <- setNames(atype, atype_name)
+do.call(Sys.setenv, as.list(atype_arg))
+# Sys.setenv(atypeR=atype) 
+cat("\nlexp_setup: atypeR:")
+Sys.getenv("atypeR")
 Sys.setenv(mcTypeR=mcType) 
 # py_run_file("rsettings.py")
 # py_run_file("init.py")
@@ -113,7 +119,7 @@ if(TRUE){
   printFun <- import("print_func")
   dsr <- import("dsrCalc")
   funs <- import("helpers")
-  # mod <- import("datsim")
+  mod <- import("datsim")
   mlfun <- import("matlab_func")
   # mod <- import("scipy_datsim")
   # mod <- import("lmfit_datsim")

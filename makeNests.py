@@ -63,27 +63,22 @@ def mk_init(numNests,config, rng, initDat, hTime="all", nWeek=0, initFromFile=Tr
   """
   # rng = np.random.default_rng(seed=config.rngSeed)
   # probInit, weekStart = initDat
-  initProb, weekStart = initDat
-  # weekStart = weeks * 7
+  initProb, weekStart = initDat # weekStart = weeks * 7
   if initFromFile:
     initWeek = rng.choice(a=weekStart, size=numNests, p=initProb)  # random starting weeks; len(a) must equal len(p)
       # initWeek = rng.choice(a=[*initDat], size=numNests, p=list(initDat.values()))  # random starting weeks; len(a) must equal len(p)
-    # print(f"\t|> init dates from file")
   else:
     weeks = np.arange(1,nWeek)
     print(f"\t|>SMALL: init weeks from 1 to {nWeek}", end=" ")
     initWeek = rng.choice(a=weeks, size=numNests)
-  # this adds the same integer to all:
-  # initiation = initWeek + rng.integers(7)          # add a random number from 1 to 6 (?) 
   initiation = initWeek + rng.integers(1, 7, size=numNests)          # add a random number from 1 to 6 (?) 
-  # if debug:
   # if config.debugNests >= 3:
   #   print(">> initiation week start days:\n", initWeek) 
   #   print(">> plus random integer:\n", initiation) 
   return(initiation)
 
 #-----------------------------------------------------------------------------
-def mk_surv(numNests, hatchTime, pSurv, con,rng): #+>print
+def mk_surv(numNests, hatchTime, pSurv, con,rng,plusone=True): #+>print
   """
   Decide how long each nest is active
 
@@ -105,12 +100,13 @@ def mk_surv(numNests, hatchTime, pSurv, con,rng): #+>print
   """
   survival = np.zeros(shape=(numNests), dtype=np.int32)
   survival = rng.negative_binomial(n=1, p=(1-pSurv), size=numNests) 
-  survival = survival+1 ## add 1 so all nests survive >0 days
+  if plusone:
+    survival = survival+1 ## add 1 so all nests survive >0 days
   # # survival = survival - 1 # but since the last trial is when nest fails, need to subtract 1
   survival[survival > hatchTime] = hatchTime # add some amt of error?
-  # if con.debugNests>=3:
-  #   print("\t\t\t|> survival in days:", end=" ") 
-  #   arrPrint(survival)
+  if con.debugNests>=4:
+    print("\t\t\t|> survival in days:", end=" ") 
+    arrPrint(survival)
   return(survival)
 # -----------------------------------------------------------------------------
 

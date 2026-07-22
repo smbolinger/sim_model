@@ -1,8 +1,12 @@
 import numpy as np
+import numdifftools as ndt
 import pickle
 from print_func import printLL
 from helpers import print
-np.set_printoptions(precision=3)
+# np.set_printoptions(precision=3)
+log_transform = False
+# log_transform = True
+tri_transform = False
 # from datsim import config ## in case anything was changed in place
 
 def triangle(x0, y0):
@@ -10,9 +14,11 @@ def triangle(x0, y0):
   This function remaps values from R^2 into the lower left triangle located 
   within the unit square.
   """
+  # print(f"calling triangle function; {x0=} {y0=}")
   if y0 > x0:
     ret = triangle(y0, x0)
     return ret[1], ret[0]
+  # ret = np.where(y0>x0,triangle(y0,x0),0)
 
   r0 = np.sqrt( x0**2 + y0**2)
   m  = 1.0
@@ -26,13 +32,15 @@ def triangle(x0, y0):
   return x3, y3
 # -----------------------------------------------------------------------------
 #def logistic(x)->np.float128:
-def logistic(x)->np.longdouble:
-  """This is just the logistic function"""
+# def logistic(x)->np.longdouble:
+def logistic(x)->np.float32:
+  """This is just the logistic function: 1/(1+exp(-x))"""
   # Trying out type hints (PEP 484) to keep output from overflowing
   #return 1.0/( 1.0 + math.exp(-x) )
   return 1.0/( 1.0 + np.exp(-x) )
 # -----------------------------------------------------------------------------
 def logit(x):
+  """logit (inverse of logistic): ln(p/(1-p))"""
   odds = x / (1-x)
   logodds = np.log(odds)
   return logodds  
@@ -62,9 +70,9 @@ def state_vect(nNest, fl, ha):# can maybe calculate these only once
       ha = True if nest hatched; fl = True if nest flooded
     
   """
-  stillAlive = np.array([1,0,0]) 
-  mortFlood  = np.array([0,1,0])
-  mortPred   = np.array([0,0,1])
+  stillAlive = np.array([1,0,0], dtype=np.float32) 
+  mortFlood  = np.array([0,1,0], dtype=np.float32)
+  mortPred   = np.array([0,0,1], dtype=np.float32)
   # FOR THE INITIAL STATE (stateFF), just one vector (see notebook) - later in code
   # numNests = len
   stateEnd  = np.empty((nNest, 3))   # state at end of normal interval
@@ -115,12 +123,12 @@ def new_mat(argL, activeDays, finalInt, fate, numNests):
     need to loop thru exponents & do matrix.power on each
     kind of defeats the purpose of vectorizing...
   """
-  stillAlive = np.array([1,0,0]) 
-  mortFlood  = np.array([0,1,0])
-  mortPred   = np.array([0,0,1])
+  stillAlive = np.array([1,0,0], dtype=np.float32) 
+  mortFlood  = np.array([0,1,0], dtype=np.float32)
+  mortPred   = np.array([0,0,1], dtype=np.float32)
 
   a_s, a_mp, a_mf = argL
-  trMatrix = np.array([[a_s,0,0], [a_mf,1,0], [a_mp,0,1]]) 
+  trMatrix = np.array([[a_s,0,0], [a_mf,1,0], [a_mp,0,1]], dtype=np.float32) 
   TstateI = np.transpose(stillAlive)  # this is just one, not a vector? yes
   # pwr = np.empty(numNests)
   
@@ -200,7 +208,7 @@ def nest_mat(argL, obsFreq, config):
   # if config.debugLL>=2:
   #   print(f"obs interval={obsFreq} storm in final int? {stormFin}")
   #   print(f" use storm matrix? {useStormMat}\n")
-  trMatrix = np.array([[a_s,0,0], [a_mf,1,0], [a_mp,0,1]]) 
+  trMatrix = np.array([[a_s,0,0], [a_mf,1,0], [a_mp,0,1]], dtype=np.float32) 
   pwr = np.linalg.matrix_power(trMatrix, obsFreq) # raise the matrix to the power of the number of days in obs int
   # storm matrix just has a longer observation interval
   pwrStm = np.linalg.matrix_power(trMatrix, obsFreq*2) 
@@ -244,9 +252,9 @@ def interval(pwr, numNests, fl, pr, cn):
   # +> faild nests w/ 1 obs have 0 normal ints; hatchd nsts hav final =0
   # +> instead, rais tranition matrix to tru lngth of intreval?
   #+> but actually, should b to power of 0, so shouldn't b leading to warnings
-  stillAlive = np.array([1,0,0]) 
-  mortFlood  = np.array([0,1,0])
-  mortPred   = np.array([0,0,1])
+  stillAlive = np.array([1,0,0], dtype=np.float32) 
+  mortFlood  = np.array([0,1,0], dtype=np.float32)
+  mortPred   = np.array([0,0,1], dtype=np.float32)
   
   # nests always start alive, or they wouldn't be checked
   TstateI = np.transpose(stillAlive)  # this is just one, not a vector? yes
@@ -347,16 +355,16 @@ def logL(numNests, intervals, numInt, ids, fate, config):
   # numInt[~ha] = numInt[~ha]+1
   # if config.debugLL: print("numInt after adding final interval:", numInt)
   # logLike = logLikelihood = Decimal(0.0)  # maybe switching types is also slowing things down?   
-  logLik  = np.empty(numNests, dtype=np.longdouble) # this should give it enough precision & avoid errors
-  logLikFin = np.empty(numNests, dtype=np.longdouble)
+  # logLik  = np.empty(numNests, dtype=np.longdouble) # this should give it enough precision & avoid errors
+  # logLikFin = np.empty(numNests, dtype=np.longdouble)
+  logLik  = np.empty(numNests, dtype=np.float32) # this should give it enough precision & avoid errors
+  logLikFin = np.empty(numNests, dtype=np.float32)
   # logLik  = logLik * np.log(normalInt) * -1 # dtype changes to float64 unless you multiply it by itself
-  logLik  = -np.log(normalInt) # dtype changes to float64 unless you multiply it by itself
   # logLik[stormInt==True] = logLik * np.log(stormInt) * -1
   # if config.debugLL: 
   # logLikFin  = np.ones(numNests, dtype=np.longdouble)
   # logLikFin.fill(-np.log(normalFinal))
   # logLikFin= -np.log(normalFinal)
-  logLikFin= -np.log(finalInt)
   # logLikFin[hatched == True] = 0
   # logLikFin[ha==True] = 0 
   # now stormFinal should be part of normalFinal (finalInt)
@@ -365,10 +373,17 @@ def logL(numNests, intervals, numInt, ids, fate, config):
   # logLikFinStm = logLikFinStm * (-np.log(stormFinal))
 
   # stormDuringFin = nestData[:,12] # was there a storm during the final interval?
+  # logLik  = -np.log(normalInt) # dtype changes to float64 unless you multiply it by itself
+  # logLikFin= -np.log(finalInt,dtype=np.float32)
+  logLik  = np.log(normalInt) # dtype changes to float64 unless you multiply it by itself
+  logLikFin= np.log(finalInt,dtype=np.float32)
   logLikelihood  = (logLik*numInt) + (logLikFin) # elementwise multiplication, then add final interval NLL
   # logLikelihood  = ne.evaluate('(logLik*numInt) + (logLikFin)')
 
-  logLike    = np.sum(logLikelihood)
+  # logLike    = np.sum(logLikelihood)
+  logLike    = np.sum(logLikelihood,dtype=np.float32) * -1
+
+  ## NOTE how to calculate variance??
   # logLike    = ne.evaluate('sum(logLikelihood)')
   # if config.debugLL>=4:
   # #   print("number of nests:", numNests, "\n hatched:", ha, "\n flooded:, fl") 
@@ -394,6 +409,7 @@ def logL(numNests, intervals, numInt, ids, fate, config):
     # store the necessary values for the print function to an array
     # printLL(numNests=numNests, logLik=logLik, logLikFin=logLikFin, 
     #         numInt=numInt, logL=logLikelihood)
+  # with np.printoptions(precision=12): print(f"{logLike=} {type(logLike)=}")
   return(logLike) # this is what is being optimized
 # -----------------------------------------------------------------------------
 # try to keep these in numpy:
@@ -405,7 +421,8 @@ def logL(numNests, intervals, numInt, ids, fate, config):
 # def like(argL, numN, obsFr, obsDat, stMat, useSM, con=config):
 # @profile
 
-def like(argL, numN, obsFr, obsDat, useSM, con):
+# def like(argL, numN, obsFr, obsDat, useSM, con):
+def like(argL, numN, obsFr, obsDat, con):
   """
     1. Unpack:
         a. Initial values for optimizer:
@@ -475,6 +492,7 @@ def like(argL, numN, obsFr, obsDat, useSM, con):
   # llVal = logL(numNests=numN, intervals=inter, numInt=nInt, ha=ha, fl=fl)
   # llVal = logL(ids=nid, fate=fate,numNests=numN, intervals=inter, numInt=nInt, config=con)
   llVal = logL(ids=nid, fate=fate,numNests=numN, intervals=inter, numInt=nint, config=con)
+  # with np.printoptions(precision=12): print(f"{llVal=} {type(llVal)=}")
   # make sure numN is the number of analyzed nests, not the param value (total number)
   
   return(llVal)
@@ -486,13 +504,18 @@ def like(argL, numN, obsFr, obsDat, useSM, con):
 #   THE LIKELIHOOD WRAPPER FUNCTION
 # -----------------------------------------------------------------------------
 # @profile
+# def like_smd_wrap(x, args):
+  
 
 def like_smd( 
     # x, perfectInfo, hatchTime, nestData, obsFreq, 
     # stormDays, surveyDays, whichRet):
     # x, obsData, obsFreq, stateMat, useSM, stormDays, surveyDays, whichRet=1, config=config):
     # x, obsData, obsFreq, stateMat, useSM, stormDays, surveyDays, whichRet, config=config):
-    x, obsData, obsFreq, useSM, stormDays, surveyDays, whichRet, config):
+    # x, obsData, obsFreq, useSM, stormDays, surveyDays, whichRet, config):
+    # x, obsData, obsFreq, stormDays, surveyDays, config):
+    params, obsData, obsFreq, stormDays, surveyDays, config):
+    # x,*args):
     # x, obsData, obsFreq, stateMat, useSM, whichRet=1, **kwargs):
   # use kwargs for stormDays & surveysDays, which are only needed w/ like_old
   """
@@ -512,48 +535,96 @@ def like_smd(
 
 
   # unpack the initial values:
-  s0   = x[0]
-  mp0  = x[1]
+  # obsData,obsFreq,stormDays,surveyDays,config = args
+  if config.optimFunc=="scipy":
+    # s0   = x[0]
+    # mp0  = x[1]
+    if log_transform:
+      # s0   = params[0]
+      # mp0  = params[1]
+      mp0  = params[0]
+      mf0  = params[1]
+      # s1   = logistic(s0)
+      mp1  = logistic(mp0)
+      mf1  = logistic(mf0)
+    else:
+      # s1   = params[0]
+      # mp1  = params[1]
+      mp1  = params[0]
+      mf1  = params[1]
+      
+  else:
+    par = params.valuesdict()
+    if log_transform:
+      # s0   = par['s']
+      # mp0  = par['mp']
+      mp0  = par['mp']
+      mf0  = par['mf']
+      # s1   = logistic(s0)
+      mp1  = logistic(mp0)
+      mf1  = logistic(mf0)
+    else:
+      # s1  = par['s']
+      # mf1  = par['mf']
+      mp1  = par['mp']
+      mf1  = par['mf']
   # ss0  = x[2]
   # mps0 = x[3]
   # sM   = x[4]
   # if config.debugLL: print("initial values:", s0, mp0, ss0, mps0, sM)
+  # print(f"calling like_smd - {x=} {type(x)=} {x.shape=}")
+  # print(f" like_smd - initial values:, {s0=}, {mp0=}")
 
   # transform the initial values so all are between 0 and 1:
-  s1   = logistic(s0)
-  mp1  = logistic(mp0)
+  # s1   = logistic(s0)
+  # mp1  = logistic(mp0)
   # ss1  = logistic(ss0)
   # mps1 = logistic(mps0)
   #@#print("logistic-transformed initial values:", s1, mp1, ss1, mps1)
+  # print("logistic-transformed initial values:", s1, mp1)
 
   # further transform so they remain in lower left triangle:
-  tri1 = triangle(s1, mp1)
+  if tri_transform:
+    tri1 = triangle(s1, mp1)
   # tri2 = triangle(ss1, mps1)
-  s2   = tri1[0]
-  mp2  = tri1[1]
+    # s2   = tri1[0]
+    mp2  = tri1[0]
+    mf2  = tri1[1]
+    # mf2  = 1.0 - s2 - mp2
+  else:
+    # s2 = s1
+    mp2 = mp1
+    mf2=mf1
+    # mf2 = logistic(params[2]) if log_transform else params[2]
   # ss2  = tri2[0]
   # mps2 = tri2[1]
+  # print("logistic- & triangle-transformed initial values:", s2, mp2)
   # if config.debugLL: print("log- & triangle-transformed initial values:", s2, mp2, ss2, mps2)
 
   # compute the conditional probability of mortality due to flooding:
-  mf2  = 1.0 - s2 - mp2
   # mfs2 = 1.0 - ss2 - mps2
+  s2 = 1.0 - mp2 - mf2
 
   numNests = obsData.shape[0]
   #@#print(">> number of nests:", numNests)
 
   # call the likelihood function:
   # argL = np.array([s2,mp2,mf2,ss2,mps2,mfs2, sM])
-  argL = np.array([s2,mp2,mf2])
+  argL = np.array([s2,mp2,mf2], dtype=np.float32)
+  # argL = np.array([mp2,mf2], dtype=np.float32)
+  # with np.printoptions(precision=12): print(f"like_smd: <input> {argL=}")
   #ret = like(argL, ndata, obs, storm, survey)
   #ret = like(argL, nestData, obsFreq, stormDays, surveyDays)
   # def like(argL, numN, obsFr, obsDat, stMat, useSM):
   # obsDat is a subset of nestData
   
   # if whichRet == 1:
-  ret = like(argL, numN=numNests, obsFr=obsFreq, obsDat=obsData, 
+  ret = like(argL, numN=numNests, obsFr=obsFreq, obsDat=obsData, con=config)
+  # ret = np.array([ret],dtype=np.float32)
+  # with np.printoptions(precision=12): print(f"{ret=} {type(ret)=}")
+  # ret = np.array([ret],dtype=np.float64)
   # ret = like(argL, numN=numNests, obsFr=obsFreq, obsDat=obsData, stMat=stateMat,
-         useSM=useSM, con=config)
+         # useSM=useSM, con=config)
     # if config.debugLL: print('like_smd(): Msg : ret = ', ret)
   
   # else:
@@ -565,6 +636,7 @@ def like_smd(
   #   print(' argument whichRet is invalid ')
   
   # rets = np.array([ret, ret2])
+  # with np.printoptions(precision=12): print(f"{ret=} {type(ret)=} {type(ret[0])=}")
 
   return(ret)
 
