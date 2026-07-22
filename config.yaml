@@ -2,32 +2,45 @@ default:
   nreps: 2
   mark: False
   mcmc: True
-  mcmcOld: False
+  # mcmc: False
   logex: True
   testing: "yes"
-  optimizer: "Nelder-Mead"
+  # optimizer: "Nelder-Mead"
+  # optimizer: "SLSQP"
+  # optimizer: "L-BFGS-B"
+  # optimizer: "BFGS"
+  # optimizer: "bfgs"
+  # optimizer: "nelder"
   rngSeed: 71358
-  mayfStart: True
-  stormFate: 0
-  hTime: 3
-  mcType: 2 # 0=fail, 1=unk
+  stormFate: 1 # 0=use val from param list, 1=false, 2=true
+  hTime: 0 #  0=use val from param list, 1=16, 2=20, 3=28
+  numNests: 0 # 1=250, 2=500, 0=use val from list
+  mcType: 0 # 1=fail, 2=unk
+  rangeVar: 0
   saveNData: False
   predict: False
   predSave: "none"
   coefSave: "none"
   obsSave: False
   plotPred: False
+  startParID: 1
   debug: 2
   debugLL: 0
   debugNests: 0 
   debugM: 0
   debugObs: 0
   debugFlood: 0
-  debugSummary: 0
   debugLogEx: 0
   debugDSR: 0
+  debugSummary: 0
+  optimizer: "trust-constr"
+  optimGlob: True
+  optimFunc: "scipy"
+  other: ""
   msg: ""
   numOut: 11 # only used when saving ml vals to matrix
+  mcmcOld: False
+  mayfStart: True
   useWin: False
   fnUnique: False
   # likeDir: "/home/wodehouse/Projects/sim_model/out/default"
@@ -39,81 +52,115 @@ default:
 # NOTE:     is chosen based on atype...
 
 full:
-  nreps: 400
+  # nreps: 300
+  # nreps: 500
+  nreps: 200
   mark: False
+  # mcmc: False
   mcmc: True
-  mcmcOld: False
   logex: True
   saveNData: False
   predict: False
   testing: "no"
-  optimizer: "Nelder-Mead"
+  # optimizer: "Nelder-Mead"
+  # optimizer: "SLSQP"
+  # optimizer: "BFGS"
+  # optimizer: "L-BFGS-B"
+  # optimizer: "bfgs"
+  # optimizer: "nelder"
   #rngSeed: 1111953
+  #rngSeed: 11153
   #rngSeed: 7131958
-  rngSeed: 10281991
-  #rngSeed: 61389 rngSeed: 82985
+  rngSeed: 71358
+  #rngSeed: 10281991
   #rngSeed: 6131989
   #rngSeed: 8291985 
-  mayfStart: False
-  stormFate: 2 #0=false, 1=true, 2=use val from param list
-  hTime: 0 # 0=16, 1=20, 2=28, 3=use val from param list
-  mcType: 2 # 0=fail, 1=unk, 2=use val from param list
+  #rngSeed: 5171989
+  #rngSeed: 10181988
+  stormFate: 3 # 0=use val from param list, 1=false, 2=true, 3=false & stormUnk==True
+  hTime: 0 #  0=use val from param list, 1=16, 2=20, 3=28
+  numNests: 0 # 1=250, 2=500, 0=use val from list
+  mcType: 0 # 0=use val from param list, 1=fail, 2=unk
+  rangeVar: 0
   predSave: "none"
   coefSave: "none"
   obsSave: False
   plotPred: False
+  startParID: 1
   # predSave: "all"
   debug: 0
-  debugLL: 0
+  debugLL: 4
   debugNests: 0
   debugM: 0
-  debugObs: 0
+  debugObs: 4
   debugFlood: 0
+  debugLogEx: 4
+  debugDSR: 4
   debugSummary: 0
-  debugLogEx: 0
-  debugDSR: 0
+  optimizer: "trust-constr"
+  optimGlob: False
+  optimFunc: "scipy"
+  other: ""
   msg: ""
   numOut: 11
+  mayfStart: False
+  mcmcOld: False
   useWin: False
   fnUnique: False
   # likeDir: "/home/wodehouse/Projects/sim_model/out"
   # stormInit: "/home/wodehouse/Projects/sim_model/storm_init3.csv"
 
 test:
-  nreps: 2 
+  # nreps: 100
+  nreps: 3 
   mark: False
+  # mcmc: False
   mcmc: True
-  mcmcOld: False
   logex: True
   # nreps: 100
   # saveNData: True
   saveNData: False
   predict: False
   testing: "yes"
-  #optimizer: "L-BFGS-B"
-  optimizer: "Nelder-Mead"
+  # optimizer: "L-BFGS-B"
+  # optimizer: "SLSQP"
+  # optimGlob: True
+  # optimizer: "BFGS"
+  # optimizer: "Nelder-Mead"
+  # optimizer: "bfgs"
+  # optimizer: "nelder"
+  #rngSeed: 1111953
+  rngSeed: 7131958
   #rngSeed: 82985
-  rngSeed: 102891
+  #rngSeed: 102891
   #rngSeed: 10181988
-  mayfStart: False
   predSave: "none"
   coefSave: "none"
   obsSave: False
   plotPred: False
-  stormFate: 2
-  hTime: 3
-  mcType: 2 # 0=hatch/fail, 1=unk
-  debug: 3
-  debugLL: 1 #mcmc
-  debugNests: 2 #nest creation
+  startParID: 1
+  stormFate: 0 # 0=use val from param list, 1=false, 2=true
+  hTime: 0 #  0=use val from param list, 1=16, 2=20, 3=28
+  numNests: 0 # 1=250, 2=500, 0=use val from list
+  mcType: 0 # 0=use val from params; 1=hatch/fail; 2=unk
+  rangeVar: 4 # 1=probSurv; 2=decayRate; 3=discProb; 4=stormFrq; 5=obsint
+  debug: 2
+  debugLL: 2 #mcmc
+  debugNests: 3 #nest creation
   debugM: 0 #mark
   debugObs: 3
   debugFlood: 0
-  debugSummary: 1
-  debugLogEx: 1
+  debugLogEx: 2
   debugDSR: 2
+  debugSummary: 0
+  optimizer: "trust-constr"
+  optimFunc: "scipy"
+  optimGlob: False
+  other: ""
   msg: ""
   numOut: 11
+  mayfStart: False
+  mcmcOld: False
   useWin: False
   fnUnique: False
   # likeDir: "/home/wodehouse/Projects/sim_model/out/test"
@@ -124,38 +171,54 @@ test:
 
 ctrl:
   nreps: 500
+  # nreps: 300
   mark: False
   mcmc: True
-  mcmcOld: False
+  # mcmc: False
   logex: True
   saveNData: False
   predict: False
+  # testing: "yes"
   testing: "no"
   # optimizer: "Powell"
-  optimizer: "Nelder-Mead"
+  # optimizer: "SLSQP"
+  # optimizer: "L-BFGS-B"
+  # optimizer: "BFGS"
+  # optimizer: "Nelder-Mead"
+  # optimizer: "bfgs"
+  # optimizer: "nelder"
   #rngSeed: 82985
   #rngSeed: 6131989
-  #rngSeed: 5171989
-  rngSeed: 1051990
-  mayfStart: False
-  stormFate: 2
-  hTime: 3
-  mcType: 2 # 0=fail, 1=unk
+  #rngSeed: 61389 rngSeed: 82985
+  #rngSeed: 1051990
+  rngSeed: 105199101
+  stormFate: 0 # 0=use val from param list, 1=false, 2=true
+  hTime: 0 #  0=use val from param list, 1=16, 2=20, 3=28
+  numNests: 0 # 1=250, 2=500, 0=use val from list
+  mcType: 0 # 0=fail, 1=unk
+  rangeVar: 0
   predSave: "none"
   coefSave: "none"
   obsSave: False
   plotPred: False
+  startParID: 1
   debug: 0
-  debugLL: 0
+  debugLL: 4
   debugNests: 0 
   debugM: 0
-  debugObs: 0
+  debugObs: 3
   debugFlood: 0
+  debugLogEx: 4
+  debugDSR: 4
   debugSummary: 0
-  debugLogEx: 0
-  debugDSR: 0
+  optimizer: "trust-constr"
+  optimFunc: "scipy"
+  optimGlob: True
+  other: ""
   msg: ""
   numOut: 11
+  mayfStart: False
+  mcmcOld: False
   useWin: False
   fnUnique: True
   # likeDir: "/home/wodehouse/Projects/sim_model/out"
