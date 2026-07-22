@@ -1,3 +1,28 @@
+07 Jul - making it so only nests that already lacked fate cues get assigned stormFate. this 
+          should lead to obs int having more effect, but less effect for storms??
+04 Jul - nObs from the MCMC function (matlab_func) doesn't match the one from dat2S when there are no storms
+          but it does match, more or less, when there are storms?
+01 Jul - the largest actual obs int is 16 when the obs int param is 7 - more than double! 
+          > need to fix survey days again?
+26 Jun - having trouble with optimizer returning a non-invertible Hessian
+        > can't calculate s.e.
+        > try providing just one param to minimizer? maybe having probmortpred 
+          isn't adding anything
+        > or try another method bc dropping parameters or abandoning the model
+        can bias results (see Gill & King)
+23 Jun - remember that np.float64 data type causes all kinds of headaches...
+        > try setting type to np.float32, in case the solver is not detecting the differences
+        > still can't get std err; might be because one param doesn't affect the fit much/at all?
+        > there is also no correlation 
+        > try ignoring triangle function and just setting 2 free vars beetween 0-1 and a third where all 3 sum to 1?
+        > try not transforming but do use triangle 
+          > changed ansTransform & like_smd to reflect this
+09 Jun - changed exposure calculation back to end of each interval (see calc_daily_exp)
+03 Jun - why does number of unknown nests not increase as number of storms increases?
+
+29 May - is something wrong with totobs? or excluding nests with totobs == 0?
+        - also, change nest init dates to start at 1, not 0
+        - actually, change survival to survival + 1 so all nests survive >= 1 day
 
 19 May - changing how survey ints is calculated so it will be accurate
 tried increasing overall discovery probability to make the difference in bias from number of storms more detectable
