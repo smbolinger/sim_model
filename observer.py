@@ -1,10 +1,12 @@
 #!/usr/local/bin/python
+import sys
 import numpy as np
 import pprint
 import pandas as pd
 from itertools import groupby
 from operator import itemgetter
 import plotext as plt # plot ASCII plots in the terminal window
+# from makeNests import mk_nests, mk_fates, mk_flood, storm_nest,mk_set_nests, mk_per
 from makeNests import mk_nests, mk_fates, mk_flood, storm_nest,mk_set_nests
 # from rsettings import config, rng, initFromFile
 from helpers import expDecay, searchSorted2,print
@@ -85,8 +87,10 @@ def mk_surveys(stormDays, obsFreq, breedingDays, conf, rng, complicate=True, db=
         # print(f"{lastDay=} ; {stormPosL=} ; {stormPosR=} ; {sDiff=}")
         # if conf.debugObs>=4: print(f"\t\t{lastDay=} ; {stormPos=} ; {sDiff=}")
         # if surveyDays[stormPos] < lastDay + 2:
-        if sDiff < 2:
-          if sDiff < 1: surveyDays[surveyDays >= lastDay] += 1
+        if sDiff < 3:
+          if sDiff < 2:
+            if sDiff < 1: surveyDays[surveyDays >= lastDay] += 1
+            surveyDays[surveyDays >= lastDay] += 1
           surveyDays[surveyDays >= lastDay] += 1
         else:
           surveyDays
@@ -98,11 +102,23 @@ def mk_surveys(stormDays, obsFreq, breedingDays, conf, rng, complicate=True, db=
   surveyInts  = np.array([0] + [surveyDays[n] - surveyDays[n-1] for n in range(1, len(surveyDays)) ])
   # surveyInts  = np.array([1] + [surveyDays[n] - surveyDays[n-1] for n in range(2, len(surveyDays)) ] )
   if db>=1:
-    print(f"\n\t>-> all survey days, minus storms (len {len(surveyDays)}):")
-    arrPrint(surveyDays, abbr=False) 
-  if db>=2:
-    print(f"\t\t{surveyInts=}{len(surveyInts)}")
-    print(f"\t\t\{np.sum(surveyInts>obsFreq)=}")
+    # print(f"\n\t>->all survey days, minus storms (len {len(surveyDays)}):")
+    with np.printoptions(threshold=sys.maxsize):
+      print(f"\n\t>>survey days, w/o storms: {surveyDays} ({len(surveyDays)})")
+      # print(f"\n\t>->survey days, w/o storms ({len(surveyDays)}):", end=" ")
+      # arrPrint(surveyDays, abbr=False) 
+  # if db>=1:
+  #   print(f"\n\t>->all survey days",end=" ")
+  # if db>=2:
+  #   # print(f"minus storms (len {len(surveyDays)})", end=" ")
+  #   print(f"minus storms (len {len(surveyDays)})", end=" ")
+  # if db>=1:
+  #   print(":")
+  #   arrPrint(surveyDays, abbr=False) 
+  if db>=1:
+    with np.printoptions(threshold=sys.maxsize):
+      print(f"\t>>{surveyInts=} ({len(surveyInts)})", end=" ")
+      print(f"\t\t\{np.sum(surveyInts>obsFreq)=}")
 
   if any(surveyInts > 12) and db < 1: print("\t***extra long obs int!")
   if any(surveyInts > 12) and db < 1:
@@ -121,7 +137,8 @@ def mk_per(start, end, con):
 # @profile
 # def assign_fate(assignVal, pWrong, trueFate, numNests, obsFr, intFinal, stormFate, cn):
 #+> print
-def assign_fate( par, rng, stormFin,longFin,trueFate, intFinal, stormUnk,cn):
+# def assign_fate( par, rng, stormFin,longFin,trueFate, intFinal, stormUnk,cn):
+def assign_fate( par, rng,arr,trueFate, stormUnk,cn):
   """
   Observer assigns correct or incorrect fate based on some conditions:
     The observer assigns the correct fate based on a comparison of a set 
@@ -143,9 +160,15 @@ def assign_fate( par, rng, stormFin,longFin,trueFate, intFinal, stormUnk,cn):
 
   decay="exp"
   # decay="lin"
+  stormFin,longFin,intFinal,discovered = arr
+
   
-  assignedFate=np.empty(par.numNests)
+  # assignedFate=np.empty(par.numNests)
+  numNests = len(trueFate)
+  assignedFate=np.empty(numNests)
   assignedFate.fill(7) # +> default=unk; fill w/ known fate if field cues allow
+  if cn.debugObs>=4:
+    print(f"{len(assignedFate)=}{len(trueFate)=}")
   if decay=="exp":
     fateCuesPresent   = expDecay(n0=1, k=par.decayRate, t=intFinal)
   else:
@@ -184,10 +207,17 @@ def assign_fate( par, rng, stormFin,longFin,trueFate, intFinal, stormUnk,cn):
       print(f"\t\t\t{assignedFate=} ;\n\t\t{assignedFate.shape=}")
       arrPrint(assignedFate, abval=20)
 
+  tfd = trueFate[discovered]
+  afd = assignedFate[discovered]
   if par.propMC>0 or par.propUnk>0:
-    assignedFate = add_misclass(par,rng,trueFate,assignedFate,cn,db=cn.debugObs)
+    # assignedFate = add_misclass(par,rng,trueFate,assignedFate,cn,db=cn.debugObs)
+    assignedFate[discovered] = add_misclass(par,rng,tfd,afd,cn,db=cn.debugObs)
     # if cn.debugObs>=2: print(f"\t>> mis-assigning fate based on proportions")
   else:
+    # assignedFate = add_misclass(par,rng,trueFate,assignedFate,cn,db=cn.debugObs)
+    if cn.addMC:
+      ## when MCtype=="none", proportion MC is 0.05 and unknown is 0.0
+      assignedFate[discovered] = add_misclass(par,rng,tfd,afd,cn,db=cn.debugObs)
     if par.stormFate:
       assignedFate[stormFin] = 2
       assignedFate[longFin] = 2
@@ -235,6 +265,7 @@ def assign_fate( par, rng, stormFin,longFin,trueFate, intFinal, stormUnk,cn):
       # print(f"\n\t\tfateProb less than this number = correct fate "
       #       f"(unless long/storm final interval):\n\t{fateCuesPresent=}")
       # print(f"\twrong if cues_not_present==True and either long or storm final")
+    if cn.debugObs>=3:
       print(f"\nMARK UNKNOWN IF CUES NOT PRESENT/LONG FINAL/STORM IN FINAL INTERVAL:")
       df2print = pd.DataFrame({
         # "init": 
@@ -262,17 +293,31 @@ def add_misclass(par,rng,trueFate,assignedFate,cn,db=0):
   #NOTE don't reset seed each time; pass from main script as arg
   # val   = [0,9,11,112,13,1131,1211] if par.MCtype == "hatch2fail" else [1,2]
   val   = [0] if par.MCtype == "hatch2fail" else [1,2]
-  mcVal =  2 if par.MCtype == "hatch2fail" else 0
+  # mcVal =  2 if par.MCtype == "hatch2fail" else 0
+  mcVal =  [1,2] if par.MCtype == "hatch2fail" else 0
   uVal = 7
   eqval = np.isin(trueFate,val)
   
   if par.MCtype!="none":
+    val   = [0] if par.MCtype == "hatch2fail" else [1,2]
+    mcVal =  2 if par.MCtype == "hatch2fail" else 0
+    uVal = 7
+    eqval = np.isin(trueFate,val)
     nMisclass = int(np.round(par.propMC * np.sum(eqval)))
     nUnknown  = int(np.round(par.propUnk * np.sum(eqval)))
+    tot       = nMisclass + nUnknown
   else:
-    nMisclass = int(np.round(0.02*np.sum(eqval)))
-    nUnknown = int(np.round(0.0*np.sum(eqval)))
-  tot       = nMisclass + nUnknown
+    fval = [0,1,2]
+    eqval = assignedFate[assignedFate!=7]
+    nMisclass = int(np.round(0.05*np.sum(eqval)))
+    nUnknown = int(np.round(0.0*np.sum(eqval))) ## unknowns already happen
+    tot       = nMisclass + nUnknown
+    val = rng.choice(fval, size=tot,replace=True)
+    uVal = 7
+    limit = np.max(fval)
+    add = rng.choice(np.arange(20), size=tot, replace=True)
+    mcVal = (val + add) % limit
+  # tot       = nMisclass + nUnknown
 
   #-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   if cn.testing=="yes":
@@ -283,22 +328,28 @@ def add_misclass(par,rng,trueFate,assignedFate,cn,db=0):
     if db>=2: print(f"\t\t\t\t{val=} , {mcVal=} , {uVal=} , {tot=}")
 
     if db>=4: print(f"\t\t\tBEFORE <{len(assignedFate)}> : {assignedFate=}")
+
   #-=~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   ## NOTE for some reason, returns a tuple with 1 array instead of just an array
   ind = np.where(eqval) ##+> select random indices to replace at 
   ind = ind[0]
   mask = rng.choice(ind, size=tot, replace=False)
-  rep_vals  =[np.repeat(mcVal,nMisclass), np.repeat(uVal,nUnknown)]
-  rep_vals  = np.concatenate(rep_vals).tolist()
+  if par.MCtype!="none":
+    rep_vals  =[np.repeat(mcVal,nMisclass), np.repeat(uVal,nUnknown)]
+    rep_vals  = np.concatenate(rep_vals).tolist()
+  else:
+    rep_vals = mcVal
+  if db>=4: print(f"\t{rep_vals=}")
   assignedFate[mask] = rep_vals
 
   #-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   if cn.testing=="yes":
     if db>=5: print(f"\t\t\t{ind=} {len(ind)=}", end=" ")
     if db>=5: print(f"\t{mask=}", end=" ")
-    if db>=5: print(f"\t{rep_vals=}")
+    # if db>=5: print(f"\t{rep_vals=}")
     if db>=4: print(f"\t\t\tAFTER: {assignedFate=}")
+
   #-=~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   return assignedFate
@@ -398,9 +449,10 @@ def observer(nData, par, rng,surveys, stormDays, out,stormUnk, conf):
       arrPrint(nData[:,2], abval=20)
       print("\t\t\t\t>>>> position of end date in survey day list:",end=" ")
       arrPrint( pos[1], abval=20) 
+    if conf.debugObs>=4:
       print("\t\t\t\t>> survey days with index number:",end=" ")
       arrPrint( surveyDays,abval=20)
-    if conf.debugObs>=4:
+    if conf.debugObs>=3:
       print("\t\t\t|>num obs while active:", end=" ")
       arrPrint(num_obs, abval=20)
       print("\t\t\t|>total num surveys for each nest:", end=" ")
@@ -431,7 +483,10 @@ def observer(nData, par, rng,surveys, stormDays, out,stormUnk, conf):
   out[:,4] = num_obs 
   out[:,5] = intFinal.astype(int) # length of final interval - transform to integer for the ndarray
   longFinal  = out[:,5] > par.obsFreq
-  out[:,3] = assign_fate(par,rng,stormFinal,longFinal,fate,intFinal,stormUnk,conf)
+  arrays = [stormFinal,longFinal,intFinal,discovered]
+  # out[:,3] = assign_fate(par,rng,stormFinal,longFinal,fate,intFinal,stormUnk,conf)
+  out[:,3] = assign_fate(par,rng,arrays,fate,stormUnk,conf)
+  # out[:,3][discovered] = assign_fate(par,rng,sfin2,longFinal,fate2,ifin2,stormUnk,conf)
 
   #-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   if conf.testing=="yes":
@@ -439,8 +494,12 @@ def observer(nData, par, rng,surveys, stormDays, out,stormUnk, conf):
   #     print("\t\t\t\tj & k:")
   #     arrPrint(jVal, abval=20)
   #     arrPrint(kVal, abval=20)
-  #   if conf.debugObs>=4:
-  #     print(f"\t\t\t{iVal=} \n\t\t\t{jVal=} \n\t\t\t{kVal=}")
+    if conf.debugObs>=4:
+      print(f"\t\t\t{iVal.astype(int)=} \n\t\t\t{jVal.astype(int)=} \n\t\t\t{kVal.astype(int)=}")
+      print(f"assigned fate:")
+      arrPrint(out[:,3], abval=20)
+      print(f"final interval length:")
+      arrPrint(out[:,5], abval=20)
   #   if conf.debugObs>=4:
   #     print(f"\t\t\t{np.where(out[:,3]==7)=}")
   #     print(f"\t\t\t{np.where(out[:,3]==2)=}")
