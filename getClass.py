@@ -22,6 +22,7 @@ class Params: # most importantly, Pylance recognizes the attributes, unlike
     stormFrq: int
     stormDur: int
     decayRate:np.float32
+    decayStorm:np.float32
     obsFreq:  int
     hatchTime:int
     numNests: int
@@ -66,6 +67,7 @@ class Config:
     testing:     str
     predict:    bool
     mayfStart:    bool
+    addMC:    bool
     # debug:       bool
     # debugLL:     bool
     # debugNests:  bool
@@ -85,8 +87,10 @@ class Config:
     debugDSR: int
 
     predSave:   str
+    survSave:   str
     coefSave:   str
     obsSave:    bool
+    ndatSave:    bool
     plotPred:   bool
     # useWSL:      bool
     # likeDir:     str
