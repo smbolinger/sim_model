@@ -2,14 +2,37 @@
 
 # mk_true_dsr <- function(nData, modList, preDat, fname, par, config){
 mk_true_dsr <- function(nData, modList, preDat, par, config){
+  ## returns output from predict.glm for each model
   nData <- nData |>
     mutate(Survival = end - init) ## total survival days
 
+  
   fitData <- nData[rep(1:nrow(nData), times=nData$Survival),]
-  fitData$Day <- unlist(lapply(nData$Survival, function(x) seq(1,x))) 
-  fitData$Date <- fitData$init + fitData$Day
+  if(config$debugDSR>=3){
+    cat("\n\t>>mk_true_dsr: nrow nData=",nrow(nData),"nrow fitData=",nrow(fitData))
+    qvcalc::indentPrint(cumsum(nData$Survival))
+    cat("\n\t>>mk_true_dsr: nData columns:", names(nData))
+    cat("\n\t>>mk_true_dsr: nData=")
+    qvcalc::indentPrint(head(nData,30))
+
+  }
+  # if(config$debugDSR>=3){
+  #   cat("\n\t>>mk_true_dsr: fitData=")
+  #   qvcalc::indentPrint(fitData)
+  # }
+  # fitData$Day <- unlist(lapply(nData$Survival, function(x) seq(1,x))) 
+  fitData$Age <- unlist(lapply(nData$Survival, function(x) seq(1,x))) 
+  # if(config$debugDSR>=3){
+  #   cat("\n\t>>mk_true_dsr: fitData w/Day=")
+  #   qvcalc::indentPrint(fitData)
+  # }
+  fitData$Date <- fitData$init + fitData$Age
   fitData <- fitData |> mutate(Surv = ifelse(fate %in% c(1,2) & Date==end, 0, 1))
   ## returns a list:
+  if(config$debugDSR>=4){
+    cat(sprintf("\n\t\t>> mk_true_dsr: fitData (nrow=%s):\n\t\t", nrow(fitData)))
+    qvcalc::indentPrint(head(fitData,30))
+  }
   out <- lapply(modList, function(x){
                      form <- as.formula(x)
                      modFit <- glm(form, data=fitData, family=binomial)
@@ -28,13 +51,11 @@ mk_true_dsr <- function(nData, modList, preDat, par, config){
 
   #-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   if(config$testing=="yes"){
-    if(config$debugDSR>=5){
+    if(config$debugDSR>=4){
     #   cat(sprintf("\n\t\t>> mk_true_dsr: propInitScl (length=%s):\n\t\t", length(propInitScl)), unlist(propInitScl))
     #   cat(sprintf("\n\t\t>> mk_true_dsr: psrOut (length=%s):\n\t\t", sapply(psrOut,length)))
     #   qvcalc::indentPrint(psrOut)
     #   cat(sprintf("\n\t\t>> mk_true_dsr: psrScl (length=%s):\n\t\t", length(psrScl)), unlist(psrScl))
-      cat(sprintf("\n\t\t>> mk_true_dsr: fitData (nrow=%s):\n\t\t", nrow(fitData)))
-      qvcalc::indentPrint(fitData)
     }
     if(config$debugDSR>=4){
       if(config$debugDSR<5){
@@ -43,14 +64,14 @@ mk_true_dsr <- function(nData, modList, preDat, par, config){
         qvcalc::indentPrint(head(fitData,50), indent=12) # cat("\n\t\t\t> model output:\n") qvcalc::indentPrint(modFit)
       }
       cat("\n\t\t\t>->mk_true_dsr(): max init date:", max(preDat$Date))
-      qvcalc::indentPrint(out) # cat("\n\t\t\t> DSR for null model:\n") qvcalc::indentPrint(psrOut)
+      # qvcalc::indentPrint(out) # cat("\n\t\t\t> DSR for null model:\n") qvcalc::indentPrint(psrOut)
       cat("\n\t\t\t>->mk_true_dsr(): DSR for all models:\n")
       qvcalc::indentPrint(out) # cat("\n\t\t\t> DSR for null model:\n") qvcalc::indentPrint(psrOut)
       # cat("\n\t\t\t> PSR for all models:\n")
       # qvcalc::indentPrint(psrOut)
 
     }
-    # if(config$debugDSR>=4){
+    # if(config$debugDSR>=3){
     #   cat("\n\t\t\t>mk_true_dsr: true DSR (null): ", dsr)
     #   cat("\n\t\t\t>mk_true_dsr: true PSR, weighted average: ", unlist(psrScl))
     # }
@@ -96,8 +117,10 @@ mk_logex_data <- function(nestData,survey,pyconfig,expoVal=0){
   ##--- 2. get exposure days from survey info -----------------------------------------
   # expoList   <- dsr$calc_daily_expo(numNests=nNest, surveyDays=svyDays,
                                    # surveyInts=svyInts, firstDay=first,
+  # print(length(nestObs))
   expoList   <- dsr$calc_daily_expo(numNests=nNest, survey=survey, firstDay=first,
                                    lastDay=last, config=pyconfig)
+  # print(length(expoList))
   # if(dbug>=3) cat("\n\tmaking log exp dataframe\n")
   # if(debug>=3) cat("\n\tpass obs data to make_daily_logex_df:\n")
   # if(debug>=3) qvcalc::indentPrint(head(nestData,30))
@@ -236,10 +259,12 @@ fit_glm <- function(modList, dat, expoVal = 1, debug=F){
   return(out)
 }
 
-make_preds <- function(coefArr,vcovMat,mod,newDat,db=0){
+make_preds <- function(coefArr,vcovMat,mod,newDat,se=TRUE,db=0){
+  
 
   #' make predictions manually from equations
   #' RETURNS: nested list of: 1) list of DSR vals; 2) list of SE vals
+  ##  ADD? if se==TRUE, returns two lists; if FALSE, just returns DSR list
 
   vars     <- stringr::str_extract_all(mod, "[\\w()^]{2,}") ## returns a LIST
   # cat("\n\t\t>> make_preds: VARS:", unlist(vars))
@@ -258,17 +283,21 @@ make_preds <- function(coefArr,vcovMat,mod,newDat,db=0){
   #-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   if(config$testing=="yes"){
     # if(db>=3) 
-    if(db>=3){
-      cat("\n\t>>>make_preds: getting predictions from GLM")
-      cat("\n\t\t>> make_preds: MODEL:", mod)
-      cat("\t | VARS:", unlist(vars))
+    if(db>=1){
+      cat("\n\t\t>>>make_preds: getting predictions from GLM")
+      # cat("\n\t\t\t>> make_preds: MODEL:", mod)
+      cat("\t>> make_preds: MODEL:", mod)
+      cat("\t | VARS:", paste(unlist(vars), collapse=" "))
+      # cat("\t>> make_preds: coefArr: ", paste(unlist(coefArr), collapse=" "))
+      cat("\t>> make_preds: coefArr: ", paste(unlist(coefArr), collapse=" "))
+      # cat("\n")
+      # qvcalc::indentPrint(coefArr)
+      # qvcalc::indentPrint(class(coefArr))
       # cat(sprintf("\n\t\t>> make_preds: MODEL: %s ; VARS: %s", mod, unlist(vars)))
     }
-    if(db>=5) {
+    if(db>=3) {
       cat(sprintf("\n\t\t>> make_preds: newDat - first 10 rows (type=%s, nrow=%s)\n", class(newDat), length(newDat)))
       qvcalc::indentPrint(head(newDat,10))
-      cat("\n\t\t\t>> make_preds: coefArr: ")
-      qvcalc::indentPrint(coefArr)
       cat("\n\t\t\t>> make_preds: vcov matrix: ")
       qvcalc::indentPrint(vcovMat)
       # cat("\n\t\tVARS: ")
@@ -284,21 +313,23 @@ make_preds <- function(coefArr,vcovMat,mod,newDat,db=0){
   se_vals  <- eval(se_eq, envir=newDat)
   #-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   if(config$testing=="yes"){
-    if(db>=4){
+    if(db>=2){
       cat("\n\t\t\t>> make_preds: predictor as expression:")
       withr::with_options( list(width=150), qvcalc::indentPrint(mod_eq))
       cat("\n\t\t\t>> make_preds: standard error as expression:")
       withr::with_options( list(width=120), qvcalc::indentPrint(se_eq))
+    }
+    if(db>=3){
       cat("\n\t\t\t>> make_preds: vcovMat")
       qvcalc::indentPrint(vcovMat)
       cat("\n\t\t\t>> make_preds: Date")
       qvcalc::indentPrint(newDat[['Date']])
     }
-    if(db>=4){
-      cat("\n\t\t\t>> make_preds: dsr vals <length=",length(dsr_vals),">")
-      qvcalc::indentPrint(dsr_vals)
-      cat("\n\t\t\t>> make_preds: se vals <length=",length(se_vals),">")
-      qvcalc::indentPrint(se_vals)
+    if(db>=2){
+      cat("\n\t\t\t>> make_preds-output: dsr vals <length=",length(dsr_vals),">")
+      qvcalc::indentPrint(head(dsr_vals, 20))
+      cat("\n\t\t\t>> make_preds-output: se vals <length=",length(se_vals),">")
+      qvcalc::indentPrint(head(se_vals, 20))
     }
   }
   #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -312,10 +343,10 @@ make_pr_eq <- function( allBeta, pred,db, outType="resp"){
   #' make prediction equations 
   #' form: 1/( 1 + exp(- intercept + betas*predvals) )
 
-  if (db>=4) cat("\n\t\t\t>>pass to make_pr_eq: allBeta:", allBeta)
+  if (db>=3) cat("\n\t\t\t>>pass to make_pr_eq: allBeta:", allBeta)
   intercept <- allBeta[1]
   betas <- allBeta[-1]
-  if (db>=4) cat("\n\t\t\t>>make_pr_eq: betas=", betas, "intercept=",intercept)
+  if (db>=3) cat("\n\t\t\t>>make_pr_eq: betas=", betas, "intercept=",intercept)
   if(length(betas)<1){
     beta_expand <- 0
     vars_expand <- 0
@@ -387,8 +418,8 @@ make_pr_eq <- function( allBeta, pred,db, outType="resp"){
   }
   #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   if(config$testing=="yes"){
-    if(db>=4) cat(sprintf("\n\t\tpassed to make_pr_eq: intercept:%s betas:%s x:%s\n",intercept, betas,x))
-    if(db>=4) cat(sprintf("\n\t\tmake_pr_eq: beta_expand:%s ; vars_expand:%s\n",beta_expand,vars_expand))
+    # if(db>=4) cat(sprintf("\n\t\tpassed to make_pr_eq: intercept:%s betas:%s x:%s\n",intercept, betas,x))
+    # if(db>=4) cat(sprintf("\n\t\tmake_pr_eq: beta_expand:%s ; vars_expand:%s\n",beta_expand,vars_expand))
     # if(db>=3) cat(sprintf("\n\t\tpass to function: intercept=%s ; betas=%s \n",intercept, paste(betas,x, sep=" ")))
     if(db>=4) cat("\n\t\t\t>> equation:", eq)
   }
@@ -398,57 +429,275 @@ make_pr_eq <- function( allBeta, pred,db, outType="resp"){
   return(eq)
 }
 
-make_weighted <- function(dsrList, seList,allInits, allDates, par, config, type="resp"){
-  numInit     <- sapply(allDates, function(x) sum(allInits==x,na.rm=TRUE))
+# age_weight_list <- function(mod,dsrList, newDat,seList, propInitScl, par, config,survOut="dsr",type="resp"){
+age_weight_list <- function(dsrList, dateVec,db=0){
+  ## when you have a model with Date + Age, and want to weight by age but not date
+  ## separate by date, and weight each set by age
+    # df <- data.frame(Date=newDat$Date, dsr=dsrList)
+    df <- data.frame(Date=dateVec, dsr=dsrList)
+    # dsrList <- sapply(split(df, df$Date), function(x) sum(dsrList*propInitScl,na.rm=TRUE))
+    dsrList <- sapply(split(df, dateVec), function(x) mean(x$dsr))
+    if(db>=3){
+      cat("\nage-weighted output:\n")
+      print(dsrList)
+    }
+    return(dsrList)
+}
+
+# date_weight_list <- function(dsr_list, newDat, propInitScl,db=0){
+date_weight_list <- function(dsr_list, ageVec, propInitScl,db=0){
+  ## when you have a model with Date + Age, and want to weight by date but not age
+    # df <- data.frame(Age=newDat$Age, dsr=dsr_list)
+    df <- data.frame(Age=ageVec, dsr=dsr_list)
+# str(newDat$Age)
+    # print(summary(df))
+    # print(propInitScl)
+    # print(split(df,df$Age))
+    grps <- split(df, df$Age)
+    # print(class(grps))
+    # dsr_list <- sapply(split(df, df$Age), function(x){
+    # dsr_list <- sapply(grps$dsr, function(x){
+    dsr_list <- sapply(grps, function(x){
+                        #  cat("length of prop init scl & x:")
+                        #  print(length(propInitScl))
+                        #  print(length(x))
+                        #  print(x)
+                         sum(x$dsr*propInitScl,na.rm=TRUE)
+                        #  sum(x*propInitScl,na.rm=TRUE)
+    })
+    # dsrList <- sapply(split(df, df$Age), function(x) prod(x*propInitScl,na.rm=TRUE))
+# split(df, df$Age)
+    # cat("\ndate-weighted output:\n")
+    # print(dsr_list)
+    if(db>=3){
+      cat("\ndate-weighted output:\n")
+      print(dsrList)
+    }
+    return(dsr_list)
+}
+
+age_weighted <- function(mod,dsrList, seList, propInitScl, par, config,survOut="dsr",type="resp"){
+  vars     <- unlist(stringr::str_extract_all(mod, "[\\w()^]{2,}")) ## returns a LIST
+  if(config$debugLogEx>=2) cat("\n\t\t\tweighting by age")
+  if(config$debugLogEx>=2) cat("\tdsrList:")
+  if(config$debugLogEx>=2) print(dsrList)
+  if(length(vars)>2){
+    ## if there's a date variable, weight DSR by date
+    df <- data.frame(Date=newDat$Age, dsr=dsrList)
+    dsrList <- sapply(split(df, df$Age), function(x) sum(dsrList*propInitScl,na.rm=TRUE))
+    # psrList <- sapply(split(df, df$Age), function(x)  sum(psrList*propInitScl,na.rm=TRUE))
+  }
+  if(survOut=="dsr"){
+    out <- mean(dsrList)
+  } else {
+    out <- prod(dsrList)
+  }
+  cat("\nage-weighted output:\n")
+  print(out)
+  return(out)
+}
+
+date_weighted <- function(mod,dsrList, seList,  propInitScl, par, config,survOut="dsr",type="resp"){
+  vars     <- unlist(stringr::str_extract_all(mod, "[\\w()^]{2,}")) ## returns a LIST
+  if(config$debugLogEx>=2) cat("\n\t\t\tweighting by date")
+  # psrList <- unlist(dsrList)^par$hatchTime
+  # psr <- sum(psrList*propInitScl,na.rm=TRUE)
+    # dsr <- sum(dsrList*propInitScl,na.rm=TRUE)
+  if(length(vars)>2){
+    ## if there's also an age variable, make age-specific:
+    df <- data.frame(Date=newDat$Date, dsr=dsrList)
+    dsrList <- sapply(split(df, df$Date), function(x) mean(x$dsr))
+    psrList <- sapply(split(df, df$Date), function(x) prod(x$dsr))
+  } else {
+    psrList <- unlist(dsrList)^par$hatchTime
+  }
+  if(survOut=="dsr"){
+    out <- sum(dsrList*propInitScl,na.rm=TRUE)
+  } else {
+    out <- sum(psrList*propInitScl,na.rm=TRUE)
+  }
+  cat("\ndate-weighted output:\n")
+  print(out)
+  return(out)
+}
+
+make_weighted <- function(mod,dsrList,seList,allInits,allDates,par,config,newDat=NULL,propInitScl=NULL,outtype="resp"){
+  if(config$testing=="yes"){
+    if(config$debugLogEx>=2){
+      cat("\n  |>make_weighted: model:", mod)
+      # cat("\n\t\t\t|>make_weighted: <input> dsrList:")
+      # qvcalc::indentPrint(head(dsrList, 5), indent=8)
+      # qvcalc::indentPrint(tail(dsrList, 15), indent=8)
+      cat("\n\t<input> dsrList:")
+      cat( paste(unlist(head(dsrList, 5)), collapse=" "))
+      cat(". . . . ")
+      cat( paste(unlist(tail(dsrList, 5)), collapse=" "))
+      cat("\tlength=", length(dsrList))
+      # cat("\n\t\t\t|>make_weighted: <input> psrList:")
+      # qvcalc::indentPrint(psrList, indent=8)
+      cat("\n\t<input> seList:")
+      cat( paste(unlist(head(seList, 5)), collapse=" "))
+      # qvcalc::indentPrint(head(seList, 5), indent=8)
+      cat(". . . . ")
+      # qvcalc::indentPrint(tail(seList, 15), indent=8)
+      cat( paste(unlist(tail(seList, 5)), collapse=" "))
+      cat("\tlength=", length(seList))
+    }
+  }
+  if(is.null(propInitScl)){
+    numInit     <- sapply(allDates, function(x) sum(allInits==x,na.rm=TRUE))
+    propInit    <- numInit/par$numNests
+    propInitScl <- propInit/sum(propInit,na.rm=TRUE) ## make sure it sums to 1
+  }
+  vars     <- unlist(stringr::str_extract_all(mod, "[\\w()^]{2,}")) ## returns a LIST
+  if(config$debugLogEx>=2) cat("\n\t\t\tvars=", vars, "length=", length(vars))
+
+  if(length(vars)<2){
+    if(config$debugLogEx>=2) cat("\n\t\t\tnull model - not weighting")
+    if(config$debugLogEx>=2) cat("\tdsrList:")
+    if(config$debugLogEx>=2) print(dsrList)
+    dsr <- dsrList[1]
+    # print()
+    # cat(sprintf("\n dsr: %s (%s)", dsr, class(dsr)))
+    psr <- dsr ^ as.numeric(par$hatchTime)
+    serr <- seList[1]
+    # cat(sprintf("// psr: %s // se: %s", psr, serr))
+  } else if(length(vars)==2 & vars[2]=="Age"){
+
+    # dsr <- sum(dsrList*propInitScl,na.rm=TRUE)
+    ## date-specific
+    # dsr <- dsrList*propInitScl
+
+    if(config$debugLogEx>=2) cat("\n\t\t\tweighting by age")
+    # if(config$debugLogEx>=2) cat("\tdsrList:")
+    # if(config$debugLogEx>=2) print(dsrList)
+    ## where does "dsr" come from?
+    dsr <- mean(dsrList)
+    psr <- prod(dsrList)
+
+    ## this standard error is much too small
+    if(length(seList)>1) serr <- mean(seList) else serr <- list()
+    
+  }else if(length(vars)>2){
+      # this should only target age+date model
+      # df <- cbind(newDat, dsrList)
+      # df <- data.frame(Age=newDat$Age, dsr=dsrList)
+      if(config$debugLogEx>=2) cat("\n\t\t\tweighting by age+date")
+      # df <- data.frame(Date=newDat$Date, dsr=dsrList)
+      if(is.null(newDat)){
+        df <- data.frame(Date=rep(prDays, times=as.numeric(parVals['hatch_time']), dsr=dsrList))
+        # cat("\nprediction dates:", df$Date, length(df$Date))
+      }else{
+        df <- data.frame(Date=newDat$Date, dsr=dsrList, se=seList)
+      }
+      # dsrList <- lapply(split(df, df$Date), function(x) prod(x$dsr))
+      # first get product of all age estimates for each value of Date
+      if(config$debugLogEx>=2) cat("\t >> get mean DSR across all nest ages for each value of date")
+      dsrList <- sapply(split(df, df$Date), function(x) mean(x$dsr))
+      dsr <- sum(dsrList*propInitScl,na.rm=TRUE)
+      # if(config$debugLogEx>=2) cat("\t output:\n")
+      if(config$debugLogEx>=2){
+        cat( paste(unlist(head(dsrList, 5)), collapse=" "))
+        cat(". . . . ")
+        cat( paste(unlist(tail(dsrList, 5)), collapse=" "))
+      }
+      if(config$debugLogEx>=2) cat("\t >> get age-weighted PSR for each value of date")
+      psrList <- sapply(split(df, df$Date), function(x) prod(x$dsr))
+
+      if(config$debugLogEx>=2){
+        cat( paste(unlist(head(psrList, 5)), collapse=" "))
+        cat(". . . . ")
+        cat( paste(unlist(tail(psrList, 5)), collapse=" "))
+      }
+      psr <- sum(psrList*propInitScl,na.rm=TRUE)
+      if(config$debugLogEx>=2) cat("\t >> get mean standard error for each value of date")
+      if(length(seList)>1){
+        # df <- data.frame(Date=newDat$Date, se=seList)
+        # seList <- sapply(split(df, df$Date), function(x) prod(x$se))
+        seList <- sapply(split(df, df$Date), function(x) mean(x$se))
+        serr <- sum(seList*propInitScl,na.rm=TRUE)
+      }else{
+        serr <- list()
+      }
+      if(config$debugLogEx>=2){
+        cat("\n\t\t\t>> psrList for age+date model, after grouping by age and taking product:")
+        qvcalc::indentPrint(psrList)
+        cat("\tlength=", length(psrList))
+      }
+
+  } else {
+
+    # numInit     <- sapply(allDates, function(x) sum(allInits==x,na.rm=TRUE))
+    # propInit    <- numInit/par$numNests
+    # propInitScl <- propInit/sum(propInit,na.rm=TRUE) ## make sure it sums to 1
+    # psrList <- lapply(dsrList, function(x) x^par$hatchTime)
+    # psr <- lapply(psrList, function(x) sum(x*propInitScl))
+    if(config$debugLogEx>=2) cat("\n\t\t\tweighting by date")
+
+    if(outtype=="resp"){
+      # psrList <- unlist(unwtList)^par$hatchTime
+      ## why did it not make me add "as.numeric" when I was running it in the all_dsr script?
+      if(config$debugLogEx>=2) cat("\t >> get date-weighted PSR")
+      psrList <- unlist(dsrList)^as.numeric(par$hatchTime)
+      if(config$debugLogEx>=2) {
+        cat( paste(unlist(head(psrList, 5)), collapse=" "))
+        cat(". . . . ")
+        cat( paste(unlist(tail(psrList, 5)), collapse=" "))
+      }
+      psr <- sum(psrList*propInitScl,na.rm=TRUE)
+    } else {
+      psr <- c()
+    }
+
+    if(config$debugLogEx>=2) cat("\t >> get date-weighted DSR")
+    dsr <- sum(dsrList*propInitScl,na.rm=TRUE)
+    if(length(seList)>1) serr <- sum(seList*propInitScl,na.rm=TRUE) else serr <- list()
+
+    #-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    if(config$testing=="yes"){
+      if(config$debugLogEx>=2){
+        # cat( "DSR at average date:", )
+        cat("\t\t\t>>> compare PSR values:", psr, dsr^as.numeric(par$hatchTime))
+      }
+      if(config$debugLogEx>=5){
+    #   #   # cat("\nlength of dsr2:\n", length(dsr2))
+
+        cat(sprintf("\n\t\t>->make_weighted: inits (%s) & dates (%s):\n", class(allInits), class(allDates)))
+        qvcalc::indentPrint(allInits, indent=8)
+        qvcalc::indentPrint(allDates, indent=8)
+        # cat("\nnum inits before date:\n")
+        cat("\n\t\t\t>->make_weighted: num inits on date:\n")
+        qvcalc::indentPrint(numInit, indent=8)
+        cat("\n\t\t\t>-> proportion inits on date:\n")
+        qvcalc::indentPrint(propInit, indent=8)
+      }
+      if(config$debugLogEx>=3){
+        cat("\n\t\t\t|>make_weighted: scaled proportion inits on date:\n")
+        qvcalc::indentPrint(propInitScl, indent=8)
+      }
+    }
+
+  }
   # numInit     <- sapply(allDates, function(x) {
   #                         cat(sprintf("\n%s:",x))
   #                         qvcalc::indentPrint(allInits==x)
   #                         # print(sum(allInits==x))
   #                         return(sum(allInits==x))
   #                               })
-  propInit    <- numInit/par$numNests
-  propInitScl <- propInit/sum(propInit,na.rm=TRUE) ## make sure it sums to 1
-  # psrList <- lapply(dsrList, function(x) x^par$hatchTime)
-  # psr <- lapply(psrList, function(x) sum(x*propInitScl))
-  if(type=="resp"){
-    psrList <- unlist(dsrList)^par$hatchTime
-    # psrList <- unlist(unwtList)^par$hatchTime
-    psr <- sum(psrList*propInitScl,na.rm=TRUE)
-  } else {
-    psr <- c()
-  }
-
-  dsr <- sum(dsrList*propInitScl,na.rm=TRUE)
-  if(length(seList)>1) serr <- sum(seList*propInitScl,na.rm=TRUE) else serr <- list()
   ## psrList is dsrList ^ hatchTime; prop_nests is proportion of nests initiated on day j
   ## this could either be the true number or some estimate by the observer; for now, stick with the true number
   # psrOut <- lapply(psrList, function(x) sum(x*prop_nests))
 
-  #-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  if(config$testing=="yes"){
-    if(config$debugLogEx>=5){
-  #   #   # cat("\nlength of dsr2:\n", length(dsr2))
-      cat(sprintf("\n\t\t>->make_weighted: inits (%s) & dates (%s):\n", class(allInits), class(allDates)))
-      qvcalc::indentPrint(allInits, indent=8)
-      qvcalc::indentPrint(allDates, indent=8)
-      # cat("\nnum inits before date:\n")
-      cat("\n\t\t\t>->make_weighted: num inits on date:\n")
-      qvcalc::indentPrint(numInit, indent=8)
-      cat("\n\t\t\t>-> proportion inits on date:\n")
-      qvcalc::indentPrint(propInit, indent=8)
-    }
-    if(config$debugLogEx>=4){
-      cat("\n\t\t\t|>make_weighted: scaled proportion inits on date:\n")
-      qvcalc::indentPrint(propInitScl, indent=8)
-    }
   #   # if(config$debugDSR>=3) cat("\n\t\t>> calculating weighted PSR")
-    if(config$debugLogEx>=4){
-      cat("\n\t\t\t|>make_weighted: <input> dsrList:")
-      qvcalc::indentPrint(dsrList, indent=8)
-      cat("\n\t\t\t|>make_weighted: <input> psrList:")
-      qvcalc::indentPrint(psrList, indent=8)
-      cat("\n\t\t\t|>make_weighted: <input> seList:")
-      qvcalc::indentPrint(seList, indent=8)
+
+  #-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    if(config$debugLogEx>=3){
+      # cat("\n\t\t\t|>make_weighted: <input> dsrList:")
+      # qvcalc::indentPrint(dsrList, indent=8)
+      # cat("\n\t\t\t|>make_weighted: <input> psrList:")
+      # qvcalc::indentPrint(psrList, indent=8)
+      # cat("\n\t\t\t|>make_weighted: <input> seList:")
+      # qvcalc::indentPrint(seList, indent=8)
       cat("\n\t\t\t|>make_weighted: <output> dsr:")
       qvcalc::indentPrint(dsr, indent=8)
       cat("\n\t\t\t|>make_weighted: <output> psr:")
@@ -458,7 +707,6 @@ make_weighted <- function(dsrList, seList,allInits, allDates, par, config, type=
   #
   #     # cat("\n")
     }
-  }
   #   if(config$debugDSR>=4) cat("\n\t\t>> psr (avg psr weighted by nest initiation per day): ", psr, "\n")
   # # if(db>=3){
   # #   cat(sprintf("\n\t>>> calculate for first psr list (lengths= %s, %s):\n",
