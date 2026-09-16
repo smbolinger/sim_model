@@ -140,13 +140,6 @@ def mk_per(start, end, con):
 # def assign_fate( par, rng, stormFin,longFin,trueFate, intFinal, stormUnk,cn):
 def assign_fate( par, rng,arr,trueFate, stormUnk,cn):
   """
-  Observer assigns correct or incorrect fate based on some conditions:
-    The observer assigns the correct fate based on a comparison of a set 
-    probability to random draws from a uniform distribution. If observer is 
-    incorrect, then they assign a fate of unknown unless stormFate==True, in
-    which case all nests that ended in a period that contained a storm are 
-    assumed to have failed due to the storm.
-
     Arguments: 
     assignVal = the value given for incorrect fates
   
@@ -156,12 +149,20 @@ def assign_fate( par, rng,arr,trueFate, stormUnk,cn):
     if fate percentages are fixed, fateCuesPres should be the same (=1) for all
   
     Returns: vector w/ assigned fate for each nest
+
+    Notes: The observer assigns the correct fate based on comparison of a set 
+    probability to random draws from a uniform distribution. The set probability
+    is determined by exponential decay, so it decreases as more days pass.
+
+    If a storm occurs, the rate of decay of evidence is higher, meaning
+    more "ambiguous" nests. Ambiguous nests are classified based on 
+    stormFate: if True, then assigned "flooded"; if False, then "unknown"
+
   """
 
   decay="exp"
   # decay="lin"
   stormFin,longFin,intFinal,discovered = arr
-
   
   # assignedFate=np.empty(par.numNests)
   numNests = len(trueFate)
@@ -170,12 +171,28 @@ def assign_fate( par, rng,arr,trueFate, stormUnk,cn):
   if cn.debugObs>=4:
     print(f"{len(assignedFate)=}{len(trueFate)=}")
   if decay=="exp":
-    fateCuesPresent   = expDecay(n0=1, k=par.decayRate, t=intFinal)
+    fateCuesPres   = expDecay(n0=1, k=par.decayRate, t=intFinal)
   else:
-    fateCuesPresent   = 1 - (intFinal*par.decayRate)
+    fateCuesPres   = 1 - (intFinal*par.decayRate)
+  ## higher decay rate for nests with storm in final interval:
+  # mask = longFin or stormFin
+  fateCuesPres[stormFin] = expDecay(n0=1,k=par.decayStorm,t=intFinal[stormFin])
   fateProb = rng.uniform(low=0, high=1, size=par.numNests)
-  assignedFate[fateProb < fateCuesPresent] = trueFate[fateProb < fateCuesPresent] 
-  wrongFateMask = fateProb > fateCuesPresent
+  # assignedFate[fateProb < fateCuesPresent] = trueFate[fateProb < fateCuesPresent] 
+  # wrongFateMask = fateProb > fateCuesPresent
+  # if not stormUnk and not par.stormFate:
+  #   if cn.debugObs>=2:
+  #     print(f"stormUnk==False and stormFate==False")
+  #     print(f"the following nests have higher decay rate bc of storm")
+  #     print(f"{np.where(fateCuesPres[longFin or stormFin])=}")
+    # mask = longFin or stormFin
+    # fateCuesPresent[mask] = expDecay(n0=1,k=par.decayStorm,t=intFinal[mask])
+    # assignedFate[fateProb < fateCuesPresent] = trueFate[fateProb < fateCuesPresent] 
+    # wrongFateMask = fateProb > fateCuesPresent
+  wrongFateMask = fateProb > fateCuesPres
+  correctFate = fateProb < fateCuesPres
+  # assignedFate[fateProb < fateCuesPres] = trueFate[fateProb < fateCuesPres] 
+  assignedFate[correctFate] = trueFate[correctFate] 
   # print(f"{assignedFate[fateMask]=}")
   # print(f"\n\t\t{fateProb<fateCuesPresent=} | ")
   # print(f"{assignedFate[fateProb<fateCuesPresent]=}")
@@ -185,8 +202,8 @@ def assign_fate( par, rng,arr,trueFate, stormUnk,cn):
     if cn.debugObs>=5:
       # print(f"\t\t\tCORRECT FATE: {np.where(fateProb<fateCuesPresent)=}")
       # print(f"\t\t\t{intFinal=} {par.obsFreq=}")
-      print(f"\t\t\tCORRECT FATE: np.where( {fateProb=} < {fateCuesPresent=}\n)"
-            f"\t\t\t\t{(np.sum(fateProb<fateCuesPresent))=}")
+      print(f"\t\t\tCORRECT FATE: np.where( {fateProb=} < {fateCuesPres=}\n)"
+            f"\t\t\t\t{(np.sum(fateProb<fateCuesPres))=}")
       print(f"\t\t\t {assignedFate.shape=} {assignedFate=}")
     # if cn.debugObs>=3:
     #   # print(f"\t\t\t\t{np.where(fateProb<fateCuesPresent)=} {len(np.where(fateProb<fateCuesPresent))=}")
@@ -194,19 +211,21 @@ def assign_fate( par, rng,arr,trueFate, stormUnk,cn):
     if cn.debugObs>=2:
       print(f"\t\t***{decay=}***{np.sum(assignedFate==7)=} | {np.sum(assignedFate==2)=} |"
             f" {np.sum(assignedFate==0)=}"
-            f"\n\t\t{np.sum(fateProb<fateCuesPresent)=} | ")
+            f"\n\t\t{np.sum(fateProb<fateCuesPres)=} | ")
       # with pd.option_context("display.max_columns",None):
-    if cn.debugObs>=4:
+    if cn.debugObs>=5:
       # print(f"{stormFin=}")
       print(f"\t\t\t{intFinal=} {len(intFinal)} ")#"\n\tcorrect={np.sum(intFinal<=par.obsFreq)=}")
       # print(f"\t\t\t{fateCuesPresent=}")
       # print(f"\t\t\t{fateProb=}")
     if cn.debugObs>=3:
-      print(f"\t\t\t\t{np.where(fateProb<fateCuesPresent)=}")
+      print(f"\t\t\t\t{np.where(fateProb<fateCuesPres)=}")
       # print(f"\t\t\t{fateProb<fateCuesPresent=}")
-      print(f"\t\t\t{assignedFate=} ;\n\t\t{assignedFate.shape=}")
+      print(f"\t\t\t{assignedFate[discovered]=} ;\n\t\t{assignedFate[discovered].shape=}")
       arrPrint(assignedFate, abval=20)
 
+  #-- account for storms-------------------------------------------------------
+  #----------------------------------------------------------------------------
   tfd = trueFate[discovered]
   afd = assignedFate[discovered]
   if par.propMC>0 or par.propUnk>0:
@@ -218,6 +237,7 @@ def assign_fate( par, rng,arr,trueFate, stormUnk,cn):
     if cn.addMC:
       ## when MCtype=="none", proportion MC is 0.05 and unknown is 0.0
       assignedFate[discovered] = add_misclass(par,rng,tfd,afd,cn,db=cn.debugObs)
+
     if par.stormFate:
       assignedFate[stormFin] = 2
       assignedFate[longFin] = 2
@@ -235,6 +255,24 @@ def assign_fate( par, rng,arr,trueFate, stormUnk,cn):
       assignedFate[longFin] = 7
       # assignedFate[fateMask][stormFin] = 7
       # assignedFate[fateMask][longFin] = 7
+
+    ## add a message saying this is happening:
+    # if not stormUnk and not par.stormFate:
+      # if cn.debugObs>=2:
+        # print(f"stormUnk==False and stormFate==False")
+        # print(f"the following nests have higher decay rate bc of storm")
+        # print(f"{np.where(fateCuesPres[longFin or stormFin])=}")
+
+    #   # assignedFate[longFin] = 7 ## still mark the long ones unknown
+    #   # assignedFate[longFin or stormFin] = 7 
+    #   if decay=="exp":
+    #     fateCuesPresent   = expDecay(n0=1, k=par.decayStorm, t=intFinal)
+    #   else:
+    #     fateCuesPresent   = 1 - (intFinal*par.decayRate)
+    #   fateProb = rng.uniform(low=0, high=1, size=par.numNests)
+    #   assignedFate[fateProb < fateCuesPresent] = trueFate[fateProb < fateCuesPresent] 
+    #   wrongFateMask = fateProb > fateCuesPresent
+
     # if cn.debugObs>=2:
     #   print(f"\n\t\t{np.sum(fateProb<fateCuesPresent)=} | "
     #         f"\n\t\t{np.sum(assignedFate==7)=} | {np.sum(assignedFate==2)=} |"
@@ -244,9 +282,9 @@ def assign_fate( par, rng,arr,trueFate, stormUnk,cn):
     # # else:
     # if stormUnk and not par.stormFate:
     #   assignedFate[longFin] = 7
+  #----------------------------------------------------------------------------
 
   # NOTE fate cues prob should affect all nest fates equally, not just failures
-  #-=~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   #-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   if cn.testing=="yes":
@@ -270,9 +308,9 @@ def assign_fate( par, rng,arr,trueFate, stormUnk,cn):
       df2print = pd.DataFrame({
         # "init": 
         "true_fate": trueFate,
-        "prob_of_cues": fateCuesPresent,
+        "prob_of_cues": fateCuesPres,
         "comparison_prob": fateProb,
-        "cues_not_present": fateProb>fateCuesPresent,
+        "cues_not_present": fateProb>fateCuesPres,
         "long_final_int": longFin,
         "storm_final_int": stormFin,
         "assigned_fate": assignedFate,
@@ -292,63 +330,105 @@ def add_misclass(par,rng,trueFate,assignedFate,cn,db=0):
   #+> has to be discovered nests!
   #NOTE don't reset seed each time; pass from main script as arg
   # val   = [0,9,11,112,13,1131,1211] if par.MCtype == "hatch2fail" else [1,2]
-  val   = [0] if par.MCtype == "hatch2fail" else [1,2]
+  # val   = [0] if par.MCtype == "hatch2fail" else [1,2]
   # mcVal =  2 if par.MCtype == "hatch2fail" else 0
-  mcVal =  [1,2] if par.MCtype == "hatch2fail" else 0
-  uVal = 7
-  eqval = np.isin(trueFate,val)
+  # uVal = 7
+  # eqval = np.isin(trueFate,val)
   
+  fval = [0,1,2] ## fval = all possible replacement vals to choose from
+  hatchVal = [0]
+  failVal = [1,2]
+  uVal = 7
+
   if par.MCtype!="none":
-    val   = [0] if par.MCtype == "hatch2fail" else [1,2]
-    mcVal =  2 if par.MCtype == "hatch2fail" else 0
-    uVal = 7
-    eqval = np.isin(trueFate,val)
+    # val   = [0] if par.MCtype == "hatch2fail" else [1,2] # values to replace
+    ## if using a preset value, all fates should be correct until misclassified
+    # assignedFate = trueFate
+    ## this should alreayd happen because decay rate is 0, but make it explicit
+    val   = hatchVal if par.MCtype == "hatch2fail" else failVal # values to replace
+    # mcVal =  [1,2] if par.MCtype == "hatch2fail" else 0  # replacement
+    mcVal =  failVal if par.MCtype == "hatch2fail" else hatchVal  # replacement
+    # fVal =  [1,2] if par.MCtype == "hatch2fail" else [0]
+    # uVal = 7
+    eqval = np.isin(trueFate,val) # where does fate == val?
+    ## this way, even unknowns can become "mc" instead? no, shouldn't be any unknowns...
     nMisclass = int(np.round(par.propMC * np.sum(eqval)))
     nUnknown  = int(np.round(par.propUnk * np.sum(eqval)))
-    tot       = nMisclass + nUnknown
+    mcReplace =   rng.choice(mcVal,size=nMisclass)
+    # tot       = nMisclass + nUnknown
   else:
-    fval = [0,1,2]
-    eqval = assignedFate[assignedFate!=7]
-    nMisclass = int(np.round(0.05*np.sum(eqval)))
+    # fval = [0,1,2]
+    val = fval
+    mcVal = fval
+    # uVal = 7
+    # eqval = assignedFate[assignedFate!=7] # any non-unknown nest
+    eqval = assignedFate!=7 # any non-unknown nest
+    # nMisclass = int(np.round(0.05*np.sum(eqval)))
+    nMisclass = int(np.round(0.03*np.sum(eqval)))
     nUnknown = int(np.round(0.0*np.sum(eqval))) ## unknowns already happen
-    tot       = nMisclass + nUnknown
-    val = rng.choice(fval, size=tot,replace=True)
-    uVal = 7
-    limit = np.max(fval)
-    add = rng.choice(np.arange(20), size=tot, replace=True)
-    mcVal = (val + add) % limit
-  # tot       = nMisclass + nUnknown
+    mcReplace = [rng.choice(np.setdiff1d(mcVal, [v])) for v in range(nMisclass)]
+    # tot       = nMisclass + nUnknown
+    # val = rng.choice(fval, size=tot,replace=True)
+  # val = rng.choice(fval, size=nMisclass,replace=True)
+  # limit = np.max(fval)
+  # limit = np.max(val)
+  # add = rng.choice(np.arange(20), size=nMisclass, replace=True)
+  # mcVal = (val + add) % limit ## add random number but loop w/in fval
+  # mcVal =   
+  tot       = nMisclass + nUnknown
 
   #-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   if cn.testing=="yes":
-    if db>=3: print(f"\t\t{eqval=}   {len(eqval)=} ")
-    if db>=4: print(f"\t\t\t\t{eqval=}   {np.sum(eqval)=} ")
+    if db>=4: print(f"\t\t{par.MCtype=} {par.propMC=} {par.propUnk=}")
+    # if db>=3: print(f"\t\t{eqval=}   {len(eqval)=} ")
+    if db>=4:
+      print(f"\t\t\t\t{eqval=}   {np.sum(eqval)=} ")
+      print(f"\t\t\t\t", end=" ")
+      eqvalStr = f""
+      for ind,val in enumerate(eqval):
+        # eqvalStr += f"{ind}:{val}\t"
+        eqvalStr += f"{ind}:{val}  "
+        # with np.printoptions(linewidth=100):
+          # print(f"{ind}:{val} ", end=" ")
+      pprint.pprint(eqvalStr, width=100)
     if db>=2: print("\t\t\t NUMBER TO MISCLASSIFY:", nMisclass, end=" ")
     if db>=2: print("\t\t\t NUMBER TO MARK UNKNOWN:", nUnknown, end=" " )
     if db>=2: print(f"\t\t\t\t{val=} , {mcVal=} , {uVal=} , {tot=}")
+    # if db>=2: print(f"\n\t\t\t{mcReplace=}")
 
-    if db>=4: print(f"\t\t\tBEFORE <{len(assignedFate)}> : {assignedFate=}")
+    # if db>=4: print(f"\t\t\tBEFORE <{len(assignedFate)}> : {assignedFate=}")
 
   #-=~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   ## NOTE for some reason, returns a tuple with 1 array instead of just an array
   ind = np.where(eqval) ##+> select random indices to replace at 
-  ind = ind[0]
+  if db>=4: print(f"\t\t\t{ind=} {len(ind)=}", end=" ")
+  ind = ind[0] ##  since np.where returns multi-dim obj?
   mask = rng.choice(ind, size=tot, replace=False)
-  if par.MCtype!="none":
-    rep_vals  =[np.repeat(mcVal,nMisclass), np.repeat(uVal,nUnknown)]
-    rep_vals  = np.concatenate(rep_vals).tolist()
-  else:
-    rep_vals = mcVal
+  if db>=4: print(f"\t{mask=}", end=" ")
+  # if par.MCtype!="none":
+    # mcReplace = [rng.choice(np.setdiff1d(mcVal, [v])) for v in assignedFate[mask]]
+  # else:
+    # mcReplace = [rng.choice(np.setdiff1d(mcVal, [v])) for v in assignedFate[mask]]
+    # rep_vals  =[np.repeat(mcVal,nMisclass), np.repeat(uVal,nUnknown)]
+    # rep_vals  =[mcVal, np.repeat(uVal,nUnknown)]
+    # rep_vals  = np.concatenate(rep_vals).tolist()
+  # else:
+    # rep_vals = mcVal
+  rep_vals  =[mcReplace, np.repeat(uVal,nUnknown)]
+  rep_vals  = np.concatenate(rep_vals).tolist()
   if db>=4: print(f"\t{rep_vals=}")
+  if db>=4: print(f"\tBEFORE:{assignedFate[mask]=}")
   assignedFate[mask] = rep_vals
 
   #-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   if cn.testing=="yes":
-    if db>=5: print(f"\t\t\t{ind=} {len(ind)=}", end=" ")
-    if db>=5: print(f"\t{mask=}", end=" ")
+    # if db>=2: print(f"\n\t\t\t{mcReplace=}")
+    if db>=4: print(f"\t\t\t{ind=} {len(ind)=}", end=" ")
+    # if db>=4: print(f"\t{mask=}", end=" ")
     # if db>=5: print(f"\t{rep_vals=}")
-    if db>=4: print(f"\t\t\tAFTER: {assignedFate=}")
+    # if db>=4: print(f"\t\t\tAFTER: {assignedFate=}")
+    if db>=4: print(f"\t\t\tAFTER: {assignedFate[mask]=}")
 
   #-=~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -483,6 +563,8 @@ def observer(nData, par, rng,surveys, stormDays, out,stormUnk, conf):
   out[:,4] = num_obs 
   out[:,5] = intFinal.astype(int) # length of final interval - transform to integer for the ndarray
   longFinal  = out[:,5] > par.obsFreq
+  # longFinal  = out[:,5] > par.obsFreq * 2
+  # longFinal  = out[:,5] > np.round(par.obsFreq * 1.3)
   arrays = [stormFinal,longFinal,intFinal,discovered]
   # out[:,3] = assign_fate(par,rng,stormFinal,longFinal,fate,intFinal,stormUnk,conf)
   out[:,3] = assign_fate(par,rng,arrays,fate,stormUnk,conf)
