@@ -144,7 +144,7 @@ def init_from_csv(file, debug=False):
   # return(dict(zip(weekStart, initProb)))
   ret = dict(zip(weekStart, initProb))
   # if debug: print("\t>=> week: init probability = ",round(ret,3))
-  # if debug: print("\t>=> loading init dates; <week start date>: <init probability> ")
+  if debug: print("\t>=> loading init dates; <week start date>: <init probability> ")
   if debug: print(f"\t\t>=> loading init dates \t\t[{sum(initProb)=}] : ")
   if debug: dfPrint(np.array([list(ret.values())]), names=list(ret.keys()))
   # if debug: dfPrint(pd.DataFrame(ret,index=['i',]))
@@ -211,8 +211,10 @@ def uniquify(path):
     counter += 1
 
   return path
+
 # -----------------------------------------------------------------------------
-def mk_param_list_list(parL: Dict[str, list],stInd=0,fdir:str="", suf="", listRet=False, debug=False) -> list:
+def mk_param_list_list(parL: Dict[str, list],pStatic,stInd=0,fdir:str="", suf="", listRet=False, debug=False) -> list:
+# def mk_param_list_list(parL: Dict[str, list],stInd=0,fdir:str="", suf="", listRet=False, debug=False) -> list:
   """
     Take the dictionary of lists of param values, then unpack the lists to a 
     list of lists. Then feed this list of lists to itertools.product using *.
@@ -238,8 +240,16 @@ def mk_param_list_list(parL: Dict[str, list],stInd=0,fdir:str="", suf="", listRe
   # TODO: could add ** to surround for docstrings?
   # if debug:
     # print(f"\t\t>=> using the {parL} params lists",end=" ")
-  listVal = [parL[key] for key in parL]
+  # listVal = [parL[key] for key in parL]
+  # print(f"{type(listVal)=}")
+  if debug: print(f"\tbefore: {pStatic=}")
+  pStatic = {k: v for k, v in pStatic.items() if k not in parL}
+  if debug: print(f"\tafter: {pStatic=}")
+  par_merge = {**parL, **pStatic}
+  listVal = [par_merge[key] for key in par_merge]
+  # pL = list(itertools.product(*listVal))
   pL = list(itertools.product(*listVal))
+  if debug: print(f"{pL=}")
   if fdir:
     plfile = os.path.join(fdir, f"param-lists_{suf}.csv")
     if debug: print(f"\n\t\t|> param list file: {plfile}")
@@ -253,36 +263,46 @@ def mk_param_list_list(parL: Dict[str, list],stInd=0,fdir:str="", suf="", listRe
   else:
     # +> make this list of lists into a list of dicts with the original keys:
     # paramsList = [dict(zip(parList.keys(), p_List[x])) for x in range(len(p_List))]
-    paramsList = [dict(zip(parL.keys(),pL[x])) for x in range(stInd,len(pL))]
+    # paramsList = [dict(zip(parL.keys(),pL[x])) for x in range(stInd,len(pL))]
+    paramsList = [dict(zip(par_merge.keys(),pL[x])) for x in range(stInd,len(pL))]
     if debug:
       # print(f"\t\t{type(paramsList)=} \t\t{paramsList=}")
       print(f"\n\t\tParam list values ({type(paramsList)=}):")
       # print("\t\t\t","\t\t".join(parL.keys()))
       # print("\t\t","\t\t\t".join(str(val) for val in parL.values()))
-      widths = [max(len(str(k)),len(str(v))) for k,v in parL.items()]
-      print("\t\t"," ".join(f"{str(k):<{w}}" for k,w in zip(parL.keys(),widths)))
-      print("\t\t"," ".join(f"{str(v):<{w}}" for v,w in zip(parL.values(),widths)))
+      widths = [max(len(str(k)),len(str(v))) for k,v in par_merge.items()]
+      print("\t\t"," ".join(f"{str(k):<{w}}" for k,w in zip(par_merge.keys(),widths)))
+      print("\t\t"," ".join(f"{str(v):<{w}}" for v,w in zip(par_merge.values(),widths)))
+      # widths = [max(len(str(k)),len(str(v))) for k,v in parL.items()]
+      # print("\t\t"," ".join(f"{str(k):<{w}}" for k,w in zip(parL.keys(),widths)))
+      # print("\t\t"," ".join(f"{str(v):<{w}}" for v,w in zip(parL.values(),widths)))
       # print("\t\t"," ".join(str(val) for val in parL.values()))
     return(paramsList)
 
-def mk_param_list(par, pStatic, debug=False):
+# def mk_param_list(par, pStatic, debug=False):
+def mk_param_list(par, debug=False):
   """
+    INPUT: a dict containing all params for this set
+    RETURN: a Params instance
   """
-  if debug: print(f"\t{type(par)=} ; {type(pStatic)=}")
-  if debug: print(f"\t{par=} ; {pStatic=}")
+  # if debug: print(f"\t{type(par)=} ; {type(pStatic)=}")
+  # if debug: print(f"\t{par=} ; {pStatic=}")
   # time.sleep(2)
   # try:
   
-  pStatic = {k: v for k, v in pStatic.items() if k not in par}
-  if debug: print(f"\tafter: {pStatic=}")
-  par_merge = {**par, **pStatic}
+  # pStatic = {k: v for k, v in pStatic.items() if k not in par}
+  # if debug: print(f"\tafter: {pStatic=}")
+  # par_merge = {**par, **pStatic}
   if debug:
 
-    print("\t".join(par_merge.keys()))
-    print("\t".join(str(val) for val in par_merge.values()))
+    # print("\t".join(par_merge.keys()))
+    # print("\t".join(str(val) for val in par_merge.values()))
+    print("\t".join(par.keys()))
+    print("\t".join(str(val) for val in par.values()))
   # except TypeError as error:
     
-  return Params(**par_merge)
+  # return Params(**par_merge)
+  return Params(**par)
 
 # def mk_outdir(nowstr, seed:str="", suf="",con=config, unique=False):
 
@@ -305,7 +325,8 @@ def mk_outdir(nowstr, con,seed:str="", suf="", unique=False, debug=False):
   # TODO: decide whether I want to include seed in dir name, or just filenames
   # like_f_dir = con.likeDir
   
-  like_f_dir = "/home/wodehouse/Projects/sim_model/out/default"
+  # like_f_dir = "/home/wodehouse/Projects/sim_model/out/default"
+  like_f_dir = "/home/wodehouse/Dropbox/Models/ch2_analysis/py_out"
   # like_f_dir = "/home/wodehouse/Projects/sim_model/output"
   if not seed: seed=con.rngSeed
   seedStr = f"_{seed}"

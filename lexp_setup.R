@@ -34,7 +34,8 @@ arg <- unlist(commandArgs(trailingOnly=TRUE))
 # library(jsonlite)
 #NOTE could make a counter of all times at least one survey int == 0
 # psrTrue = "date"
-psrTrue = "a"
+psrTrueVal = "t"
+dsrTrueVal = "date"
 nruns = NA ## doesn't affect python
 debug = "" ## NOTE: DOES affect python?
 # seedArg = NA
@@ -42,6 +43,13 @@ rngSeed = NA ## doesn't affect python
 # startParArg = NA
 startParID = NA ## doesn't affect python
 msg = "" ## doesn't affect python
+saveNestData <- NA
+mcmcOff <- FALSE
+lexpOff <- FALSE
+lexpOff <- FALSE
+saveTrueOnly <- FALSE
+nNest <- NA
+othVal <- "" ## other settings to pass to python
 
 source("/home/wodehouse/.local/bin/r_func.R")
 options(width=1000, digits=5, scipen=999)
@@ -50,9 +58,16 @@ Sys.setenv(printset=TRUE)
 py_vars <- import_builtins()$vars ## function to turn class instance into dictionary
 py_attr <- import_builtins()$setattr ## function to turn class instance into dictionary
 mcType=0 ## default value
-file.create("out/psr_plot.txt")
-file.create("out/storm_plot.txt")
-file.create("out/init_plot.txt")
+# if(config$obsSave){
+#   file.create("out/psr_plot.txt")
+#   file.create("out/dsr_plot.txt")
+#   psr_head <- c("htime", "stormfrq", "stormdur", "flmort", "psurv", paste("day",prDays))
+#   print(psr_head)
+#   write(psr_head, file="out/dsr_plot.txt", sep="\t", append=TRUE, ncolumns=130)
+#
+#   file.create("out/storm_plot.txt")
+#   file.create("out/init_plot.txt")
+# }
 # file_arg <- grep("^--file=", arg, value = TRUE)
 # print(arg)
 
@@ -63,13 +78,20 @@ if(length(arg)==0){
   for(a in arg){
     # cat("length(arg) = ", length(arg),"arg = ",a)
     # cat("\t\tlength(arg) = ", length(arg))
+    if(a=="savend") saveNestData <- TRUE
+    if(a=="nomc") mcmcOff <- TRUE
+    if(a=="strue") saveTrueOnly <- TRUE
+    if(a=="nolx") lexpOff <- TRUE
     if(grepl("at\\w+", a)) atype <- stringr::str_extract(a, "(?<=at)\\w+") # extract words after "at"
-    if(grepl("mc\\w+", a)) mcType <- stringr::str_extract(a, "(?<=mc)\\w+") # extract words after "at"
-    if(grepl("r\\d+", a)) nruns <- stringr::str_extract(a, "(?<=r)\\d+") # extract words after "at"
+    if(grepl("mc\\w+", a)) mcType <- stringr::str_extract(a, "(?<=mc)\\w+") # extract words after "mc"
+    if(grepl("nn\\d+", a)) nNest <- stringr::str_extract(a, "(?<=nn)\\d+") # extract words after "r"
+    if(grepl("rep\\d+", a)) nruns <- stringr::str_extract(a, "(?<=rep)\\d+") # extract words after "r"
     if(grepl("db\\d+", a)) debug <- as.numeric(stringr::str_extract(a, "(?<=db)\\d+")) # extract words after "db"
-    if(grepl("par\\d+", a)) startParID <- stringr::str_extract(a, "(?<=par)\\d+") # extract words after "db"
-    if(grepl("rng\\d+", a)) rngSeed <- stringr::str_extract(a, "(?<=rng)\\d+") # extract words after "db"
-    if(grepl("msg:", a)) msg <- stringr::str_extract(a, "(?<=msg:).*") # extract words after "db"
+    if(grepl("par\\d+", a)) startParID <- stringr::str_extract(a, "(?<=par)\\d+") # extract words after "par"
+    if(grepl("rng\\d+", a)) rngSeed <- stringr::str_extract(a, "(?<=rng)\\d+") # extract words after "rng"
+    # if(grepl("savend\\d+", a)) rngSeed <- stringr::str_extract(a, "(?<=rng)\\d+") # extract words after "rng"
+    if(grepl("msg:", a)) msg <- stringr::str_extract(a, "(?<=msg:).*") # extract words after "msg:"
+    if(grepl("other:", a)) othVal <- stringr::str_extract(a, "(?<=other:).*") # extract words after "msg:"
     if(grepl("help", a)){
       cat("\n>> help-arg values: at<type> | mc<mctype> | r<nruns> | db<debug val> | par<start param id> | rng<start seed>")
       quit(save = "no", status = 1, runLast = FALSE)
@@ -83,6 +105,12 @@ if(length(arg)==0){
   cat("\t\t>> rngSeed arg =",rngSeed) ## NOTE: changing rng seed here does not affect output dir
   # cat("\t\t>> mcType arg =",mcType)
   cat("\t\t>> msg arg =",msg)
+  cat("\t\t>> nNest=",nNest)
+  cat("\t\t>> mcmcOff=",mcmcOff)
+  cat("\t\t>> othVal=",othVal)
+  cat("\t\t>> lexpOff=",lexpOff)
+  cat("\t\t>> saveTrueOnly=",saveTrueOnly)
+  # cat("\t\t>> save nest data=",saveNestData)
   # cat("\t\t>> debug =",debug)
   # if(a=="test") params$test <- TRUE
 } # atype <- "full"
@@ -92,7 +120,10 @@ if(length(arg)==0){
 # Sys.setenv(atypeR=atype, script_name="logexp.R")
 mc_file = "MCmatrix"
 # mc_file = "notr_MCmatrix"
-cat("\nlexp_setup: atype:",atype)
+other_name <- "otherVal"
+other_arg <- setNames(othVal, other_name)
+do.call(Sys.setenv, as.list(other_arg))
+cat("\nlexp_setup: othVal:",othVal)
 atype_name <- "atypeR"
 atype_arg <- setNames(atype, atype_name)
 do.call(Sys.setenv, as.list(atype_arg))
@@ -208,6 +239,7 @@ debug <- as.numeric(debug)
 #     obs <- import("nodebug_observer")
 #     nest <- import("nodebug_makeNests")
 # }
+# cat("\n")
 cat("\nCONFIG")
 ## this changes vals for R config, but not py config
 
@@ -219,6 +251,12 @@ rngSeed <- ifelse(!is.na(rngSeed), as.integer(rngSeed),as.integer(config$rngSeed
 rng <- np$random$default_rng(seed=rngSeed)
 startParID <- ifelse(!is.na(startParID),as.integer(startParID), as.integer(config$startParID))
 nreps <- ifelse(!is.na(nruns), as.integer(nruns),config$nreps)
+saveNestData <- ifelse(!is.na(saveNestData), saveNestData,config$saveNData)
+if(mcmcOff) config$mcmc <- FALSE
+if(lexpOff) config$logex <- FALSE
+if(saveTrueOnly) config$survSave <- "trueVal"
+# if(!is.na(nNest)) config$numNest <- nNest ## won't change anything since you've already loaded params
+cat("\t\t>> save nest data=",saveNestData)
 
   # config$msg = sprintf("%s\t\t%s",config$msg, paste(msg, sep=" "))
 
@@ -260,13 +298,15 @@ if(TRUE){
   obsVarNum = ifelse(obsVar=="nobs", 8, 10)
 
   # debug <- config$debug
-  suff <- sprintf("%s%s", config$rngSeed, atype)
+  # suff <- sprintf("%s%s", config$rngSeed, atype)
+  suff <- sprintf("%s%s", rngSeed, atype)
   # rng <- sett$rng
   # stormUnk <- py_to_r(sett$stormUnk)
   # if(debug>=4) cat(sprintf("\t|> debug: %s |>numpy rng: %s %s \n", debug, rng, class(rng)))
   homeDir <- "/home/wodehouse/Projects/sim_model"
   odir <- sett$odir
-  dirName <- sprintf("%s%s_inc", config$rngSeed, atype) # homedir <- "/home/wodehouse/Projects/sim_model"
+  # dirName <- sprintf("%s%s_inc", config$rngSeed, atype) # homedir <- "/home/wodehouse/Projects/sim_model"
+  dirName <- sprintf("%s%s_inc", rngSeed, atype) # homedir <- "/home/wodehouse/Projects/sim_model"
   outdir <- file.path(odir,dirName)
   if(!dir.exists(outdir)) dir.create(outdir, recursive=TRUE)
 
@@ -276,6 +316,7 @@ if(TRUE){
   pLists <- sett$pLists
   # print(unlist(py_to_r(pLists)))
   staticPar <- sett$staticPar # this one IS a list
+  # paramsArray <- funs$mk_param_list_list(parL=pLists,pStatic=staticPar, fdir=odir_r, suf)
   paramsArray <- sett$paramsArray
   pArrList <- sett$pArrList ## should be able to use in R? # if(debug>=2) print(pArrList)
   vary     <- py_to_r(sett$vary)
@@ -294,12 +335,16 @@ if(TRUE){
   # preDays <- parr$brDays
   breDays <- py_to_r(staticPar$brDays)
   brDays <- seq(breDays)
-  preDays <- 150
+  # preDays <- 150
+  preDays <- 120
   prDays <- seq(preDays)
   ## column names for nest data in R:
   # colnames = c('ID', 'init', 'end', 'fate', 'i', 'j', 'k', 'afate', 'nobs', 'fint', 'totobs')
 }
+# colnames = c('ID', 'init', 'end', 'fate')
+# colnames2 = c('ID', 'init', 'end', 'fate', 'i', 'j', 'k', 'afate', 'nobs', 'fint', 'totobs', 'sint')
 colnames = c('ID', 'init', 'end', 'fate', 'i', 'j', 'k', 'afate', 'nobs', 'fint', 'totobs', 'sint')
+print(length(colnames))
 
 ##--------------- MODEL LISTS: ----------------------------------------------
 # mList <- c("Surv~1", "Surv~Date", "Surv~Date+I(Date^2)", "Surv~Age", "Surv~Age+Date", "Surv~avDate")
@@ -331,11 +376,13 @@ cat("\n\t>> check modules imported to datsim.py:")
 # withr::with_options( list(width=120), print(unlist( py_vars(mod$imported) )) )
 # if(vary!="decayRate"){
 # if(all(vary!="decayRate")){
-if(!any(vary=="decayRate")){
-  evidProb <- sapply(c(3,5,7), function(x) funs$expDecay(1, staticPar$decayRate, x))
-  cat(sprintf("\n\t\t>>->> probability of fate evidence after 3 days:%s; 5 days:%s; 7 days:%s",
-              evidProb[1], evidProb[2], evidProb[3]))
-}
+# print(vary)
+# print(class(vary))
+# if(!any(vary=="decayRate")){
+#   evidProb <- sapply(c(3,5,7), function(x) funs$expDecay(1, staticPar$decayRate, x))
+#   cat(sprintf("\n\t\t>>->> probability of fate evidence after 3 days:%s; 5 days:%s; 7 days:%s",
+#               evidProb[1], evidProb[2], evidProb[3]))
+# }
 
 # if(config$testing=="yes"){
 #   cat("\ntrue init date list:\n")
@@ -371,6 +418,32 @@ if(debug>=0) cat("\n\tcoef names:", coef_names)
 # if(debug>=0) qvcalc::indentPrint(coef_names)
 coefList <- list()
 
+modNames <- list(c("null"),
+                 c("int","date"),
+                 c("int","age"),
+                 c("int","age","date"),
+                 c("int","avdate"))
+vcovNames <- unlist(sapply(modNames, function(x) outer(x, x, paste, sep="-")))
+# vcovNames <- sapply(modNames, function(x) unlist(outer(x, x, paste, sep="-")))
+cat("\n vcov names, length=", length(vcovNames))
+print(vcovNames)
+
+# vcovNames <- sapply(modNames, function(x){ paste(expand.grid(modNames[[x]]))
+
+               # })
+vcovMatMat <- array(NA,
+               dim=c(length(vcovNames), nreps, length(pArrList)),
+               dimnames=list(vcovNames,seq(nreps), seq(length(pArrList))))
+
+print(dimnames(vcovMatMat))
+
+cat("\n initPropMat, dimnames:")
+initPropMat <- array(NA,
+               dim=c(preDays, nreps, length(pArrList)),
+               dimnames=list(prDays,seq(nreps), seq(length(pArrList))))
+
+print(dimnames(initPropMat))
+
 # lexp_name <- c("leDSR1","lePSR1","leDSRdate","lePSRdate","lePSR2","lePSR3","lePSR4","lePSR5")
 if(config$logex){
   # lexp_name <- c("leDSR1","lePSR1","lePSR2","lePSR3","lePSR4","lePSR5","lePSR6")
@@ -388,8 +461,11 @@ if(config$logex){
 #   cat("\n\tlexp matrix dim:", dim(lexpMat))
 #   cat("\t\t& lexp val names:", lexp_all)
   # lexp_name <- c("leDSR1","lePSR1","seDSR1","leDSR2","leDSR3","leDSR4","leDSR5","lePSR2","lePSR3","lePSR4","lePSR5")
-  lexp_name <- c("leDSR1","leDSR2","leDSR3","leDSR4","leDSR5","lePSR1","lePSR2","lePSR3","lePSR4","lePSR5")
+  lexp_dsr <- c("leDSR1","leDSR2","leDSR3","leDSR4","leDSR5","lePSR1","lePSR2","lePSR3","lePSR4","lePSR5")
   lexp_se <- c("seDSR1","seDSR2","seDSR3","seDSR4","seDSR5")
+  # lexp_cov <- c("covDSR1","covDSR2","covDSR3","covDSR4","covDSR5")
+  # lexp_name <- c(lexp_dsr, lexp_se. lexp_cov)
+  lexp_name <- c(lexp_dsr, lexp_se)
 # lexp_supp <- c("leDSRava","lePSRava","leDSRavd","lePSRavd","leDSRavad","lePSRavad")
   lexp_supp <- c("leDSRavd","lePSRavd","leDSRava","lePSRava")
 # truedsr_name <- c("tDSR","tPSR","tDSRdate","tPSRdate","tDSRage","tPSRage")
@@ -397,14 +473,20 @@ if(config$logex){
   lexp_name <- c()
   lexp_supp <- c()
 }
+if(config$survSave!="all") lexp_name <- c()
 
-truedsr_name <- c("tDSR","tPSR","tDSR_date","tPSR_date")
+truedsr_name <- c("tDSR","tPSR","tDSR_date","tPSR_date","tDSR_dateage","tPSR_dateage")
 # truedsr_name <- c("tDSR","tPSR","tPSR_date","tDSR2","tPSR2","tPSR_date2")
 # if(config$mcmcOld){
 #   mcmc_name <- c("mcmcDSR","mcmcPSR","mcmcDFR","mcmcDSR_old","mcmcPSR_old","mcmcDFR_old")
 #   mayfdsr_name <- c("mayfDSR","mayfDSR_old")
 # } else {
-mcmc_name <- c("mcmcDSR","mcmcPSR","mcmcDPR","mcmcDSR_se","mcmcDPR_se")
+if(config$mcmc){
+  mcmc_name <- c("mcmcDSR","mcmcPSR","mcmcDPR","mcmcDSR_se","mcmcDPR_se")
+  # mcmc_name <- c("mcmcDSR","mcmcPSR","mcmcDPR","mcmcDSR_se","mcmcDPR_se","mcmcDSR_cov")
+} else {
+  mcmc_name <- c()
+}
 # mcmc_name <- c("mcmcDSR","mcmcPSR","mcmcDPR","mcmcSE")
 mayfdsr_name <- c("mayfDSR","mayfPSR","mayfVar","mayfSE","simplePSR")
   # mayfdsr_name <- c("mayfDSR")
@@ -416,7 +498,8 @@ if(config$mark) mark_name <- c("markDSR","markPSR","markDSRdate","markPSRdate","
 
 # dsr_name  <- c("parID","repID",truedsr_name,lexp_name, mcmc_name,mayfdsr_name, mark_name)
 # dsr_name  <- c(truedsr_name,lexp_name, mcmc_name,mayfdsr_name, mark_name)
-dsr_name  <- c(truedsr_name,lexp_name,lexp_se, mcmc_name,mayfdsr_name, mark_name)
+# dsr_name  <- c(truedsr_name,lexp_name,lexp_se, mcmc_name,mayfdsr_name, mark_name)
+dsr_name  <- c(truedsr_name,lexp_name, mcmc_name,mayfdsr_name, mark_name)
 # print(dsr_name)
 # print(length(dsr_name))
 dsrMat <- array(NA,
@@ -432,8 +515,9 @@ cat("\t\t& DSR val names:", dsr_name)
 # nval_name <- c("parID","repID","fld", "hat", "dsc", "excl","unk","mc",
 # nval_name <- c("parID","repID","fld", "hat", "sNest", "dsc", "excl","unk","mc",
                # "avfint","avk","maxi","aDSR","aPSR","mfDSR","appDSR")
-nval_name <- c("parID","repID","fld", "hat","fld_dsc","hat_dsc","fld_an","hat_an", "sNest",
-               "dsc", "excl","unk","mc","mc2", "avfint","avk","maxi","lint","aDSR","aPSR","mfDSR","appDSR")
+nval_name <- c("parID","repID","fld", "hat","fld_dsc","hat_dsc","fld_an",
+               "hat_an", "sNest", "dsc", "excl","unk","mc","mc2", "avfint",
+               "avk","maxi","lint","aDSR","aPSR","mfDSR","appDSR")
 cat("\n\tnVal names:", nval_name)
 # dsr_name <- c("leDSR","lePSR1","lePSR2","lePSR3","lePSR4","lePSR5","mcmcDSR","mcmcPSR","mcmcDFR","markDSR","markPSR")
 # allval_name <- c(nval_name, dsr_name,mcmc_name,mark_name)
@@ -461,15 +545,21 @@ if(config$mcmcOld){
 } else {
   # vnames <- c("true","app","lexp","mcmc","mayf")
   # vnames <- c("true","true2","app","lexp","lexp-pr","mcmc","mayf")
-  vnames <- c("true","true2","app","lexp","mcmc","mayf")
+  # vnames <- c("true","true2","app","lexp","mcmc","mayf")
+  vnames <- c("trueDate","lexp","mcmc","mayf","trueNull","app")
+  # vnames <- c("mayf","trueNull","app")
 }
+# if(config$logex) vnames <- c("lexp",vnames)
+# if(config$mcmc) vnames <- c("mcmc",vnames)
+# vnames <- c("trueDate",vnames)
 # vnames2 <- paste0("dsr_",vnames)
 vnames2 <- paste0("psr_",vnames)
 diffnames <- paste0("diff_",vnames[-1])
 allnames <- c("number_storms","storm_mortality","obs_interval","discovery_probability","evidence_decay_rate",
               # "dsr_given","number_discovered","number_excluded",vnames2,diffnames)
-              "dsr_given","total_number_hatched", "total_number_flooded","number_discovered","number_excluded",
-              "proportion_excluded","proportion_misclassified",
+              # "dsr_given","dsr_true_d","survey_days","total_number_hatched", "total_number_flooded",
+              "dsr_given","dsr_true_d","total_number_hatched", "total_number_flooded",
+              "number_discovered","number_excluded", "proportion_excluded","proportion_misclassified",
               vnames2,diffnames)
 # print(allnames)
 # valMat <- array(NA, dim=c(length(vnames), nreps,nparsets), dimnames=list(vnames,seq(nreps), seq(nparsets)))
@@ -485,11 +575,35 @@ obsIntList <- c()
 # trueDSRmat <- array(NA, dim=c(150,nreps,nparsets))
 
 # save propInit in same matrix? should be same length
-trueDSRmat <- array(NA, dim=c(2,preDays,nreps,nparsets))
+# trueDSRmat <- array(NA, dim=c(2,preDays,nreps,nparsets))
+
+## account for longest possible incubationtime:
+## 3 for the number of models used to calculate true fate
+## plus one column for age vals and one for date vals
+## store propInit elswhere
+# trueDSRmat <- array(NA, dim=c(preDays*28,3,nreps,nparsets),
+                    # dimnames=list(seq(preDays*28), c("true", "true.date", "true.dateage"), seq(nreps), seq(nparsets))
+# trueDSRmat <- array(NA, dim=c(3,preDays*28,nreps,nparsets),
+                    # dimnames=list( c("true", "true.date", "true.dateage"),seq(preDays*28), seq(nreps), seq(nparsets))
+trueDSRmat <- array(NA, dim=c(5,preDays*28,nreps,nparsets),
+                    dimnames=list( c("date","age","true", "true.date", "true.dateage"),seq(preDays*28), seq(nreps), seq(nparsets))
+)
+cat("\ntrueDSRmat dimnames:") 
+qvcalc::indentPrint(dimnames(trueDSRmat))
+cat("\n>> max number of rows for trueDSR:", preDays*c(16,20,28))
+cat("\t>> predict for specific dates/ages instead?")
 # propInitmat <- array(NA, dim=c(preDays,nreps,nparsets))
 # dateDSRmat <- array(NA, dim=c(preDays,nreps,nparsets))
 modDSRmat <- array(NA, dim=c(nmod+1,preDays,nreps,nparsets))
 # print(dim(modDSRmat))
 # print(dim(trueDSRmat))
+ncol <- length(colnames)
+cat("ncol=", ncol)
+# nDataMat <- array(NA, dim=c(250,length(colnames), nreps, nparsets)) 
+nestDataMat <- array(NA, dim=c(100,length(colnames), nreps, nparsets), dimnames=list(seq(100), colnames, seq(nreps), seq(nparsets))) 
+cat("\nnest data matrix dimensions:")
+print(dim(nestDataMat))
+fateMat <- array(NA, dim=c(250,nreps,nparsets), dimnames=list(seq(250), seq(nreps), seq(nparsets)))
+a_fateMat <- array(NA, dim=c(250,nreps,nparsets), dimnames=list(seq(250), seq(nreps), seq(nparsets)))
 
 Sys.setenv(printset=FALSE) 

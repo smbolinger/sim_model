@@ -1,0 +1,12 @@
+[legacy/profiles:/:b1dcc9dd-5262-4d8d-a863-c897e6d979b9]
+audible-bell=false
+background-color='rgb(12,17,18)'
+background-transparency-percent=20
+default-size-columns=320
+default-size-rows=120
+foreground-color='rgb(189,216,223)'
+palette=['rgb(9,69,85)', 'rgb(194,31,158)', 'rgb(66,179,158)', 'rgb(128,154,24)', 'rgb(73,184,245)', 'rgb(167,94,212)', 'rgb(119,102,190)',
+'rgb(167,158,175)', 'rgb(27,135,150)', 'rgb(143,20,135)', 'rgb(84,200,144)', 'rgb(113,233,40)', 'rgb(38,107,242)', 'rgb(160,43,189)', 'rgb(112,87,253)', 'rgb(202,228,247)']
+use-theme-colors=false
+use-theme-transparency=false
+use-transparent-background=true

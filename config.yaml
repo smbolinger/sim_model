@@ -1,9 +1,5 @@
 default:
   nreps: 2
-  mark: False
-  mcmc: True
-  # mcmc: False
-  logex: True
   testing: "yes"
   # optimizer: "Nelder-Mead"
   # optimizer: "SLSQP"
@@ -12,17 +8,23 @@ default:
   # optimizer: "bfgs"
   # optimizer: "nelder"
   rngSeed: 71358
+  saveNData: False
   stormFate: 1 # 0=use val from param list, 1=false, 2=true
   hTime: 0 #  0=use val from param list, 1=16, 2=20, 3=28
-  numNests: 0 # 1=250, 2=500, 0=use val from list
+  numNests: 0 # 1=250, 2=500, 3=100, 4=50, 0=use val from list
   mcType: 0 # 1=fail, 2=unk
+  mark: False
+  mcmc: True
+  # mcmc: False
+  logex: True
   rangeVar: 0
-  saveNData: False
   predict: False
-  predSave: "none"
-  coefSave: "none"
-  obsSave: False
+  survSave: "all"
+  coefSave: "all"
+  ndatSave: True
   plotPred: False
+  obsSave: False
+  predSave: False
   startParID: 1
   debug: 2
   debugLL: 0
@@ -37,6 +39,7 @@ default:
   optimGlob: True
   optimFunc: "scipy"
   other: ""
+  addMC: False
   msg: ""
   numOut: 11 # only used when saving ml vals to matrix
   mcmcOld: False
@@ -55,39 +58,53 @@ full:
   # nreps: 300
   # nreps: 500
   nreps: 200
-  mark: False
-  # mcmc: False
-  mcmc: True
-  logex: True
-  saveNData: False
-  predict: False
-  testing: "no"
+  # logex: False
   # optimizer: "Nelder-Mead"
   # optimizer: "SLSQP"
   # optimizer: "BFGS"
   # optimizer: "L-BFGS-B"
   # optimizer: "bfgs"
   # optimizer: "nelder"
-  #rngSeed: 1111953
-  #rngSeed: 11153
-  #rngSeed: 7131958
+  # testing: "yes" ## this was set to "yes" for quite a while...since july at least (aug 01 now)
   rngSeed: 71358
-  #rngSeed: 10281991
+  #rngSeed: 7131958
+  #rngSeed: 1111953
+  rngSeed: 11153
+  #rngSeed: 10590  
+  #rngSeed: 51789
+  #rngSeed: 1024 # rngSeed: 1111953
+  #rngSeed: 102489 # rngSeed: 1111953
+  #rngSeed: 11250 # rngSeed: 1111953
+  #rngSeed: 6600 # rngSeed: 1111953
+  #rngSeed: 101888
+  #rngSeed: 10281991 #rngSeed: 102891
+  # nostorm:
+  #rngSeed: 61389
   #rngSeed: 6131989
-  #rngSeed: 8291985 
-  #rngSeed: 5171989
-  #rngSeed: 10181988
-  stormFate: 3 # 0=use val from param list, 1=false, 2=true, 3=false & stormUnk==True
+  #rngSeed: 82985 # rngSeed: 8291985 
+  #rngSeed: 10191989 # rngSeed: 5171989
+  #rngSeed: 8311989 # rngSeed: 5171989
+  startParID: 1
+  stormFate: 2 # 0=use val from param list, 1=stormFate=false & stormUnk=True, 2=stormFAte=true, 3=false & stormUnk=False
   hTime: 0 #  0=use val from param list, 1=16, 2=20, 3=28
-  numNests: 0 # 1=250, 2=500, 0=use val from list
+  numNests: 0 # 1=250, 2=500, 3=100, 4=50, 0=use val from list
   mcType: 0 # 0=use val from param list, 1=fail, 2=unk
   rangeVar: 0
-  predSave: "none"
-  coefSave: "none"
-  obsSave: False
+  saveNData: False
+  mark: False
+  mcmc: True
+  # mcmc: False
+  logex: True
+  testing: "no"
+  predict: False
+  # survSave: "trueVal" # "all"=all DSR/PSR/SE vals; "trueVal"=just the "true" vals
+  survSave: "all" # "all"=all DSR/PSR/SE vals; "trueVal"=just the "true" vals
+  coefSave: "all"
+  ndatSave: True
   plotPred: False
-  startParID: 1
-  # predSave: "all"
+  obsSave: False
+  predSave: False
+  # survSave: "all"
   debug: 0
   debugLL: 4
   debugNests: 0
@@ -100,7 +117,10 @@ full:
   optimizer: "trust-constr"
   optimGlob: False
   optimFunc: "scipy"
+  # other: "high_sdecay"
   other: ""
+  # addMC: False
+  addMC: True
   msg: ""
   numOut: 11
   mayfStart: False
@@ -113,15 +133,8 @@ full:
 test:
   # nreps: 100
   nreps: 3 
-  mark: False
-  # mcmc: False
-  mcmc: True
-  logex: True
   # nreps: 100
   # saveNData: True
-  saveNData: False
-  predict: False
-  testing: "yes"
   # optimizer: "L-BFGS-B"
   # optimizer: "SLSQP"
   # optimGlob: True
@@ -130,33 +143,46 @@ test:
   # optimizer: "bfgs"
   # optimizer: "nelder"
   #rngSeed: 1111953
-  rngSeed: 7131958
+  #rngSeed: 7131958
   #rngSeed: 82985
   #rngSeed: 102891
-  #rngSeed: 10181988
-  predSave: "none"
-  coefSave: "none"
-  obsSave: False
-  plotPred: False
+  # rngSeed: 10181988
+  rngSeed: 613
   startParID: 1
   stormFate: 0 # 0=use val from param list, 1=false, 2=true
   hTime: 0 #  0=use val from param list, 1=16, 2=20, 3=28
-  numNests: 0 # 1=250, 2=500, 0=use val from list
+  numNests: 0 # 1=250, 2=500, 3=100, 4=50, 0=use val from list
   mcType: 0 # 0=use val from params; 1=hatch/fail; 2=unk
   rangeVar: 4 # 1=probSurv; 2=decayRate; 3=discProb; 4=stormFrq; 5=obsint
+  saveNData: False
+  mark: False
+  # mcmc: False
+  mcmc: True
+  # logex: False
+  logex: True
+  predict: False
+  testing: "yes"
+  survSave: "all"
+
+  coefSave: "all"
+  ndatSave: True
+  plotPred: False
+  obsSave: False
+  predSave: False
   debug: 2
-  debugLL: 2 #mcmc
-  debugNests: 3 #nest creation
+  debugLL: 1 #mcmc
+  debugLogEx: 3
+  debugNests: 2 #nest creation
   debugM: 0 #mark
-  debugObs: 3
+  debugObs: 4
   debugFlood: 0
-  debugLogEx: 2
-  debugDSR: 2
+  debugDSR: 4
   debugSummary: 0
   optimizer: "trust-constr"
   optimFunc: "scipy"
   optimGlob: False
   other: ""
+  addMC: True
   msg: ""
   numOut: 11
   mayfStart: False
@@ -170,51 +196,54 @@ test:
   # likeDir: "/home/wodehouse/Projects/sim_model/out"
 
 ctrl:
-  nreps: 500
-  # nreps: 300
+  # nreps: 500
+  nreps: 200
+  # testing: "yes"
+  #rngSeed: 8291985   #rngSeed: 6131989
+  # rngSeed: 6131989   #rngSeed: 82985
+  #rngSeed: 1051990
+  #rngSeed: 5171989
+  rngSeed: 3698752
+  #rngSeed: 3710330
+  ##storm control:
+  # rngSeed: 810
+  #rngSeed: 2007 
+  startParID: 1
+  stormFate: 0 # 0=use val from param list, 1=false, 2=true
+  hTime: 0 #  0=use val from param list, 1=16, 2=20, 3=28
+  numNests: 0 # 1=250, 2=500, 3=100, 4=50, 0=use val from list
+  mcType: 0 # 0=fail, 1=unk
+  rangeVar: 0
+  saveNData: False
   mark: False
   mcmc: True
   # mcmc: False
   logex: True
-  saveNData: False
   predict: False
-  # testing: "yes"
   testing: "no"
-  # optimizer: "Powell"
-  # optimizer: "SLSQP"
-  # optimizer: "L-BFGS-B"
-  # optimizer: "BFGS"
-  # optimizer: "Nelder-Mead"
-  # optimizer: "bfgs"
-  # optimizer: "nelder"
-  #rngSeed: 82985
-  #rngSeed: 6131989
-  #rngSeed: 61389 rngSeed: 82985
-  #rngSeed: 1051990
-  rngSeed: 105199101
-  stormFate: 0 # 0=use val from param list, 1=false, 2=true
-  hTime: 0 #  0=use val from param list, 1=16, 2=20, 3=28
-  numNests: 0 # 1=250, 2=500, 0=use val from list
-  mcType: 0 # 0=fail, 1=unk
-  rangeVar: 0
-  predSave: "none"
-  coefSave: "none"
-  obsSave: False
+  survSave: "all"
+  coefSave: "all"
+  ndatSave: True
   plotPred: False
-  startParID: 1
+  obsSave: False
+  predSave: False
   debug: 0
-  debugLL: 4
-  debugNests: 0 
+  debugLL: 1
+  debugNests: 1 
   debugM: 0
-  debugObs: 3
+  debugObs: 4
   debugFlood: 0
-  debugLogEx: 4
-  debugDSR: 4
+  debugLogEx: 1
+  debugDSR: 1
   debugSummary: 0
+  # optimizer: "Powell" optimizer: "SLSQP"
+  # optimizer: "L-BFGS-B"
+  # optimizer: "BFGS" optimizer: "Nelder-Mead" optimizer: "bfgs" optimizer: "nelder"
   optimizer: "trust-constr"
   optimFunc: "scipy"
   optimGlob: True
   other: ""
+  addMC: False
   msg: ""
   numOut: 11
   mayfStart: False

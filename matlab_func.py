@@ -29,13 +29,15 @@ if atype=="norm":
   jconfig.update("jax_explain_cache_misses", True)
 
 @jax.jit
-def jPolyLike(pZero,dVal,fateVal,sclf):
+def jPolyLike(pZero,dVal,fateVal,sclf,db=0):
   """
     NOTE: things that rely on pZero need to be created in this function
     not the wrapper, so we can call hessian with same args
   """
   pZero = sclf*pZero ## pZero automatically promoted to jnp.array
   # pZero = jnp.array(pZero)
+  # if db>=2:
+  # jax.debug.print("transformed pZero: {pZ}", pZ=pZero)
 
   s0 = 1.0 - jnp.sum(pZero)
   pZero_0 = pZero[0] ## explicitly separate to avoid dim mismatch
@@ -52,9 +54,12 @@ def jPolyLike(pZero,dVal,fateVal,sclf):
 
   _, mPowStack = jax.lax.scan(power_step, jnp.eye(3), None, length=12)
   mPowFate = mPowStack[dVal, fateVal, 0]
+
+  ## these vals should stay constant - should only print if changed:
   print(
     f"\t\t{dVal.shape[0]=}\t{fateVal.shape[0]=}\t{M}"
-    f"\t{mPowStack.shape[0]=}\t{mPowFate.shape[0]=}") ## these vals should stay constant
+    f"\t{mPowStack.shape[0]=}\t{mPowFate.shape[0]=}") 
+
   # jax.debug.print("\nmPowFate={mpf}",mpf=mPowFate)
   # jax.debug.print("\ndVal={dval}",dval=dVal)
   # jax.debug.print("\jnp.log(mPowFate)={dval}",dval=jnp.log(mPowFate))
@@ -73,7 +78,8 @@ def jplWrapper(pZero,dVals,fates,sclf):
 ll_valgrad = jax.value_and_grad(jPolyLike)
 
 # def PolyMort(obsData,survey,config,useJax=False,scl_fac=0.1,plt=True,suff=""):
-def PolyMort(obsData,survey,par,config,useJax=True,scl_fac=0.05,plt=False,db=0,suff=""):
+# def PolyMort(obsData,survey,par,config,useJax=True,scl_fac=0.05,plt=False,db=0,suff=""):
+def PolyMort(obsData,survey,par,config,useJax=True,scl_fac=0.15,plt=False,db=0,suff=""):
   outLen = 2400 if par.numNests<=300 else 3200
   if plt: outLen = outLen + 1000
 
@@ -124,6 +130,7 @@ def PolyMort(obsData,survey,par,config,useJax=True,scl_fac=0.05,plt=False,db=0,s
   fun = jplWrapper 
   jaco = True 
   pZero = rng.uniform(low=0.2,high=0.7,size=(K)) 
+  # pZero = rng.uniform(low=0.1,high=0.9,size=(K)) 
 
 #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # if config.testing=="yes" and db>=2:
@@ -187,7 +194,7 @@ def mk_obs_mat(obsData,survey,config,exp1=False,db=0):
   elif not isinstance(obsData, np.ndarray):
     obsData = np.array(obsData)
 
-  if db>=2:
+  if db>=4:
     print(f"\tmk_obs_mat: in=")
     dfPrint(obsData,nprint=30)
   nNest = obsData.shape[0]
@@ -203,11 +210,11 @@ def mk_obs_mat(obsData,survey,config,exp1=False,db=0):
   else:
     # first,last,fate = ff,la,afate
     first,last,fate = ff,lc,afate
-  if db>=2:
+  if db>=4:
     print(f"\t\tmk_obs_mat: {nrows=} {len(first)=}"
           f" {len(last)=} {len(fate)=}\n\t\t {nObs=}")
     print(f"\t\tmk_obs_mat: {type(out)=} {out.dtype=}")
-  if db>=4:
+  if db>=5:
     print(f"\t\tmk_obs_mat: {fate=} {first=} {last=}")
     # print(f"mk_obs_mat: {fate=} {expos.T=}")
   #   print(f"mk_obs_mat: {endDay.T=} {ID.dtype=}{expos.dtype=} {init.dtype=}")
@@ -220,7 +227,7 @@ def mk_obs_mat(obsData,survey,config,exp1=False,db=0):
 
   # expos, obsDay = expo
   expos, obsDay = calc_daily_expo(nNest,survey,first,last,config)
-  if db>=2:
+  if db>=4:
     print(f"\tmk_obs_mat: {ID.dtype=}{expos.dtype=} {init.dtype=}")
     print(f"\tmk_obs_mat: {len(ID)=}{len(expos)=} {len(init)=}")
   endDay = np.cumsum(nObs) -1 #+> zero-indexed

@@ -9,7 +9,7 @@ file="/home/wodehouse/Projects/sim_model/all_dsr.R"
 if [ $# -eq 0 ]; then
     echo ">> No arguments provided!"
     # echo -e "\t>> Usage:  [at<type>] [all_dsr.R args (optional): r<nrun>, db<debuglevel>, par<start param id>, rng<start seed> ] [out:<outfile suffix (optional)>] ["msg: message string "] [other arguments passed to datsim.py]"
-    echo -e '\t>> Usage:  [at<type>] [all_dsr.R args (optional): r<nrun>, db<debuglevel>, par<start param id>, rng<start seed> ] [out:<outfile suffix (optional)>] ["msg: message string"] [other arguments passed to script]'
+    echo -e '\t>> Usage:  [at<type>] [all_dsr.R args (optional): rep<nrun>, db<debuglevel>, par<start param id>, rng<start seed>, cl<cpu limit>, ml<memory limit AS DECIMAL>] [nomc] [nolx] [savend] [out:<outfile suffix (optional)>] ["msg: message string"] [other arguments passed to script]'
     # echo ">> analysis type options:"
     sed -n '/ANALYSIS TYPE - GROUPS/,+5p' rsettings.py | grep -v 'ANALYSIS TYPE - GROUPS' | tr '\n' '  ' | xargs echo ">===> atype values: " # should output the results of the pipes AFTER "check config"
     echo -e '\t>> run again with "help" for more info on analysis types'
@@ -46,28 +46,36 @@ if grep -qw "$atype" <<< "$testVals"; then
   ## if line does not contain 0+ blanks followed by # at beginning of line, print it
   ## also substitute "" for anything follpwing #
   # sed -n '/^[[:blank:]]*#/!{/^test:/,/debugSummary/p}' config.yaml | tr '\n' '  ' | xargs echo -e "\n>===> CONFIG:" # should output the results of the pipes AFTER "check config"
+  # config=$(sed -n '/^test:/,/debugSummary/ { /^[[:blank:]]*#/! { s/#.*//; p; }  }' config.yaml | tr '\n' '|')# should output the results of the pipes AFTER "check config"
+  configStr=$(sed -n '/^test:/,/debugSummary/ { /^[[:blank:]]*#/! { s/#.*//; p; }  }' config.yaml | tr '\n' ' ' ) # should output the results of the pipes AFTER "check config"
   sed -n '/^test:/,/debugSummary/ { /^[[:blank:]]*#/! { s/#.*//; p; } }' config.yaml | tr '\n' '|' | xargs echo -e ">===> CONFIG (***CL args or atype can override):" # should output the results of the pipes AFTER "check config"
   echo -n -e "\t*** TESTING ***"
 elif grep -qw "$atype" <<< "$fullVals"; then
   con="full"
+  configStr=$(sed -n '/^full:/,/debugSummary/ { /^[[:blank:]]*#/! { s/#.*//; p; }  }' config.yaml | tr '\n' ' ' ) # should output the results of the pipes AFTER "check config"
   sed -n '/^full:/,/debugSummary/ { /^[[:blank:]]*#/! { s/#.*//; p; }  }' config.yaml | tr '\n' '|' | xargs echo -e ">===> CONFIG (***CL args or atype can override):" # should output the results of the pipes AFTER "check config"
   echo -n -e "\t*** FULL ***"
 elif [[ "$atype" == "$control" ]]; then
   con="control"
+  configStr=$(sed -n '/^ctrl:/,/debugSummary/ { /^[[:blank:]]*#/! { s/#.*//; p; }  }' config.yaml | tr '\n' ' ' ) # should output the results of the pipes AFTER "check config"
   sed -n '/^ctrl:/,/debugSummary/ { /^[[:blank:]]*#/! { s/#.*//; p; }  }' config.yaml | tr '\n' '|' | xargs echo -e ">===> CONFIG (***CL args or atype can override):" # should output the results of the pipes AFTER "check config"
   echo -n -e "\t*** CONTROL ***"
 else
   con="default"
+  configStr=$(sed -n '/^default:/,/debugSummary/ { /^[[:blank:]]*#/! { s/#.*//; p; }  }' config.yaml | tr '\n' ' ' ) # should output the results of the pipes AFTER "check config"
   sed -n '/^default:/,/debugSummary/ { /^[[:blank:]]*#/! { s/#.*//; p; }  }' config.yaml | tr '\n' '|' | xargs echo -e ">===> CONFIG (***CL args or atype can override):" # should output the results of the pipes AFTER "check config"
   echo -n -e "\t*** USE DEFAULTS ***"
 fi
 # echo grep -w "${1:2}" fullVals
-# echo "config: $con"
+# echo "config: $configStr"
+# echo "$config"
 
+clim=150
 date=$(date +'%d%b')
 now=$(date +'%H:%M:%S')
 dstr=$(date +'%Y%m%d')
-datestr="${date:0:2}${-}${date:2}"
+# datestr="${date:0:2}${-}${date:2}"
+datestr="${date:0:2}-${date:2}"
 argList=() ## args that will be passed
 rrList=()
 # testOn="false"
@@ -84,6 +92,12 @@ addDebug() {
 for val in "$@"; do # loop through all CLI arguments
   if [[ "$val" == *"out:"* ]]; then #+> need the double brackets
     pref+="-${val:4}" # all characters starting at index 4 (everything after 'out:'
+  elif [[ "$val" == *"cl"* ]]; then #+> need the double brackets
+    clim=("${val:2}")
+  elif [[ "$val" == *"ml"* ]]; then #+> need the double brackets
+    export XLA_PYTHON_CLIENT_MEM_FRACTION=("${val:2}")
+  elif [[ "$val" == *"other:"* ]]; then #+> need the double brackets
+    argList+=("$val")
   elif [[ "$val" == *"msg:"* ]]; then #+> need the double brackets
     argList+=("$val")
   elif [[ "$val" == *"r"* ]]; then #+> need the double brackets
@@ -95,6 +109,12 @@ for val in "$@"; do # loop through all CLI arguments
   elif [[ "$val" == *"rng"* ]]; then 
     argList+=("$val")
   elif [[ "$val" == *"db"* ]]; then 
+    argList+=("$val")
+  elif [[ "$val" == *"savend"* ]]; then 
+    argList+=("$val")
+  elif [[ "$val" == *"nomc"* ]]; then 
+    argList+=("$val")
+  elif [[ "$val" == *"nolx"* ]]; then 
     argList+=("$val")
   else
     pref+="-$val" # all characters starting at index 4 (everything after 'out:'
@@ -109,9 +129,32 @@ outFile="/home/wodehouse/Projects/sim_model/${date}-r${pref}.out"
 # echo "outfile = $outFile"
 # echo "${argList[@]}"
 
-echo -e " \n [] [] [] [] $datestr - $now [] [] [] PID = $mypid [] [] [] output file = $outFile [] [] [] [] [] []" >> "$outFile"
-echo -n -e "|> Rscript "$file" "${argList[@]}" >> "$outFile" 2>&1 &"
+# echo -n -e "|> Rscript "$file" "${argList[@]}" >> "$outFile" 2>&1 &"
+echo -e "|> Rscript "$file" "${argList[@]}" >> "$outFile" 2>&1 &"
 Rscript "$file" "${argList[@]}" >> "$outFile" 2>&1 &
-mypid="$!"
+# mypid="$!"
+mypid=$!
+echo -e " \n [] [] [] [] $datestr - $now [] [] [] PID = $mypid [] [] [] output file = $outFile [] [] [] [] [] []" >> "$outFile"
 # echo -n "args to pass to script: ${argList[@]} |"
-echo " | PID = $mypid"
+# echo -n " | PID = $mypid"
+echo -e -n "\t\t>>>> PID = $mypid"
+# echo -e -n ">> $datestr - $now >>>> PID = $mypid" >> "PIDs.txt"
+sleep 3
+cpulimit -p "$mypid" -l "$clim" &
+clpid=$!
+
+echo -n " | cpulimit PID = $clpid"
+echo -n " | limiting CPU to $clim % | "
+echo " | cpulimit PID = $clpid" >> "$outFile"
+
+# rngSeed=$(sed -n '/^rngSeed: /,+2p' rsettings.py | tr '\n' '  ') 
+# rngSeed=$(grep -oP "rngSeed:\s+\K\w+" "$config") 
+# rngSeed=$(grep -oP '^rngSeed:\s+\K\d+' <<< "$config") 
+# sfate=$(grep -oP '^stormFate:\s+\K\d' <<< "$config") 
+# mcType=$(grep -oP '^mcType:\s+\K\d' <<< "$config") 
+# numNests=$(grep -oP '^numNests:\s+\K\d' <<< "$config") 
+# echo "seed= $rngSeed ; sfate= $sfate ; mctype= $mcType ; num nests= $numNests"
+echo -e -n ">> $datestr - $now >>>> PID: $mypid | cpulimit PID: $clpid " >> "PIDs.txt"
+echo -e "|> Rscript "$file" "${argList[@]}" >> "$outFile" 2>&1 &" >> "PIDs.txt"
+# echo -e "$configStr \n" >> "PIDs.txt"
+echo -e "  >> config (before changes): $configStr \n" >> "PIDs.txt"

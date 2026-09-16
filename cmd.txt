@@ -1,0 +1,80 @@
+   [1;90m-[0m [34m11Jan[0m [1;90m--[0m [44;36minclude[0m
+   [1;90m-[0m [34m11Jan[0m [1;90m-[0m[2mI[0m [1;45;32mlib64[0m [1;90m->[0m [44;36mlib[0m
+   [1;90m-[0m [34m11Jan[0m [1;90m-[0m[2mI[0m [44;36mlib[0m
+   [1;90m-[0m [34m11Jan[0m [1;90m-[0m[2mI[0m [44;36mbin[0m
+   [1;90m-[0m [34m10Mar[0m [1;90m-[0m[2mI[0m [44;36m.venv[0m
+   [1;90m-[0m [34m07Apr[0m [1;90m--[0m [44;36mrenv[0m
+   [1;90m-[0m [34m24Apr[0m [1;90m--[0m [44;36mmark2[0m
+   [1;90m-[0m [34m29Apr[0m [1;90m-[0m[2mI[0m [44;36manalysis[0m
+   [1;90m-[0m [34m27Jun[0m [1;90m--[0m [44;36mfigs[0m
+   [1;90m-[0m [34m27Jul[0m [1;90m--[0m [44;36m'Untitled Folder'[0m
+   [1;90m-[0m [34m27Jul[0m [1;90m-[0m[2mI[0m [44;36mout[0m
+   [1;90m-[0m [34m27Jul[0m [1;90m-[0m[2mI[0m [44;36mlogs[0m
+   [1;90m-[0m [34m27Jul[0m [1;90m--[0m [44;36mother[0m
+   [1;90m-[0m [34m28Jul[0m [1;90m-[0m[2mI[0m [44;36m.git[0m
+   [1;90m-[0m [34m28Jul[0m [1;90m-[0m[2mI[0m [44;36m__pycache__[0m
+   [1;90m-[0m [34m29Jul[0m [1;90m-[0m[34mM[0m [44;36mdocs[0m
+ [32m471[0m [34m08Jan[0m [1;90m--[0m [34mstorm_init3.csv[0m
+ [32m173[0m [34m11Jan[0m [1;90m--[0m pyvenv.cfg
+[1;32m4.0k[0m [34m09Mar[0m [1;90m--[0m [1;4;33mREADME.md[0m
+   [32m0[0m [34m19Mar[0m [1;90m--[0m sim_model.Rproj
+[1;32m321k[0m [34m19Mar[0m [1;90m--[0m renv.lock
+  [32m26[0m [34m19Mar[0m [1;90m--[0m .Rprofile
+[1;32m427k[0m [34m08Apr[0m [1;90m--[0m [1;35mRplots.pdf[0m
+ [1;32m23k[0m [34m08Apr[0m [1;90m--[0m gg_effects
+ [1;32m25k[0m [34m05Jun[0m [1;90m--[0m [36mprint_func.py[0m
+ [1;32m34k[0m [34m26Jun[0m [1;90m--[0m [36mMCmatrix.py[0m
+[1;32m236k[0m [34m27Jun[0m [1;90m--[0m poetry.lock
+ [32m876[0m [34m27Jun[0m [1;90m--[0m [1;45;34mpyproject.toml[0m
+ [1;32m11k[0m [34m30Jun[0m [1;90m-[0m[2mI[0m [30moutval.txt[0m
+[1;32m1.6k[0m [34m02Jul[0m [1;90m--[0m [36minit.py[0m
+[1;32m5.5k[0m [34m04Jul[0m [1;90m--[0m [1;32mrun_simul.sh[0m
+[1;32m4.2k[0m [34m07Jul[0m [1;90m--[0m [36mgetClass.py[0m
+ [1;32m10k[0m [34m19Jul[0m [1;90m-[0m[2mI[0m [1;30m19Jul-r-3.out[0m
+[1;32m399k[0m [34m19Jul[0m [1;90m-[0m[2mI[0m [1;30m19Jul-r-1.out[0m
+[1;32m349k[0m [34m19Jul[0m [1;90m-[0m[2mI[0m [1;30m19Jul-r-2.out[0m
+ [1;32m50k[0m [34m20Jul[0m [1;90m--[0m [36mdatsim.py[0m
+[1;32m449k[0m [34m20Jul[0m [1;90m-[0m[2mI[0m [1;30m20Jul-r.out[0m
+[1;32m288k[0m [34m20Jul[0m [1;90m-[0m[2mI[0m [1;30m20Jul-r-range.out[0m
+[1;32m1.5k[0m [34m21Jul[0m [1;90m-[0m[2mI[0m [1;30m21Jul-r-q.out[0m
+[33m4.6M[0m [34m21Jul[0m [1;90m-[0m[2mI[0m [1;30m21Jul-r.out[0m
+ [1;32m32k[0m [34m21Jul[0m [1;90m-[0m[2mI[0m [1;30m21Jul-r-range.out[0m
+[1;32m843k[0m [34m21Jul[0m [1;90m-[0m[2mI[0m [1;30m21Jul-r-1.out[0m
+[33m1.2M[0m [34m21Jul[0m [1;90m-[0m[2mI[0m [1;30m21Jul-r-3.out[0m
+ [32m216[0m [34m22Jul[0m [1;90m--[0m .gitignore
+[33m2.5M[0m [34m22Jul[0m [1;90m-[0m[2mI[0m [1;30m22Jul-r-range.out[0m
+[1;32m335k[0m [34m22Jul[0m [1;90m-[0m[2mI[0m [1;30m1-22Jul-r-2.out[0m
+ [1;32m29k[0m [34m22Jul[0m [1;90m-[0m[34mM[0m [36mdsrCalc.py[0m
+ [1;32m43k[0m [34m22Jul[0m [1;90m-[0m[2mI[0m [1;30m22Jul-r-2.out[0m
+[1;32m187k[0m [34m22Jul[0m [1;90m-[0m[2mI[0m [1;30m22Jul-r-ctrl.out[0m
+[33m1.6M[0m [34m22Jul[0m [1;90m-[0m[2mI[0m [1;30m22Jul-r-2-test.out[0m
+[33m1.8M[0m [34m22Jul[0m [1;90m-[0m[2mI[0m [1;30m22Jul-r.out[0m
+[1;32m319k[0m [34m22Jul[0m [1;90m-[0m[2mI[0m [1;30m22Jul-r-1.out[0m
+ [1;32m13k[0m [34m23Jul[0m [1;90m-[0m[34mM[0m [36mmatlab_func.py[0m
+ [1;32m28k[0m [34m23Jul[0m [1;90m-[0m[34mM[0m [36mobserver.py[0m
+ [1;32m17k[0m [34m23Jul[0m [1;90m-[0m[34mM[0m [36mhelpers.py[0m
+[1;32m840k[0m [34m23Jul[0m [1;90m-[0m[2mI[0m [1;30m23Jul-r-3.out[0m
+[1;32m791k[0m [34m23Jul[0m [1;90m-[0m[2mI[0m [1;30m23Jul-r-2.out[0m
+ [1;32m42k[0m [34m23Jul[0m [1;90m-[0m[34mM[0m [1;35mlexp_fun.R[0m
+ [33m12M[0m [34m23Jul[0m [1;90m-[0m[2mI[0m [1;30m23Jul-r.out[0m
+[1;32m136k[0m [34m23Jul[0m [1;90m-[0m[2mI[0m [1;30m23Jul-r-ns2.out[0m
+[1;32m148k[0m [34m23Jul[0m [1;90m-[0m[2mI[0m [1;30m23Jul-r-ns1.out[0m
+[1;32m707k[0m [34m24Jul[0m [1;90m-[0m[2mI[0m [1;30m24Jul-r-1.out[0m
+ [1;32m19k[0m [34m27Jul[0m [1;90m-[0m[34mM[0m [36mmakeNests.py[0m
+[1;32m485k[0m [34m27Jul[0m [1;90m-[0m[2mI[0m [1;30m27Jul-r.out[0m
+ [1;32m80k[0m [34m27Jul[0m [1;90m-[0m[2mI[0m [1;30m27Jul-r-range.out[0m
+[33m1.3M[0m [34m27Jul[0m [1;90m-[0m[2mI[0m [1;30m27Jul-r-1.out[0m
+[33m1.4M[0m [34m27Jul[0m [1;90m-[0m[2mI[0m [1;30m27Jul-r-2.out[0m
+ [1;32m14k[0m [34m28Jul[0m [1;90m-[0m[34mM[0m [36mparamLists.py[0m
+[1;32m136k[0m [34m28Jul[0m [1;90m-[0m[2mI[0m [1;30m28Jul-r-ns2.out[0m
+[1;32m6.2k[0m [34m28Jul[0m [1;90m-[0m[34mM[0m [42;31mconfig.yaml[0m
+ [1;32m19k[0m [34m28Jul[0m [1;90m-[0m[2mI[0m [36mnodebug_observer.py[0m
+ [1;32m15k[0m [34m28Jul[0m [1;90m-[0m[2mI[0m [36mnodebug_makeNests.py[0m
+ [1;32m42k[0m [34m28Jul[0m [1;90m-[0m[2mI[0m [1;35mnodebug_lexp_fun.R[0m
+[33m2.1M[0m [34m28Jul[0m [1;90m-[0m[2mI[0m [1;30m28Jul-r-ns1.out[0m
+ [1;32m26k[0m [34m28Jul[0m [1;90m-[0m[34mM[0m [36mrsettings.py[0m
+ [1;32m77k[0m [34m28Jul[0m [1;90m-[0m[2mI[0m [1;30m28Jul-r-ctrl1.out[0m
+ [1;32m77k[0m [34m28Jul[0m [1;90m-[0m[2mI[0m [1;30m28Jul-r-ctrl2.out[0m
+ [1;32m43k[0m [34m29Jul[0m [1;90m-[0m[34mM[0m [1;35mall_dsr.R[0m
+ [1;32m24k[0m [34m29Jul[0m [1;90m-[0m[34mM[0m [1;35mlexp_setup.R[0m
+   [32m0[0m [34m29Jul[0m [1;90m-[0m[32mN[0m [30mcmd.txt[0m

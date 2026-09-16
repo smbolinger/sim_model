@@ -1,3 +1,19 @@
+30 Aug - may want to rearrange storage matrices so that columns come second. 
+          makes columns show up in right place later. but can use function to 
+          change the axes instead. see possible changes in extra_code.R (but need
+          to change code in all_dsr.R for it to work..)
+22 Aug - longFinal: added more days to threshold value (obs int + 2)
+21 Aug - would make more sense to run settings functions inside lexp_setup?
+20 Aug - why is disc prob set to 1 no matter what in the "nostorm" runs?
+14 Aug - storm days STILL weren't lining up with when nests are actually active?
+31 Jul - changed assign_fate() in observer.py so that only storm final (not long final) are misassigned
+            >> and then I changed it back before 3 and 4....
+29 Jul - pros and cons of having same storm dates / survey days for all replicates in param set?
+            > pros: easier to calculate coverage of 95% CI?
+            > cons: could end up with bad set of storms that don't really occur during when nests are active
+23 Jul - change assign_fate so that only nests that would be Unknown get assigned flooded fate when stormfate=True 
+        >> then again, maybe keep it as is
+22 Jul - change largest number of days after storm before next survey
 07 Jul - making it so only nests that already lacked fate cues get assigned stormFate. this 
           should lead to obs int having more effect, but less effect for storms??
 04 Jul - nObs from the MCMC function (matlab_func) doesn't match the one from dat2S when there are no storms

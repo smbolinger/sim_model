@@ -4,13 +4,22 @@ import numpy as np
 # NOTE make sure params are in same order!!! makes loading for analysis much easier!
 
 staticPar = {
-            'discProb': 0.8,
-            'probSurv' : 0.98,
-            'brDays': 180,
-            # 'decayRate': 0.12,
-            'decayRate': 0.1,
-            # 'decayRate': 0.08,
-            'stormUnk': False
+            # 'discProb': 0.8,
+            # 'probSurv' : 0.97,
+            # 'brDays': 180,
+            'discProb': [0.8],
+            # 'discProb': [0.9],
+            # 'discProb': [1.0],
+            'probSurv' : [0.96],
+            'brDays': [180],
+            # 'decayRate': [0.12],
+            # 'decayRate': [0.1],
+            'decayRate': [0.08],
+            # 'decayStorm': [0.16],
+            'decayStorm': [0.19],
+            # 'decayStorm': [0.2],
+            'stormUnk': [False]
+            # 'stormUnk': [True],
             # 'useSMat': False #not used
              }
 
@@ -22,26 +31,30 @@ parLists = {
             # 'numNests' : [ 300],
             'numNests' : [ 250],
             # 'pMortFl'  : [0.9, 0.75, 0.6], # flood/storm severity
-            'pMortFl'  : [0.9, 0.7, 0.5], # flood/storm severity6
+            'pMortFl'  : [0.9,0.7,0.5], # flood/storm severity6
+            # 'probSurv' : [0.96,0.98],
             'MCtype'   : ["none"],
             'propMC'    : [0.0],
             'propUnk'   : [0.0],
+            # 'stormDur' : [1,2,3],
             'stormDur' : [1, 2],
+            # 'stormFrq' : [1,2,3,4,5],
             'stormFrq' : [1,2,3,4],
-            'obsFreq'  : [3, 5, 7],
-            'hatchTime': [16, 20, 28]
+            'obsFreq'  : [3,5,7],
+            'hatchTime': [16,20,28]
             } 
 
 plTest  = {
            # 'stormFate': [False],
            'stormFate': [True,False],
            # 'stormFate': [True],
-           # 'numNests'  : [250],
-           'numNests'  : [100],
+           'numNests'  : [250],
+           # 'numNests'  : [100],
            # 'numNests'  : [500],
            # 'numNests'  : [250,500],
            # 'pMortFl'   : [0.6, 0.9],
            'pMortFl'   : [0.75],
+           # 'pMortFl'   : [0.5,0.7,0.9],
            'MCtype'   : ["none"],
            'propMC'    : [0.0],
            'propUnk'   : [0.0],
@@ -51,14 +64,14 @@ plTest  = {
            # 'stormFrq'  : [1,2,3,4],
            # 'stormFrq'  : [4,3,2,1],
            # 'stormFrq'  : [0],
-           # 'stormFrq'  : [0,2,4],
+           'stormFrq'  : [0,2,4],
            # 'stormFrq'  : [0,2],
-           'stormFrq'  : [2],
+           # 'stormFrq'  : [2],
            # 'stormFrq'  : [2,4],
            # 'stormFrq'  : [4],
            # 'obsFreq'   : [3,7],
            # 'obsFreq'   : [3,5,7],
-           'obsFreq'   : [7],
+           'obsFreq'   : [5],
            'hatchTime' : [20],
            # 'obsFreq'   : [1,3],
            # 'stormFate': [False],
@@ -72,26 +85,69 @@ plTest  = {
             # }
 
 # plTest2 = {'numNests'  : [10,30], ## control values
-plControl = {
+plCtlStorm = {
             'stormFate': [False],
             'probSurv':  [0.966],
-            'numNests' : [250,500],
+            # 'numNests' : [250,500],
+            'numNests' : [250],
+            # 'discProb' : [0.8,0.9],
             # 'probSurv' : list(np.linspace(0.88,0.99, 12)), 
             # 'brDays': [180],
             # 'discProb': [0.8],
+            # 'pMortFl'  : [0.5,0.9], # flood/storm severity
+            'pMortFl'  : [0.7], # flood/storm severity
+            # 'MCtype'   : ["none"],
+            'MCtype'   : ["hatch2fail","fail2hatch"],
+            'propMC'    : [0.0],
+            'propUnk'   : [0.0],
+            'stormDur' : [1],
+            'stormFrq' : [0,2,4],
+            # 'stormFrq' : [2],
+            # 'obsFreq'  : [3,5,7],
+            # 'obsFreq'  : [3,7],
+            'obsFreq'  : [3],
             # 'decayRate': [0.08],
             # 'decayRate': [0.04],
+            # 'decayRate': [0.08,0.14],
+            # 'obsFreq'  : [1,3,5],
+            # 'hatchTime': [20],
+            'hatchTime': [16,28],
+            'discProb' : [0.8,0.9],
+            # 'hatchTime': [16,20,28],
+            # 'decayRate': [ 0.08],
+            # 'pWrong':    [0],
+            # 'wType': [7] ,
+            # 'pWrong':    [0.05, 0.1, 0.2, 0.3],
+            }
+
+# plTestRange = {'numNests'  : [100], ## test a wide range of param values
+plControl = {
+            'stormFate': [False],
+            'probSurv':  [0.966],
+            # 'numNests' : [50,200,500],
+            'numNests' : [100,250,500],
+            # 'discProb' : [0.8,0.9],
+            # 'probSurv' : list(np.linspace(0.88,0.99, 12)), 
+            # 'brDays': [180],
+            # 'discProb': [0.8],
             'pMortFl'  : [0], # flood/storm severity
             'MCtype'   : ["none"],
             'propMC'    : [0.0],
             'propUnk'   : [0.0],
             'stormDur' : [0],
             'stormFrq' : [0],
-            'obsFreq'  : [3,5,7],
+            # 'obsFreq'  : [3,5,7],
+            'obsFreq'  : [5],
+            # 'obsFreq'  : [3,7],
+            # 'decayRate': [0.08],
+            # 'decayRate': [0.04],
+            # 'decayRate': [0.08,0.14,0.2],
             # 'obsFreq'  : [1,3,5],
             'hatchTime': [20],
+            # 'hatchTime': [16,28],
             # 'hatchTime': [16,20,28],
-            # 'decayRate': [ 0.08],
+            # 'decayRate': [0.08,0.14],
+            'decayRate': [ 0.08],
             # 'pWrong':    [0],
             # 'wType': [7] ,
             # 'pWrong':    [0.05, 0.1, 0.2, 0.3],
@@ -133,25 +189,37 @@ plTestRange = {
 
 plTest2 = {
             'stormFate': [True,False],
-            'numNests'  : [500], ## control values
+            # 'probSurv':  [0.94,0.96,0.98],
+            # 'numNests'  : [250,500], ## control values
+            'numNests'  : [100], ## control values
             # 'probSurv' : [0.98],
             # 'brDays': [180],#NOTE if changing brDays, need no storms
-            # 'discProb': [1],
             # 'decayRate': [0.0],
             # 'probSurv' : [0.93],
             # 'probSurv' : list(np.arange(0.85,stop=1.00,step=0.1)),
             # 'probSurv' : list(np.linspace(0.85,0.99, 15)), #+> more precise for floats
-            'pMortFl'  : [0], # flood/storm severity
+            # 'pMortFl'  : [0], # flood/storm severity
+            # 'discProb' : [0.8,0.9],
+           # 'pMortFl'   : [0.5,0.9],
+           'pMortFl'   : [0.5,0.7,0.9],
             'MCtype'   : ["none"],
             'propMC'    : [0.0],
             'propUnk'   : [0.0],
             'stormDur' : [1],
-            'stormFrq' : [2,4],
+            # 'stormFrq' : [2,4],
+           'stormFrq'  : [0,2,4],
             # 'obsFreq'  : [1,3],
             # 'obsFreq'  : [3],
             'obsFreq'  : [3,5,7],
-            'hatchTime': [20],
-            # 'decayRate': [0.08],
+            # 'obsFreq'  : [3,7],
+            # 'hatchTime': [20],
+            # 'decayRate': [0.08, 0.14],
+           'hatchTime' : [16,20,28] ,
+            'stormUnk': [False]
+           # 'hatchTime' : [16,28] ,
+            # 'discProb': [0.8,0.9],
+           # 'decayRate' : [0.08,0.14] ,
+            # 'discProb': [1],
             # 'pWrong':    [0.05, 0.1, 0.2, 0.3],
             # 'pWrong':    [0.1, 0.2, 0.3, 0.4],
             # 'pWrong': [0],
@@ -217,7 +285,8 @@ plNoStorm = {
             'decayRate': [0.0], # this should overwrite the static value?
             'probSurv':  [0.966],
             'stormFate': [False],
-            'numNests' : [250,500],
+            # 'numNests' : [250,500],
+            'numNests' : [250],
             # 'probSurv' : [0.98],
             # 'brDays': [180],
             # 'discProb': [0.8],
@@ -231,12 +300,14 @@ plNoStorm = {
             # 'propUnk'   :  list(np.linspace(0.0,0.5,11)),
             'stormDur' : [0],
             'stormFrq' : [0],
-            'obsFreq'  : [3],
-            'hatchTime': [20],
+            'discProb' : [0.8,0.9],
+            # 'obsFreq'  : [3],
+            'obsFreq'  : [3,7],
+            # 'hatchTime': [20],
+            'hatchTime': [16,  28],
             # 'pWrong':    [0.05, 0.1, 0.2, 0.3],
             # 'pWrong':    [0],
             # 'wType': [7] ,
-            # 'hatchTime': [16, 20, 28],
             }
 
 # parLists2 = {'numNests' : [250, 500],
