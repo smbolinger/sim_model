@@ -153,13 +153,13 @@ def calc_dsr(nData, nestType, calcType, conf, incTime=0, psurv=0, debug=0):
     appDSR   = 1-((nNests-hatched)/allDays) ## +> num failures/total days
 
     #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    # if conf.testing=="yes":
-    #   if conf.debugDSR>=4:
-    #     print(
-    #           f"\t\t>> calculate apparent DSR: (1-(true_num_fail/total_days)):{appDSR:.3f} "
-    #           f"\t\t1 - (({nNests}-{hatched}) / {allDays}) = {appDSR:.3f} "
+    if conf.testing=="yes":
+      if conf.debugDSR>=4:
+        print(
+              f"\t\t>> calculate apparent DSR: (1-(true_num_fail/total_days)):{appDSR:.3f} "
+              f"\t\t1 - (({nNests}-{hatched}) / {allDays}) = {appDSR:.3f} "
     #           # f"| expected DSR: {psurv}"
-    #           )
+              )
     #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # if debug>=3: 
       # print(
@@ -178,10 +178,10 @@ def calc_dsr(nData, nestType, calcType, conf, incTime=0, psurv=0, debug=0):
     expDays = expDays[:,2].sum()
     hatched = sum(nData[:,7] == 0)
     #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    # if conf.testing=="yes":
-    #   if conf.debugDSR>=2:
-    #     print(f"\n\t\t\t|>{nestType=}|{calcType=}|{incTime=}|{psurv=}|>", end=" ")
-    #     print(f"\t\t>> calculate mayfield DSR: {expDays=:.3f}|{nNests-hatched=}|")
+    if conf.testing=="yes":
+      if conf.debugDSR>=2:
+        # print(f"\n\t\t\t|>{nestType=}|{calcType=}|{incTime=}|{psurv=}|>", end=" ")
+        print(f"\t\t>> calculate mayfield DSR: {expDays=:.3f}|{nNests-hatched=}|")
     #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     dmr   = mayfield(num_fail=nNests-hatched, expo=expDays)
 
@@ -394,7 +394,7 @@ def make_daily_logex_df(obsData,
   #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   if db>=4: print(f"\tpassed to make_df:")
   if db>=4: print(f"\t\t|>{first=}\n\t\t|>{last=}\n\t\t|>{fate=}")
-  if db>=2: print(f"\t\t{mat.shape=}")
+  if db>=3: print(f"\t\t{mat.shape=}")
   if db>=4: print(f"\t\tBEFORE: {dfNew.shape=}, AFTER:", end=" ")
   #-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -407,7 +407,7 @@ def make_daily_logex_df(obsData,
     print(f"\t\t{dfNew.shape=}")
     dfPrint(dfNew, names=cols)
     print(f"\t\t\t{dfNew=}")
-  if db>=2: dfPrint(dfNew)
+  if db>=4: dfPrint(dfNew)
 
   # NOTE save df in outer function
   # if saveDF:
