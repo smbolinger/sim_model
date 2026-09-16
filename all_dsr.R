@@ -33,6 +33,9 @@ Sys.setenv(r_outdir=py_to_r(outdir))
 # cat(sprintf("\n\tin R: outdir=%s & type=%s", py_to_r(outdir),class(py_to_r(outdir))))
 # if(config$mark) library(RMark)
 options(width=1000, digits=5, scipen=999)
+uniqueStorm=TRUE
+# uniqueStorm=FALSE
+cat("\t>> unique storm days for each replicate? ", uniqueStorm)
 
 #---- LOOP THRU PARAM SETS ----------------------------------------------------------------------
 # parID = 0
@@ -46,26 +49,30 @@ for(i in seq(startParID,length(pArrList))){
   startTimePar <- Sys.time()
   rng <- np$random$default_rng(seed=rngSeed)
   par <- tryCatch(
-                  {funs$mk_param_list(paramsArray[i-1], staticPar)},
+                  # {funs$mk_param_list(paramsArray[i-1], staticPar)},
+                  ## how did it call this if staticPar arg doesn't exist anymore??
                   # {funs$mk_param_list(paramsArray[i-1], staticPar,debug=TRUE)},
+                  {funs$mk_param_list(paramsArray[i-1],debug=TRUE)},
                   error=function(e){
                   reticulate::py_last_error()
                   })
   cat(sprintf("\n\n.....%s......i=%03d.......seed=%d...........................................................................................................\n",format(startTimePar, "%H:%M:%S"),i,rngSeed))
+  # print(class(par))
   print(unlist(py_vars(par)))
   cat(".....................................................................................................................................................\n")
 
-  # if(TRUE){
-  #   # if(debug>=2) cat("\n\t>> overwriting storm days -")
-  #   stormDays <- nest$stormGen(par$stormFrq, par$stormDur,pyconfig,rng,stormDat, stFromFile=sett$stormFromFile,db=TRUE)
-  #   if(debug>=2) cat("\n\t>> storm days = ",stormDays)
-  #   survey    <- withCallingHandlers({obs$mk_surveys(stormDays, par$obsFreq, par$brDays, pyconfig,rng,db=debug)},
-  #   # survey    <- withCallingHandlers({obs$mk_surveys(stormDays, par$obsFreq, par$brDays, pyconfig,rng,complicate=FALSE,db=debug)},
-  #                                    error=function(e){ 
-  #                                      reticulate::py_last_error() 
-  #                                      # print(sys.calls()) # doesn't help if error in python
-  #                                    }  )
-  # }
+  if(TRUE){
+  # if(uniqueStorm){
+    # if(debug>=2) cat("\n\t>> overwriting storm days -")
+    stormDays <- nest$stormGen(par$stormFrq, par$stormDur,pyconfig,rng,stormDat, stFromFile=sett$stormFromFile,db=TRUE)
+    if(debug>=2) cat("\n\t>> storm days = ",stormDays)
+    survey    <- withCallingHandlers({obs$mk_surveys(stormDays, par$obsFreq, par$brDays, pyconfig,rng,db=debug)},
+    # survey    <- withCallingHandlers({obs$mk_surveys(stormDays, par$obsFreq, par$brDays, pyconfig,rng,complicate=FALSE,db=debug)},
+                                     error=function(e){ 
+                                       reticulate::py_last_error() 
+                                       # print(sys.calls()) # doesn't help if error in python
+                                     }  )
+  }
 
   
 #---- LOOP THRU REPLICATES ------------------------------------------------------------------------------
@@ -76,7 +83,8 @@ for(i in seq(startParID,length(pArrList))){
     cat(sprintf("-%s",r))
     if(debug>=1) cat(":::::::::::::::::::::::::::::::::::::::::::\n")
 
-    if(TRUE){
+    # if(TRUE){
+    if(uniqueStorm){
       # if(debug>=2) cat("\n\t>> overwriting storm days -")
       stormDays <- nest$stormGen(par$stormFrq, par$stormDur,pyconfig,rng,stormDat, stFromFile=sett$stormFromFile,db=TRUE)
       if(debug>=2) cat("\n\t>> storm days = ",stormDays)
@@ -93,8 +101,9 @@ for(i in seq(startParID,length(pArrList))){
   #---- Full nest data: ----------------------------------------------------
 
     ## create the nest & observation data:
+    nweeks = round(par$brDays/7)-2 # nweeks = floor(par$brDays/7)
     nestData1 <- withCallingHandlers({
-      nweeks = round(par$brDays/7)-2 # nweeks = floor(par$brDays/7)
+      # obs$mk_histories(stormDays,initDat,par,rng,pyconfig,sett$initFromFile,nweeks)
       obs$make_obs(par,rng,obsVarNum,stormDays,survey,pyconfig,initDat,stormUnk,nweeks,sett$initFromFile,pandas=FALSE)
     },
     error=function(e){
@@ -133,6 +142,7 @@ for(i in seq(startParID,length(pArrList))){
 
       all_fld      <- sum(nestData1$fate==2, na.rm=TRUE)
       all_hatch    <- sum(nestData1$fate==0, na.rm=TRUE)
+      all_dep      <-  sum(nestData1$fate==1, na.rm=TRUE)
       all_longfin  <- sum(nestData1$fint>par$obsFreq, na.rm=TRUE)
       all_hatch_longfin <- sum(nestData1$fint>par$obsFreq, na.rm=TRUE)
       all_misclass <- sum(nestData1$fate!=nestData1$afate,na.rm=TRUE)
@@ -141,12 +151,25 @@ for(i in seq(startParID,length(pArrList))){
                                     conf=config,incTime=par$hatchTime,psurv=par$probSurv,debug=config$debugDSR)
       write(stormDays, file="out/storm_plot.txt", sep="\t", append=TRUE, ncolumns = 10)
       write(nestData1$init, file="out/init_plot.txt", sep="\t", append=TRUE, ncolumns = par$numNests)
+      # if (config$saveNData){
+      if (saveNestData){
+        # cat("\nnest data, nrow=", nrow(nestData1))
+        # print(head(nestData1))
+        # cat(sprintf("\nnestDataMat[,,%s,%s]:",r,i))
+        # print(nDataMat)
+        # print(nestDataMat[,,r,i])
+        nestDataMat[,,r,i] <- as.matrix(nestData1)
+        # fateMat[,r,i] <- nestData1$fate
+        # a_fateMat[,r,i] <- nestData1$afate
+      }
     }
     #-=~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
   #---- Nest data - discovered: ----------------------------------------------------
     nestData <- nestData1 |> filter(.data[[obsVar]]>0) # remove undiscovered nests
+    # obsData <- obs$make_obs(nestData,par,rng,obsVarNum,stormDays,survey,pyconfig,initDat,stormUnk,nweeks,sett$initFromFile,pandas=FALSE)
+    nestData1 <- nestData1 |> as.data.frame(row.names=NULL) |> setNames(colnames)
 
     #-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     if(config$testing=="yes"){
@@ -204,7 +227,7 @@ for(i in seq(startParID,length(pArrList))){
       if(debug>=6) qvcalc::indentPrint(nestData, indent=8)
       if(debug>=3) cat(sprintf("\t\t\tfor analyzed nests: Mayfield DSR=%s ; apparent DSR=%s\n", mayfield_an, apparent_an))
 
-      if(debug>=2){
+      if(debug>=1){
         # allVal <- c("all_fld","all_hatch","all_longfin","all_unk","all_misclass")
         # allVal <- c(all_fld,all_hatch,all_longfin,all_misclass,all_unk)
         allVal <- c(all_fld,all_hatch,all_longfin,all_misclass,num_disc)
@@ -213,6 +236,7 @@ for(i in seq(startParID,length(pArrList))){
         discProp <- discVal/num_disc
         anVal <- c(an_fld,an_hatch,an_longfin,an_misclass)
         anProp <- anVal/num_an
+        # cat("\n all depredated=",all_dep)
         # cat(sprintf("\n\tall: flooded=%s, hatched=%s, long final=%s, unknown=%s, miclassified=%s ",allVal))
         cat(do.call(sprintf,c("\n\tall: flooded=%s, hatched=%s, long final=%s, miclassified=%s, discovered=%s ",as.list(allVal))))
         cat(do.call(sprintf,c("\t\t\t\t| prop flooded=%s, prop hatched=%s, prop long final=%s, prop miclassified=%s, prop discovered=%s ",as.list(allProp))))
@@ -237,9 +261,13 @@ for(i in seq(startParID,length(pArrList))){
       ## 2. create inputs for calculating true DSR:
       ##    > needs to be all nests and all days (not just observed)
       # modData <- mk_logex_data( nestData1, survey=survey, pyconfig=pyconfig, expoVal=1 ) 
-      mList_true <- c("Surv~1", "Surv~Date")                      ## models to fit
-      newDat_true <- data.frame(Date=prDays_true)                           ## data for prediction
-      newDat <- data.frame(Date=prDays)
+      # mList_true <- c("Surv~1", "Surv~Date")                      ## models to fit
+      mList_true <- c("Surv~1", "Surv~Date", "Surv~Date+Age")                      ## models to fit
+      # newDat_true <- data.frame(Date=prDays_true)                           ## data for prediction
+      # newDat <- data.frame(Date=prDays)
+      newDat <- expand.grid(Date=prDays, Age=seq(par$hatchTime))
+      nVal_true <- nrow(newDat)
+      if(debug>=2) cat("\n>>> number of rows in newDat:", nVal_true)
 
       ## 3. predict from glm - logit:
       # trueDSRlist <- mk_true_dsr(nestData1, mList_true, newDat_true, par, config)
@@ -251,18 +279,42 @@ for(i in seq(startParID,length(pArrList))){
       # trueDSR_date <- c(trueDSRlist[[2]], rep(-1,numFill)) ## date covar 
       # print(trueDSR_date)
       # trueDSRmat[,r,i] <- trueDSR_date
+      # trueDSRmat[,r,i] <- trueDSRlist
       # print(propInitScl)
 
       ## save the date-specific DSR vals to matrix & mayb to file?
-      # if(config$coefSave=="yes"){
-      #   numInit     <- sapply(prDays, function(x) sum(nestData1$init==x))
-      #   propInit    <- numInit/par$numNests
-      #   propInitScl <- propInit/sum(propInit) ## make sure it sums to 1
-      #   trueDSRmat[1,,r,i] <- trueDSRlist[[2]]
-      #   trueDSRmat[2,,r,i] <-  propInitScl    
-      #
-      #   # propInitmat[,r,i] <- propInitScl     
+      # if(config$coefSave=="all"){
+      numInit     <- sapply(prDays, function(x) sum(nestData1$init==x))
+      propInit    <- numInit/par$numNests
+      propInitScl_true <- propInit/sum(propInit) ## make sure it sums to 1
+      # trueDSRmat[2,c(1:nVal_true),r,i] <- trueDSRlist[[2]]
+      # trueDSRmat[,c(1:nVal_true),r,i] <- trueDSRlist[[2]]
+      if(debug>=3){
+        cat("\nsize of trueDSRlist:", length(trueDSRlist))
+        cat("\nsize of trueDSRlist sublists:", paste(unlist(lapply(trueDSRlist,length)),collapse=" "))
+        cat("\n& size of trueDSRmat:", dim(trueDSRmat[,c(1:nVal_true),r,i]))
+
+        qvcalc::indentPrint(head(trueDSRmat[,c(1:nVal_true),r,i], 20))
+        # qvcalc::indentPrint(head(trueDSRmat[c(1:nVal_true),,r,i], 20))
+      }
+      # trueDSRmat[,c(1:nVal_true),r,i] <- trueDSRlist
+      # trueDSRmat[,c(1:nVal_true),r,i] <- lapply(trueDSRlist,unlist)
+
+      trueDSRmat[1,c(1:nVal_true),r,i] <- newDat$Date
+      trueDSRmat[2,c(1:nVal_true),r,i] <- newDat$Age
+      trueDSRmat[c(3:5),c(1:nVal_true),r,i] <- matrix(unlist(trueDSRlist), nrow=length(trueDSRlist), byrow=TRUE)
+      # trueDSRmat[c(1:nVal_true),,r,i] <- trueDSRlist
+      if(debug>=3) qvcalc::indentPrint(head(trueDSRmat[,c(1:nVal_true),r,i], 20))
+      # trueDSRmat[4,c(1:nValtrue),r,i] <-  propInitScl    
       # }
+      if(config$obsSave){
+        dsrplot_dat <- c(par$hatchTime, par$stormFrq, par$stormDur, par$pMortFl, par$probSurv, unlist(trueDSRlist[[2]]))
+        # write(psrplot_dat, file="out/psr_plot.txt", sep="\t", append=TRUE, ncolumns=130)
+        write(dsrplot_dat, file="out/dsr_plot.txt", sep="\t", append=TRUE, ncolumns=130)
+        cat("\n\t>> saved true DSR to file for plotting")
+
+        # propInitmat[,r,i] <- propInitScl     
+      }
 
       # truePSRlist <- lapply(trueDSRlist, function(x) x ^ par$hatchTime)
       # ret2 <- make_psr_list(nestData1,survey,mList_true,par,pyconfig,expo=1)
@@ -270,9 +322,13 @@ for(i in seq(startParID,length(pArrList))){
       dsrT = trueDSRlist[[1]][1]
       psrT = dsrT ^ par$hatchTime
       # psrT_date = make_psr(trueDSRlist[[2]],nestData1$init,prDays_true,par,config)
-      out_true = make_weighted(trueDSRlist[[2]],list(),nestData1$init,prDays,par,config)
+      out_true = make_weighted(mList_true[2],trueDSRlist[[2]],list(),nestData1$init,prDays,par,config,newDat)
       dsrT_date = out_true[[1]]
       psrT_date = out_true[[2]]
+
+      out_true = make_weighted(mList_true[3],trueDSRlist[[3]],list(),nestData1$init,prDays,par,config,newDat)
+      dsrT_dateAge = out_true[[1]]
+      psrT_dateAge = out_true[[2]]
 
       # dsrT = ret[1]
       # psrT = ret[2]
@@ -298,13 +354,13 @@ for(i in seq(startParID,length(pArrList))){
         # if(debug>=3) cat("\t|> true DSR & PSR, logit <null>:", ret[c(1,2)])
         if(debug>=3) cat("\t|> true DSR & PSR, logit <null>:",dsrT,psrT)
         # if(debug>=3) cat("\t|> true DSR & PSR, logexp <null>:", psrT2, psrT_date2)
-        if(config$coefSave=="yes"){
-          if(debug>=3) cat("\nfill in matrix:\n" )
-          if(debug>=3) print(trueDSRmat[,,r,i])
-        }
+        # if(config$coefSave=="all"){
+        #   if(debug>=3) cat("\nfill in matrix:\n" )
+        #   if(debug>=3) print(trueDSRmat[,,r,i])
+        # }
       }
       #-=~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
+      trueDSR = ifelse(dsrTrueVal=="date",dsrT_date, dsrT)
 
   #---- Logistic exposure: -----------------------------------------------------------------------------------------------
 
@@ -332,15 +388,55 @@ for(i in seq(startParID,length(pArrList))){
 
       ## DATA FOR PREDICTIONS:
       ##NOTE: use all vals for date in all of them bc that's the var I want to plot
-      newDat <- expand.grid(Date=prDays,
+      newDat_age <- expand.grid(
+                                Date=mean(prDays),
+                            Age = seq(par$hatchTime),
+                             # avAge=mean(dat2S$Age,na.rm=TRUE),
+                             avDate=mean(dat2S$avDate,na.rm=TRUE)) # byVal = 4
+      newDat_date <- expand.grid(Date=prDays,
+                            # Age = seq(par$hatchTime),
                              Age=mean(dat2S$Age,na.rm=TRUE),
+                             avDate=mean(dat2S$avDate,na.rm=TRUE)) # byVal = 4
+      newDat_all <- expand.grid( Date=prDays,
+                            Age = seq(par$hatchTime),
+                            # Date=prDays, ## move after age so that age cycles first
+                             # avAge=mean(dat2S$Age,na.rm=TRUE),
                              avDate=mean(dat2S$avDate,na.rm=TRUE)) # byVal = 4
 
       # coeff  <- unlist(sapply(modFit, function(x) coef(summary(x))[,"Estimate"]))
       # coeffSE  <- unlist(sapply(modFit, function(x) coef(summary(x))[,"Std. Error"]))
-      coeff  <- sapply(modFit, function(x) coef(summary(x))[,"Estimate"])
-      coeffSE  <- unlist(sapply(modFit, function(x) coef(summary(x))[,"Std. Error"]))
-      vcOut <- lapply(modFit, function(x) vcov(x)) # get variance-covariance matrix
+      # coeff <- numeric(length(modFit)) ## numeric vector of length x
+      # coeffSE <- numeric(length(modFit)) ## numeric vector of length x
+      coeff <- rep(NA, times=length(mList)) ## numeric vector of length x
+      coeffSE <- rep(NA, times=length(mList)) ## numeric vector of length x
+      vcOut <- rep(NA, times=length(mList)) ## numeric vector of length x
+      # print(coeff)
+    # survey    <- withCallingHandlers({obs$mk_surveys(stormDays, par$obsFreq, par$brDays, pyconfig,rng,db=debug)},
+      # withCallingHandlers
+      coeff  <- withCallingHandlers({sapply(modFit, function(x) coef(summary(x))[,"Estimate"])},
+        error = function(e){ "\t!! couldn't get coefs; error: e" })
+      coeffSE  <- withCallingHandlers({sapply(modFit, function(x) coef(summary(x))[,"Std. Error"])},
+        error = function(e){ "\t!! couldn't get coef SE; error: e" })
+      # coeffSE  <- unlist(sapply(modFit, function(x) coef(summary(x))[,"Std. Error"]))
+      # print(coeff)
+      vcOut <- withCallingHandlers({lapply(modFit, function(x) vcov(x))}, # get variance-covariance matrix
+        error = function(e){ "\t!! couldn't get vcov matrix; error: e" })
+      # cat("\nvcov matrices, flattened:")
+      # print(vcOut)
+      # print(unlist(vcOut))
+      # cat("\nstore vcov matrices:")
+      # print(vcovMatMat[,r,i])
+      vcovMatMat[,r,i] <- unlist(vcOut)
+      # print(vcovMatMat[,r,i])
+      numInit     <- sapply(prDays, function(x) sum(nestData1$init==x))
+      propInit    <- numInit/par$numNests
+      propInitScl <- propInit/sum(propInit) ## make sure it sums to 1
+
+      # cat("save propInitScl to matrix:")
+      # print(initPropMat[,r,i])
+      initPropMat[,r,i] <- propInitScl
+      # print(initPropMat[,r,i])
+      
       # ..exposure <- mean(dat2S$Exposure)
       # predNew <- lapply(modFit, function(x) predict(x, newdata=newDat,type="response",se.fit=TRUE))
       # predNew <- lapply(modFit, function(x) predict(x,type="response",se.fit=TRUE))
@@ -350,7 +446,7 @@ for(i in seq(startParID,length(pArrList))){
       # seNew <- lapply(modFit, function(x) sqrt(diag(summary(x)$cov.unscaled)*summary(x)$dispersion))
       # if (debug >=3)  cat("\nseNew:")
       # if (debug >=3)  print(seNew)
-      if(debug>=5){
+      if(debug>=4){
         cat("\n\tcoefs & se:\n")
         # qvcalc::indentPrint(unlist(coeff))
         qvcalc::indentPrint(coeff)
@@ -364,33 +460,59 @@ for(i in seq(startParID,length(pArrList))){
       # print(newDat$AvDate[1])
       # print(mean(dat2S$AvDate))
       # print(mean(dat2S$AvDate, na.rm=T))
-      coefsMat[,r,i] <- c(unlist(coeff),
-                          unlist(coeffSE),
-                          mean(dat2S$Exposure,na.rm=TRUE),
-                          mean(dat2S$Age,na.rm=TRUE),
-                          # mean(dat2S$AvDate,na.rm=TRUE)) ## no idea why this doesn't work - oh, bc I'm dumb
-                          mean(dat2S$avDate,na.rm=TRUE)) ## no idea why this doesn't work - oh, bc I'm dumb
-                          # newDat$AvDate[1])
+      if(config$coefSave=="all"){
+        if(debug) cat("saving coefficients for rep to matrix")
+        coefsMat[,r,i] <- c(unlist(coeff),
+                            unlist(coeffSE),
+                            mean(dat2S$Exposure,na.rm=TRUE),
+                            mean(dat2S$Age,na.rm=TRUE),
+                            # mean(dat2S$AvDate,na.rm=TRUE)) ## no idea why this doesn't work - oh, bc I'm dumb
+                            mean(dat2S$avDate,na.rm=TRUE)) ## no idea why this doesn't work - oh, bc I'm dumb
+                            # newDat$AvDate[1])
+      }
       # qvcalc::indentPrint(coefsMat[,r,i])
 
-      DSR_out <- lapply(seq_along(modFit), function(x){
-                          make_preds(coeff[[x]],vcOut[[x]],mList[x],newDat,db=config$debugLogEx)
-                          })
-      if(debug>=5){
-        cat("\n\t>> DSR_out:\n") # lists of DSR and SE values at all data combinations in newDat
-        qvcalc::indentPrint(DSR_out)
-        qvcalc::indentPrint(DSR_out[[1]])
-        qvcalc::indentPrint(DSR_out[[1]][[2]])
-      }
-      DSRlist <- lapply(DSR_out, '[[', 1)
-      seList <- lapply(DSR_out, '[[', 2)
-      # print(DSRlist)
-      # print(seList)
-      # print(class(seList))
+      if(config$survSave=="all"){
+        DSR_out <- lapply(seq_along(modFit), function(x){
+                            if(x==4){
+                              newDat <- newDat_all
+                            } else if(x==3){
+                              newDat <- newDat_age
+                            } else {
+                              newDat <- newDat_date
+                            }
+                            if(debug>=3) cat("\n\t\t\t NEW DAT:")
+                            if(debug>=3) qvcalc::indentPrint(head(newDat,30), indent=8)
+                            make_preds(coeff[[x]],vcOut[[x]],mList[x],newDat,db=config$debugLogEx)
+                            })
+        if(debug>=5){
+          cat("\n\t>> DSR_out:\n") # lists of DSR and SE values at all data combinations in newDat
+          qvcalc::indentPrint(DSR_out)
+          qvcalc::indentPrint(DSR_out[[1]])
+          qvcalc::indentPrint(DSR_out[[1]][[2]])
+        }
+        DSRlist <- lapply(DSR_out, '[[', 1)
+        seList <- lapply(DSR_out, '[[', 2)
+        if(config$debug>=3){
+          cat("\n\n\t\t\t>> PRINT DSRlist, seList:")
+          # lapply(DSRlist, function(x){ print(c(head(x), tail(x), length(x))) })
+          # lapply(seList, function(x){ print(c(head(x), tail(x), length(x))) })
+          lapply(seq_along(DSRlist), function(x){
+                   dsr = DSRlist[[x]]
+                   cat("\n",mList[x],":",c(head(dsr)), "...",c(tail(dsr), length(dsr)))
+                            })
+          lapply(seq_along(seList), function(x){
+                   se = seList[[x]]
+                   cat("\n",mList[x],":",c(head(se)),"...", c(tail(se), length(se))) 
+                            })
+          # print(DSRlist)
+          # print(seList)
+          # print(class(seList))
+        }
 
 
-      # DSRout <- make_dsr_list(dat2S,prDat=newList,survey,mList,par,pyconfig,newList=TRUE, out=modFit)
-      # cat("\nold DSR list function")
+        # DSRout <- make_dsr_list(dat2S,prDat=newList,survey,mList,par,pyconfig,newList=TRUE, out=modFit)
+        # cat("\nold DSR list function")
       # DSRout <- make_dsr_list(dat2S,prDat=dat2S,survey,mList,par,pyconfig,newList=FALSE, out=modFit)
       # # cat("\t>> extracting DSRlist and seList")
       # DSRlist <- lapply(DSRout, '[[', 1)
@@ -404,56 +526,69 @@ for(i in seq(startParID,length(pArrList))){
       #   next
       # }
       # out_list <- sapply(seq(2,length(DSRlist)), function(x){
-      out_list <- sapply(seq(length(DSRlist)), function(x){
-      # out_list <- sapply(DSRlist, function(x){
-                   # make_psr(x, nestData$init, dat2S$Date, par, config)
-                    # newDat = newList[[x]]
-                   make_weighted(DSRlist[[x]], seList[[x]],
-                                 # nestData$init, dat2S$Date,
-                                 nestData$init, newDat$Date,
-                                 par, config)
-                                })
-      if(debug>=5) print(out_list)
-      if(debug>=5) print(class(out_list))
+
+        out_list <- sapply(seq(length(DSRlist)), function(x){
+        # out_list <- sapply(DSRlist, function(x){
+                     # make_psr(x, nestData$init, dat2S$Date, par, config)
+                      # newDat = newList[[x]]
+                     make_weighted(mList[x],DSRlist[[x]], seList[[x]],
+                                   # nestData$init, dat2S$Date,
+                                   nestData$init, newDat$Date,
+                                   par, config,newDat)
+                                  })
+
+        if(debug>=5) print(out_list)
+        if(debug>=5) print(class(out_list))
 
       # dsr_list <- out_list[1,]
       # psr_list <- out_list[2,]
       # se_list <- out_list[3,]
-      dsr_list <- unlist(out_list[1,])
-      psr_list <- unlist(out_list[2,])
-      se_list <- unlist(out_list[3,])
+        dsr_list <- unlist(out_list[1,])
+        psr_list <- unlist(out_list[2,])
+        se_list <- unlist(out_list[3,])
+        # cov_list <- sapply(seq_along(dsr_list), function(x){
+      #                      ucl = dsr_list[x] + 1.96*se_list[x]
+      #                      lcl = dsr_list[x] - 1.96*se_list[x]
+      #                      return(as.numeric(trueDSR>lcl & trueDSR<ucl))
+      #                           })
+        cov_list <- c()
 
       # logexVal <- unlist(tibble::lst(dsr1,psr1,se1,dsr_list,psr_list,se_list))
-      logexVal <- unlist(tibble::lst(dsr_list,psr_list,se_list))
-      #-*~~~~~debug~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-      if(config$testing=="yes"){
-        # print(class(dsr_list))
-        dsr1 <- dsr_list[1]
-        # print(class(dsr1))
-        psr1 <- psr_list[1]
-        se1 <- se_list[1]
-        if(debug>=3) cat("\n\n\t[*] [*] [*] [*] [*] logistic exposure - output [*] [*] [*] [*] [*] [*] [*] \n") # if (config$debugNests] =3) qvcalc::indentPrint(nestData1)
-        if(config$debug>=3){
-          # cat("\n\t\t>> all_dsr.R: MAKING PSR LISTS\n")
-          # cat("\n\t\t>> TEST DSR list 1: ",class(DSRlist), unlist(DSRlist), "\n")
-          # cat("\n\t\t>> TEST DSR list 2: ",class(DSRlist2), unlist(DSRlist2), "\n")
-          # cat("\npredList:\n")
-          # print(predList)
-          # dsr1 <- out_list[1,1]
-          # psr1 <- out_list[2,1]
-          # se1 <- out_list[3,1]
-          cat("\n\t\t>> logistic exposure DSR (avg weighted by inits per day): ",class(dsr_list), unlist(dsr_list), "\n")
-          cat("\n\t\t>> logistic exposure PSR (avg weighted by inits per day): ",class(psr_list), unlist(psr_list), "\n")
-          cat("\n\t|> logistic exposure DSR & PSR <null> & s.e.:", dsr1, psr1, se1,"\n")
+        logexVal <- unlist(tibble::lst(dsr_list,psr_list,se_list,cov_list))
+        #-*~~~~~debug~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        if(config$testing=="yes"){
+          # print(class(dsr_list))
+          dsr1 <- dsr_list[1]
+          # print(class(dsr1))
+          psr1 <- psr_list[1]
+          se1 <- se_list[1]
+          if(debug>=3) cat("\n\n\t[*] [*] [*] [*] [*] logistic exposure - output [*] [*] [*] [*] [*] [*] [*] \n") # if (config$debugNests] =3) qvcalc::indentPrint(nestData1)
+          if(config$debug>=3){
+            # cat("\n\t\t>> all_dsr.R: MAKING PSR LISTS\n")
+            # cat("\n\t\t>> TEST DSR list 1: ",class(DSRlist), unlist(DSRlist), "\n")
+            # cat("\n\t\t>> TEST DSR list 2: ",class(DSRlist2), unlist(DSRlist2), "\n")
+            # cat("\npredList:\n")
+            # print(predList)
+            # dsr1 <- out_list[1,1]
+            # psr1 <- out_list[2,1]
+            # se1 <- out_list[3,1]
+            cat("\n\t\t>> logistic exposure DSR (avg weighted by inits per day): ",class(dsr_list), unlist(dsr_list), "\n")
+            cat("\n\t\t>> logistic exposure PSR (avg weighted by inits per day): ",class(psr_list), unlist(psr_list), "\n")
+            cat("\n\t|> logistic exposure DSR & PSR <null> & s.e.:", dsr1, psr1, se1,"\n")
+          }
+          # if(config$coefSave=="all"){
+            # if(debug>=3) cat("\nfill in matrix:\n" )
+            # if(debug>=3) print(trueDSRmat[,,r,i])
+          # }
         }
-        if(config$coefSave=="yes"){
-          if(debug>=3) cat("\nfill in matrix:\n" )
-          if(debug>=3) print(trueDSRmat[,,r,i])
-        }
+      } else{
+        logexVal <- c()
       }
       #-=~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     } else {
-      logexVal <- c() }
+      logexVal <- c()
+    }
+      # logexVal <- rep(-999, 15) }
 
   #---- MCMC model: ------------------------------------------------------------------------------------------------------
 
@@ -477,8 +612,9 @@ for(i in seq(startParID,length(pArrList))){
       withCallingHandlers({
         # mlOut <- mlfun$PolyMort(obsSel,survey,par, rng,pyconfig,suff=jacPlSuf,db=config$debugLL)
         # if (par$stormFrq==0 | par$stormDur==0)
-        if (atype=="control")
-          mlOut <- mlfun$PolyMort(obsSel,survey,par,pyconfig,suff=jacPlSuf,db=config$debugLL,scl_fac=0.15)
+        # if (atype=="control")
+        if (atype %in% c("control"))
+          mlOut <- mlfun$PolyMort(obsSel,survey,par,pyconfig,suff=jacPlSuf,db=config$debugLL,scl_fac=0.20)
         else
           mlOut <- mlfun$PolyMort(obsSel,survey,par,pyconfig,suff=jacPlSuf,db=config$debugLL)
       },
@@ -514,11 +650,16 @@ for(i in seq(startParID,length(pArrList))){
       mcmcPSR = mcmcDSR ^ par$hatchTime
       mcmcDPR = mlOut[[2]][1]
       mcmcDPR_se = mlOut[[3]][1]
+      mcmc_ucl = mcmcDSR + mcmcDSR_se*1.96
+      mcmc_lcl = mcmcDSR - mcmcDSR_se*1.96
+      mcmcDSR_cov = as.numeric(trueDSR<mcmc_ucl & trueDSR>mcmc_lcl)
       # mcmcVal <-  unlist(tibble::lst())
       mcmcVal <- c(mcmcDSR, mcmcPSR, mcmcDPR, mcmcDSR_se, mcmcDPR_se)
+      # mcmcVal <- c(mcmcDSR, mcmcPSR, mcmcDPR, mcmcDSR_se, mcmcDPR_se, mcmcDSR_cov)
       # cat("\n\t\t>> all_dsr: output from matlab function:", mcmcVal)
     } else {
-      mcmcVal = rep(-999, 5)
+      # mcmcVal = rep(-999, 5)
+      mcmcVal <- c() 
     }
     # if(config$mcmc){
       #-*~~~~debug~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -546,23 +687,26 @@ for(i in seq(startParID,length(pArrList))){
     # mayfVal = unlist(tibble::lst(mayfDSR))
     # mayfVal = unlist(tibble::lst(mayfDSR,mayfPSR,mayfVar,simplePSR))
     mayfVal = unlist(tibble::lst(mayfDSR,mayfPSR,mayfVar,mayfSE,simplePSR))
-    dsrTrue = unlist(tibble::lst(dsrT,psrT,dsrT_date,psrT_date))
+    # dsrTrue = unlist(tibble::lst(dsrT,psrT,dsrT_date,psrT_date))
+    dsrTrue = unlist(tibble::lst(dsrT,psrT,dsrT_date,psrT_date,dsrT_dateAge,psrT_dateAge))
     # dsrTrue = unlist(tibble::lst(dsrT,psrT,psrT_date,dsrT2,psrT2,psrT_date2))
     # dVal <- c(dsrTrue,logexVal,mcmcVal,mayfDSR,mayfDSR_an)
     dVal <- c(dsrTrue,logexVal,mcmcVal,mayfVal)
+
     
     #-*~~~~debug~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     if(debug>0){
       if(debug>=2) cat("\n\t** nVal:\n")
       if(debug>=2) qvcalc::indentPrint(nVal, indent=8) # if(debug>=2) cat("\n")
-      if(config$debug>=3){
-        # cat("\n\t\t>> all_dsr.R: MAKING PSR LISTS\n")
-        cat("\n\t>> logistic exposure DSR (avg weighted by inits per day): ",class(dsr_list), unlist(dsr_list), "\n")
-        cat("\n\t>> logistic exposure PSR (avg weighted by inits per day): ",class(psr_list), unlist(psr_list), "\n")
-      }
+      # if(config$debug>=3){
+      #   # cat("\n\t\t>> all_dsr.R: MAKING PSR LISTS\n")
+      #   cat("\n\t>> logistic exposure DSR (avg weighted by inits per day): ",class(dsr_list), unlist(dsr_list), "\n")
+      #   cat("\n\t>> logistic exposure PSR (avg weighted by inits per day): ",class(psr_list), unlist(psr_list), "\n")
+      # }
       if(debug>=3) cat("\n")
-      if(debug>=2) cat("\t|> MCMC DSR, DFR, & PSR (&se) = ", mcmcVal)
-      if(debug>=2) cat("\n\t\t|> logistic exposure DSR & PSR <null>:", dsr1, psr1)
+      if(debug>=2 & config$mcmc==TRUE) cat("\t|> MCMC DSR, DFR, & PSR (&se) = ", mcmcVal)
+      # if(debug>=2 & config$logex==TRUE) cat("\n\t\t|> logistic exposure DSR & PSR <null>:", dsr1, psr1)
+      if(debug>=2 & config$logex==TRUE) cat("\n\t\t|> logistic exposure DSR & PSR <null>:", logexVal)
       if(debug>=3) cat("\n")
       if(debug>=2) cat(sprintf("\t>> calculate Mayfield DSR: 1 - (%s[numFail]/%s[exposure]) = %s", numFail, exposure1,mayfDSR))
       if(debug>=3) cat(sprintf("\t>> Mayfield standard error: %s", mayfSE))
@@ -575,6 +719,7 @@ for(i in seq(startParID,length(pArrList))){
         # nVal <- c(nVal,logexVal,markVal)
       }
       if(debug>=3){
+      # if(debug>=3 & config$survSave=="all"){
         cat("\n\t\tdsrMat & its dimensions for this rep & par set:")
         qvcalc::indentPrint(dim(dsrMat[,r,i]))
         qvcalc::indentPrint(dsrMat[,r,i])
@@ -594,36 +739,45 @@ for(i in seq(startParID,length(pArrList))){
       aDSR = nVal["aDSR"]
       aPSR = aDSR ^ par$hatchTime
       # dsrT = nVal["aDSR"]
-      if(psrTrue=="date") {
+      if(psrTrueVal=="date") {
         psrT = psrT_date
-        if(config$debugDSR>=4) cat("\n\t\tpsrT = w/date covar:", psrT)
+        if(debug>=2) cat("\n\t\tpsrT = w/date covar:", psrT)
       } else {
-        psrT = aPSR
-        if(config$debugDSR>=4) cat("\n\t\tpsrT (aPSR):", psrT)
+    
+        # psrT = aPSR
+        # # if(config$debugDSR>=2) cat("\n\t\tpsrT (aPSR):", psrT)
+        # if(debug>=2) cat("\n\t\tpsrT (aPSR):", psrT)
+        if(debug>=2) cat("\n\t\tpsrT:", psrT)
       }
       # mayfDSR = nVal["mfDSR"]
       mayfPSR = mayfDSR ^ par$hatchTime
-      if(config$logex) {leDSR = dsr1 } else {leDSR = 0}
-      if(config$logex) {lePSR = psr1 } else {lePSR = 0}
+      if(config$logex & config$survSave=="all") {leDSR = dsr1 } else {leDSR = 0}
+      if(config$logex & config$survSave=="all") {lePSR = psr1 } else {lePSR = 0}
       # leDSR_2 <- predList[[1]]$fit[1]
       # lePSR_2 <- leDSR_2 ^ par$hatchTime
-      mcmcPSR = dsrMat['mcmcPSR',r,i]
+      if(config$mcmc) mcmcPSR = dsrMat['mcmcPSR',r,i] else mcmcPSR=0
 
 
-      if(debug>=2) cat(sprintf(
-                               "\n\n\t<> <> PSR vals: true= %.5f, MCMC=%.5f, logEx=%.5f, Mayfield=%.5f <> <> ",
-                               psrT, mcmcPSR,  lePSR, mayfPSR)
+      if(debug>=1) cat(sprintf(
+                               "\n\n\t<> <> PSR vals: true= %.5f, true (date covar)= %.5f, MCMC=%.5f, logEx=%.5f, Mayfield=%.5f <> <> ",
+                               psrT, psrT_date, mcmcPSR,  lePSR, mayfPSR)
       )
 
-      if(debug>=2) cat(sprintf(
-                               "\n\t<> <> <> <> <> <> <> <> diff from true: MCMC=%.5f, logEx=%.5f, Mayfield=%.5f \n",
-                               mcmcPSR-psrT, lePSR-psrT, mayfPSR-psrT)
+      if(debug>=1) cat(sprintf(
+                               # "\n\t<> <> <> <> <> <> <> <> diff from true: MCMC=%.5f, logEx=%.5f, Mayfield=%.5f \n",
+                               # mcmcPSR-psrT, lePSR-psrT, mayfPSR-psrT)
+                               "\n\t<> <> <> <> <> <> <> <> diff from true (date covar): MCMC=%.5f, logEx=%.5f, Mayfield=%.5f \n",
+                               mcmcPSR-psrT_date, lePSR-psrT_date, mayfPSR-psrT_date)
       )
-      vals         <- c(psrT,psrT_date,aPSR,lePSR,mcmcPSR,mayfPSR)
+      # vals         <- c(psrT,psrT_date,aPSR,lePSR,mcmcPSR,mayfPSR)
+      vals         <- c(psrT_date,lePSR,mcmcPSR,mayfPSR,psrT,aPSR)
+      # cat("vals, length: ", vals, length(vals))
+      # cat("diffs, length: ", diffs, length(diffs))
       # vals         <- c(psrT,psrT_date,aPSR,lePSR,lePSR_2,mcmcPSR,mayfPSR)
-      diffs        <- abs(c(psrT_date-psrT,aPSR-psrT,lePSR-psrT,mcmcPSR-psrT,mayfPSR-psrT))
+      # diffs        <- abs(c(lePSR-psrT,mcmcPSR-psrT,mayfPSR-psrT,psrT_date-psrT,aPSR-psrT))
+      diffs        <- vals[-1] - psrT_date
       valMat[,r,i] <- c(par$stormFrq,par$pMortFl,par$obsFreq,par$discProb,par$decayRate,par$probSurv,
-                        all_hatch,all_fld,num_disc,num_excl,prop_excl,prop_misclass,vals,diffs)
+                        dsrT_date,all_hatch,all_fld,num_disc,num_excl,prop_excl,prop_misclass,vals,diffs)
       # if(debug>=5)  cat("\nstore summary vals:\n")
       # if(debug>=5)  qvcalc::indentPrint(valMat, indent=8)
       # if(debug>=2) cat(sprintf("\nsummary of rep %s:", r))
@@ -639,15 +793,18 @@ for(i in seq(startParID,length(pArrList))){
   
   endTimePar <- Sys.time()
   # save_current(startParID, i, odir)
+  runTimePar <- format(as.POSIXct(as.numeric(endTimePar - startTimePar, units="secs"), 
+                                               origin="1970-01-01", tz="UTC"),"%Hh %Mm %Ss")
+  cat(sprintf("\n|>|> PAR SET %s RUN TIME: %s", i,runTimePar))
   if(config$testing=="yes"){
-    runTimePar <- format(as.POSIXct(as.numeric(endTimePar - startTimePar, units="secs"), 
-                                                 origin="1970-01-01", tz="UTC"),"%Hh %Mm %Ss")
-    cat(sprintf("\n|>|> PAR SET %s RUN TIME: %s", i,runTimePar))
+    # runTimePar <- format(as.POSIXct(as.numeric(endTimePar - startTimePar, units="secs"), 
+    #                                              origin="1970-01-01", tz="UTC"),"%Hh %Mm %Ss")
+    # cat(sprintf("\n|>|> PAR SET %s RUN TIME: %s", i,runTimePar))
     # cat(sprintf("\tmax obs length (%s nests): %s", par$numNests, max(obsLength)))
     # cat(sprintf("\tmax interval (obsInt=%s): %s", par$obsFreq,max(obsIntList)))
     # cat(sprintf("\tall intervals: %s", paste(obsIntList,collapse=" ")))
     intTab <- table(obsIntList)
-    cat("\tall intervals: ")
+    cat("\t\t\t| all intervals: ")
     cat(sprintf("[%s]",paste(names(intTab),as.numeric(intTab),sep=": ")))
     # cat(paste(paste0("[",names(intTab)),as.numeric(intTab),sep=": "))
     # cat(sprintf("\tall intervals: "))
@@ -661,6 +818,9 @@ for(i in seq(startParID,length(pArrList))){
     saveMat <- nValMat[,,c(parStart:parID)] # print("incremental save:") print(fname)
     # cat(sprintf("\n** incremental save from param set %s to %s (%s)", parStart,parID, fname))
     saveRDS(saveMat, fname) # print(saveMat)
+    fname2 <- sprintf("%s/dsrval_%sto%s.rds", outdir, parID-49,parID)
+    saveDSR <- dsrMat[,,c(parStart:parID)]
+    saveRDS(saveDSR, fname2) # print(saveMat)
   }
   parID = parID + 1L
   rngSeed <- rngSeed + 1L ## add integer so not coerced to float
@@ -672,11 +832,21 @@ cat(sprintf("\n\nOUTPUT DIRECTORY: %s", odir))
 # print(odir)
 
 dsrvalname <- sprintf("%s/dsrval%s%s.rds", odir,config$rngSeed,atype)
+# if(config$survSave=="all") saveRDS(dsrMat, dsrvalname)
 saveRDS(dsrMat, dsrvalname)
 
 # nvalname <- sprintf("%s/nval.rds", outdir)
+vcovname <- sprintf("%s/vcov%s%s.rds", odir,config$rngSeed,atype)
+if(config$coefSave=="all") saveRDS(vcovMatMat, vcovname)
+
+trueDSR_name <- sprintf("%s/trueDSR%s%s.rds", odir,config$rngSeed,atype)
+if(config$coefSave=="all") saveRDS(trueDSRmat, trueDSR_name)
+
+propinit_name <- sprintf("%s/initprop%s%s.rds", odir,config$rngSeed,atype)
+if(config$coefSave=="all") saveRDS(initPropMat, propinit_name)
+
 nvalname <- sprintf("%s/nval%s%s.rds", odir,config$rngSeed,atype)
-saveRDS(nValMat, nvalname)
+if(config$ndatSave) saveRDS(nValMat, nvalname)
 
 pDF   <- data.table::rbindlist(py_to_r(pArrList)) # print(pDF)
 # pDF   <- pDF[,c(1,2,7:14)]
@@ -688,8 +858,10 @@ if(atype %in% c("range","control", "test2") & vary!="stormFrq") colnm <- c(colnm
 parname <- sprintf("%s/par%s%s.rds", odir,config$rngSeed,atype)
 saveRDS(pDF, parname)
 
-coefname <- sprintf("%s/coef%s%s.rds", odir,config$rngSeed,atype)
-saveRDS(coefsMat, coefname)
+if(config$coefSave=="all"){
+  coefname <- sprintf("%s/coef%s%s.rds", odir,config$rngSeed,atype)
+  saveRDS(coefsMat, coefname)
+}
 
                              # origin="1970-01-01", tz="UTC"),"%H:%M:%S")
 # runMin <- runTime/60 runHour <- runTime/3600 runTime <- case_when(runTime>60 ~ runTime/60, runTime>3600,runTime/3600)
@@ -702,6 +874,16 @@ cat(sprintf("\n\n|>|> TOTAL RUN TIME: %s\n", runTime))
 
 
 if(config$testing=="yes"){
+
+  if (saveNestData){
+    ndataaname <- sprintf("%s/nest_data_%s%s_100reps.rds", odir,config$rngSeed,atype)
+    saveRDS(nestDataMat, ndataaname)
+
+    # ndatname <- sprintf("%s/fate%s%s_100reps.rds", odir,config$rngSeed,atype)
+    # saveRDS(fateMat, ndatname)
+    # ndatname <- sprintf("%s/a_fate%s%s_100reps.rds", odir,config$rngSeed,atype)
+    # saveRDS(a_fateMat, ndatname)
+  }
   # cat(sprintf("\n|> PARAMS: num nests=%s; prob surv=%s; decay rate=%s; disc prob=%s\n", par$numNests,par$probSurv, par$decayRate, par$discProb))
   cat(sprintf("\n|> STATIC PARAMS: prob surv=%s; decay rate=%s; disc prob=%s\n", par$probSurv, par$decayRate, par$discProb))
   cat("\nvary:", vary)
@@ -716,7 +898,7 @@ if(config$testing=="yes"){
 
   if (debug>=4) cat("\nCoefficients & standard error:\n")
   # if (debug>=4) qvcalc::indentPrint(coefs, indent=8)
-  if (debug>=4) qvcalc::indentPrint(coefsMat, indent=8)
+  if (debug>=4 & config$coefSave=="all") qvcalc::indentPrint(coefsMat, indent=8)
 
   if (debug>=1) cat("\nDSR Val:\n")
   if (debug>=1) qvcalc::indentPrint(dsrMat, indent=8)
