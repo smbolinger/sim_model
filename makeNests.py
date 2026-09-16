@@ -1,4 +1,5 @@
 #!/usr/lecal/bin/python
+import sys
 import numpy as np
 import pprint
 from pathlib import Path
@@ -32,6 +33,7 @@ def stormGen(frq, dur, config, rng, stormDat, stFromFile=True, db=1):
     # out = rng.choice(a=[*stormDat], size=frq, replace=False, p=list(stormDat.values()))
     # print("\t\t|>choosing storm weeks from list:", end=" ")
     out = rng.choice(a=weekStart, size=frq, replace=False, p=stormProb)
+    if db>=3: print(f">> stormGen: {weekStart=} {stormProb=}") 
     # print(f"\t\t\t{out=}")
     rand =  rng.choice(7, size=len(out))
     out = out + rand
@@ -66,19 +68,30 @@ def mk_init(numNests,config, rng, initDat, hTime="all", nWeek=0, initFromFile=Tr
   initProb, weekStart = initDat # weekStart = weeks * 7
   if initFromFile:
     initWeek = rng.choice(a=weekStart, size=numNests, p=initProb)  # random starting weeks; len(a) must equal len(p)
+    if config.debugNests >= 3:
+      print(f">> mk_init: {weekStart=}") 
+      print(f">> mk_init: {initProb=}") 
       # initWeek = rng.choice(a=[*initDat], size=numNests, p=list(initDat.values()))  # random starting weeks; len(a) must equal len(p)
   else:
     weeks = np.arange(1,nWeek)
     print(f"\t|>SMALL: init weeks from 1 to {nWeek}", end=" ")
     initWeek = rng.choice(a=weeks, size=numNests)
   initiation = initWeek + rng.integers(1, 7, size=numNests)          # add a random number from 1 to 6 (?) 
-  # if config.debugNests >= 3:
-  #   print(">> initiation week start days:\n", initWeek) 
-  #   print(">> plus random integer:\n", initiation) 
+  if config.debugNests >= 3:
+    print(">> mk_init: initiation week start days:\n", initWeek) 
+    print(">> mk_init: plus random integer:\n", initiation) 
   return(initiation)
 
+# def mk_per(start, end, con):
+#
+#   nestPeriod = np.stack((start, end)) # +> create array of tuples
+#   # NOTE need the double parentheses so it knows output is tuples
+#   nestPeriod = np.transpose(nestPeriod) # +> an array of start,end pairs 
+#   return(nestPeriod)
+
 #-----------------------------------------------------------------------------
-def mk_surv(numNests, hatchTime, pSurv, con,rng,plusone=True): #+>print
+# def mk_surv(numNests, hatchTime, pSurv, con,rng,plusone=True): #+>print
+def mk_surv(numNests, hatchTime, pSurv, con,rng,plusone=False): #+>print
   """
   Decide how long each nest is active
 
@@ -96,16 +109,24 @@ def mk_surv(numNests, hatchTime, pSurv, con,rng,plusone=True): #+>print
       (need to because you are summing the survival time)
   >> once nest reaches incubation time (+/- some error) it hatches
       and becomes inactive
+  Note: can add 1 because this is days survived til failure; don't count initial day
 
   """
   survival = np.zeros(shape=(numNests), dtype=np.int32)
-  survival = rng.negative_binomial(n=1, p=(1-pSurv), size=numNests) 
+  while np.any(survival==0):
+    mask = (survival==0)
+    survival[mask] = rng.negative_binomial(n=1, p=(1-pSurv), size=np.sum(mask)) 
+    # survival = rng.negative_binomial(n=1, p=(1-pSurv), size=numNests) 
+
+  # survival = rng.negative_binomial(n=1, p=(1-pSurv), size=numNests+50) 
+  # survival = survival[survival>0]
+  # survival = survival[:numNests]
   if plusone:
     survival = survival+1 ## add 1 so all nests survive >0 days
   # # survival = survival - 1 # but since the last trial is when nest fails, need to subtract 1
   survival[survival > hatchTime] = hatchTime # add some amt of error?
-  if con.debugNests>=4:
-    print("\t\t\t|> survival in days:", end=" ") 
+  if con.debugNests>=3:
+    print("\t\t\t|> mk_surv: survival in days:", end=" ") 
     arrPrint(survival)
   return(survival)
 # -----------------------------------------------------------------------------
@@ -147,6 +168,7 @@ def mk_set_nests(num_nest, prop_hatch,rng,conf):
   return nestData
 
 
+# def mk_nests(par, rng, nestData, conf, initDat, initff=True, nWeek=2):  #+>print
 def mk_nests(par, rng, nestData, conf, initDat, initff=True, nWeek=2):  #+>print
   """
     nestData is an empty np array to be filled.
@@ -173,13 +195,14 @@ def mk_nests(par, rng, nestData, conf, initDat, initff=True, nWeek=2):  #+>print
 
   #-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   if conf.debugNests>=4:
-    print(f"\n\t\t\t|> init dates: ",end=" ")
-    arrPrint(nestData[:,1],abval=20)
-    print("\t\t\t|> survival in days:", end=" ") 
-    arrPrint(survival,abval=20)
+    with np.printoptions(threshold=sys.maxsize):
+      print(f"\n\t\t\t|> mk_nests: init dates: ",end=" ")
+      arrPrint(nestData[:,1],abval=20)
+      print("\t\t\t|> mk_nests: survival in days:", end=" ") 
+      arrPrint(survival,abval=20)
   # nestData[:,2] = nestData[:,1] +survival -1
   if conf.debugNests==3:
-    print("\n\t\t\t>> ID, init, & end:\n")
+    print("\n\t\t\t>> mk_nests: ID, init, & end:\n")
     print(f"\n\t\t\t\t{nestData[0:9,:].T}{nestData[-9:,:].T}")
     # arrPrint(nestData[0:9,:])
     # print("\n\t\t\t\t. . . . . .\n")
@@ -192,6 +215,7 @@ def mk_nests(par, rng, nestData, conf, initDat, initff=True, nWeek=2):  #+>print
   # ## NOTE THIS IS NOT THE TRUE HATCHED NUMBER; DOESN'T TAKE STORMS INTO ACCOUNT
   # # NOTE Remember that int() only works for single values 
   return(nestData)
+
 # ---- FLOODING & SUCH -------------------------------------------------------
 def storm_nest(stormFreq, nestPeriod, stormDays, con):
   """
@@ -257,13 +281,13 @@ def mk_flood( stormDays, pMortFl, stormIndex, numNests, con,rng):
   #-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   if con.debugFlood>=3:
     # print(f"\t\t\t|>{len(stormIndex)=} {stormIndex=}")
-    print("\t\t\t|>stormIndex:")
+    print("\t\t\t|> mk_flood: stormIndex:")
     arrPrint(stormIndex,abval=5)
-    print(f"\t\t\t|>{len(stormDays)=} {stormDays=}")
+    print(f"\t\t\t| mk_flood: >{len(stormDays)=} {stormDays=}")
     # arrPrint(pMortFl)
   if con.debugFlood>=2:
-    print("\t\t\t|>prob of flooding:", pMortFl, end=" ")
-    print(f"\t\t\t|>random probabilities, one per storm ({len(flP)=}) :")
+    print("\t\t\t| mk_flood: >prob of flooding:", pMortFl, end=" ")
+    print(f"\t\t\t| mk_flood: >random probabilities, one per storm ({len(flP)=}) :")
     arrPrint(flP)
   #-=~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   x=0
@@ -277,15 +301,15 @@ def mk_flood( stormDays, pMortFl, stormIndex, numNests, con,rng):
       for s in range(len(flood)): ##for each storm day when nest active:
 
         #-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        if con.debugFlood>=4: print(f"{range(len(flood))=}", end=" ")
-        if con.debugFlood>=3: print(f"{s=}", end=" ")
+        if con.debugFlood>=4: print(f"\t>>mk_flood: {range(len(flood))=}", end=" ")
+        if con.debugFlood>=3: print(f"\t>>mk_flood: {s=}", end=" ")
         #-=~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         if stormIndex[n,s] == 1:
           flood[s] = flP[x] < pMortFl # I changed how pMortFL was defined.
           
           #-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-          if con.debugFlood>=3: print(f"{stormIndex[n,s]=} ; {flP[x]=:.3f} < {pMortFl=} ? {flood[s]=} ; {x=} ", end=" ")
+          if con.debugFlood>=3: print(f"\t>>mk_flood: {stormIndex[n,s]=} ; {flP[x]=:.3f} < {pMortFl=} ? {flood[s]=} ; {x=} ", end=" ")
           #-=~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
           
           x=x+1 ##
@@ -297,7 +321,7 @@ def mk_flood( stormDays, pMortFl, stormIndex, numNests, con,rng):
         whichStorm[n] = stormDays[whichstorm[0]]
         # if con.debugFlood>=3: arrPrint(whichStorm, ind=10)
 
-        # if con.debugFlood>=1: print(f"{whichStorm=}")
+        if con.debugFlood>=1: print(f"\t>>mk_flood: {whichStorm=}")
     # else:
     #   ## a few random storm nests even w/o storms
     #   randN = rng.uniform(low=0, high=numNests-1,size=9)
@@ -353,8 +377,8 @@ def mk_fates(nestDat, numNests, hatched,stormInfo, stormDays, con): #+>print
       stormname = ["num_storm", "which_storm", "flooded?"]
       dfPrint(stormInfo, nprint=20, names=stormname)
     if con.debugNests>=4:
-      print( "\t\t\t|>|> end date before storms accounted for:", end=" ")
-      arrPrint(nestDat[:,2])
+      print( "\t\t\t|>|> mk_fates: end date before storms accounted for:", end=" ")
+      arrPrint(nestDat[:,2], abval=20)
   #-=~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   ## change end date for flooded nests
@@ -366,23 +390,23 @@ def mk_fates(nestDat, numNests, hatched,stormInfo, stormDays, con): #+>print
     # if con.debugNests>=2: print("\t\t\t|>|> # hatched:", sum(hatched), end=" ")
     # if con.debugNests>=3: print("\t\t\t|>|> true fates:", len(trueFate==0), end=" ")
     # if con.debugNests>=3: arrPrint(trueFate)
-    if con.debugNests>=2: print("\t\t\t|>|> # hatched:", sum(trueFate==0), end=" ")
-    if con.debugNests>=4: arrPrint(hatched)
+    if con.debugNests>=2: print("\t\t\t|>|> mk_fates: # hatched:", sum(trueFate==0), end=" ")
+    if con.debugNests>=4: arrPrint(hatched, abval=20)
     # if con.debugNests>=2: print( "\t\t\t|>|> # flooded:", sum(flooded))
-    if con.debugNests>=2: print( "\t\t\t|>|> # flooded:", sum(trueFate==2))
+    if con.debugNests>=2: print( "\t\t\t|>|> mk_fates: # flooded:", sum(trueFate==2))
     if con.debugNests>=4:
       arrPrint( flooded)
-      print( "\t\t\t|>|> end date after storms accounted for:", end=" ")
-      arrPrint(nestDat[:,2])
+      print( "\t\t\t|>|> mk_fates: end date after storms accounted for:", end=" ")
+      arrPrint(nestDat[:,2], abval=20)
     if con.debugNests>=5: print("\n\t[*] [*] [*] [*] creating fates [*] [*] [*] [*] [*] [*]\n")
     # if con.debugNests>=4: print(f"\t\t\t\t{flooded=} | {whichStorm=} | {hatched=}")
-    if con.debugNests>=5:
-      print("\t\t>>> true final nest fates:", end=" ")# # ---- TRUE DSR ------------------------------------------------------------
+    if con.debugNests>=4:
+      print("\t\t>>> mk_fates: true final nest fates (printed as integer):", end=" ")# # ---- TRUE DSR ------------------------------------------------------------
       print(
           f"  H:{sum(trueFate==0)}|D:{sum(trueFate==1)}|Fl:{sum(trueFate==2)}",
           end=" "
           )
-      arrPrint(trueFate)
+      arrPrint(trueFate.astype(int), abval=20)
   #-=~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   
   nestDat = np.concatenate((nestDat, trueFate[:,None]), axis=1)
@@ -404,3 +428,20 @@ def mk_fates(nestDat, numNests, hatched,stormInfo, stormDays, con): #+>print
   # if debug: print(">>>> total exposure days (unobserved):", survival.sum())
   # if debug: print(">>>>> and true DSR, calculated correctly:", trueDSR2)
 # How does the observer assign nest fates? 
+
+# def mk_histories(nd, storm, inits, par, rng, conf, inff, nw):
+#   """
+#     Make nest histories separate from observations
+#   """
+#   if conf.debugNests>=2: print("\n\t[*] [*] [*] [*] [*] making nests [*] [*] [*] [*] [*] [*] [*] [*] ")
+#   nd     = np.zeros(shape=(par.numNests, 3), dtype=np.int16)
+#   nData      = mk_nests(par, rng, nd, conf, inits, initff=inff, nWeek=nw)
+#   nestPeriod   = mk_per(nData[:,1], (nData[:,2]), con=conf) # changed output of mk_nests 
+#   stormOut     = storm_nest(par.stormFrq, nestPeriod, storm, con=conf)
+#   stormDat     = mk_flood(storm, par.pMortFl, stormOut, numNests=par.numNests, con=conf,rng=rng)
+#   hatched    = (nData[:,2]-nData[:,1]) >= par.hatchTime # hatched before storms accounted for
+#   ## make true nest fates:
+#   nData    = mk_fates(nData, par.numNests, hatched, stormDat, storm, con=conf)
+#   if conf.other=="setn":
+#     nData = mk_set_nests(par.numNests,0.50, rng, conf)
+#   return nData
