@@ -22,6 +22,7 @@ lib64
 /.venv
 /backup
 /__pycache__
+/extras
 old/
 extra*
 old*
