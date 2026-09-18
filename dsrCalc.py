@@ -3,12 +3,12 @@ import pandas as pd
 import numpy as np
 from MCmatrix import logistic
 # from notr_MCmatrix import logistic
-from observer import svy_position
+# from observer import svy_position
 from print_func import arrPrint, dfPrint
 # from settings import config
 # from rsettings import config
 import itertools
-from helpers import centerDat, print
+from helpers import centerDat, print,svy_position
 
 
 

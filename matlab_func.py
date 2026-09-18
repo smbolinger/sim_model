@@ -11,22 +11,22 @@ import jax.numpy as jnp
 from dsrCalc import calc_daily_expo
 from helpers import print
 from print_func import dfPrint
-from rsettings import config, odir, atype
+# from rsettings import config, odir, atype
 from scipy import optimize
 # from jax.scipy.optimize import minimize
 # from jaxopt import ScipyBoundedMinimize
 # from statsmodels.tools.numdiff import approx_hess2 ## just an approximation
 # print("loading optimization functions")
-rng = np.random.default_rng(seed=config.rngSeed)
-rng_key = jax.random.key(config.rngSeed)
+# rng = np.random.default_rng(seed=config.rngSeed)
+# rng_key = jax.random.key(config.rngSeed)
 pd.set_option('display.float_format', lambda x: f'{x:.5f}')
 np.set_printoptions(suppress=True,precision=5,edgeitems=50,threshold=200)
 from jax import config as jconfig
 jconfig.update("jax_enable_x64", True)
 jconfig.update("jax_traceback_filtering", "off")
-if atype=="norm":
+# if atype=="norm":
+  # jconfig.update("jax_explain_cache_misses", True)
   # jconfig.update("jax_log_compiles", True)
-  jconfig.update("jax_explain_cache_misses", True)
 
 @jax.jit
 def jPolyLike(pZero,dVal,fateVal,sclf,db=0):
@@ -79,7 +79,9 @@ ll_valgrad = jax.value_and_grad(jPolyLike)
 
 # def PolyMort(obsData,survey,config,useJax=False,scl_fac=0.1,plt=True,suff=""):
 # def PolyMort(obsData,survey,par,config,useJax=True,scl_fac=0.05,plt=False,db=0,suff=""):
-def PolyMort(obsData,survey,par,config,useJax=True,scl_fac=0.15,plt=False,db=0,suff=""):
+def PolyMort(obsData,survey,par,rng,atype,config,useJax=True,scl_fac=0.15,plt=False,db=0,suff=""):
+  if atype=="norm":
+    jconfig.update("jax_explain_cache_misses", True)
   outLen = 2400 if par.numNests<=300 else 3200
   if plt: outLen = outLen + 1000
 
@@ -332,13 +334,13 @@ hessFun =   jax.jit(jax.hessian(jPolyLike), static_argnums=2 )
 #   # return val, grad, hess
 #   return val, grad
 
-def jrandom(rng_key,K,scl_fac):
-  minv = scl_fac
-  maxv = 10 * scl_fac
-  rng_key, subkey = jax.random.split(rng_key)
-  # ret = jax.random.uniform(subkey,shape=K,minval=0.1,maxval=1)
-  ret = jax.random.uniform(subkey,shape=K,minval=minv,maxval=maxv)
-  return ret
+# def jrandom(rng_key,K,scl_fac):
+#   minv = scl_fac
+#   maxv = 10 * scl_fac
+#   rng_key, subkey = jax.random.split(rng_key)
+#   # ret = jax.random.uniform(subkey,shape=K,minval=0.1,maxval=1)
+#   ret = jax.random.uniform(subkey,shape=K,minval=minv,maxval=maxv)
+#   return ret
 
   # M = jnp.array(arr,dtype=jnp.float64) # print(f"\t\t{mat=}") 
   # NLL = 0 ## initial NLL value NLL = nll_lookup(M,dVal,fateVal)
