@@ -4,12 +4,13 @@
 # sed -n '/ANALYSIS TYPE - GROUPS/,+2p' rsettings.py | grep -v 'ANALYSIS TYPE - GROUPS' | tr '\n' '  ' | xargs
 testVals=$(sed -n '/^tests =/,+2p' rsettings.py | tr '\n' '  ') 
 fullVals=$(sed -n '/fullList =/p' rsettings.py ) 
-file="/home/wodehouse/Projects/sim_model/all_dsr.R"
+# file="/home/wodehouse/Projects/sim_model/all_dsr.R"
+file="/home/wodehouse/Projects/sim_model/main.R"
 # echo "$testVals" echo "$fullVals"
 if [ $# -eq 0 ]; then
     echo ">> No arguments provided!"
     # echo -e "\t>> Usage:  [at<type>] [all_dsr.R args (optional): r<nrun>, db<debuglevel>, par<start param id>, rng<start seed> ] [out:<outfile suffix (optional)>] ["msg: message string "] [other arguments passed to datsim.py]"
-    echo -e '\t>> Usage:  [at<type>] [all_dsr.R args (optional): rep<nrun>, db<debuglevel>, par<start param id>, rng<start seed>, cl<cpu limit>, ml<memory limit AS DECIMAL>] [nomc] [nolx] [savend] [out:<outfile suffix (optional)>] ["msg: message string"] [other arguments passed to script]'
+    echo -e '\t>> Usage:  [at<type>] [all_dsr.R args (optional): rep<nrun>, db<debuglevel>, par<start param id>, rng<start seed>, cl<cpu limit>, ml<memory limit AS DECIMAL>] [nomc] [nolx] [pred] [savend] [out:<outfile suffix (optional)>] ["msg: message string"] [other arguments passed to script]'
     # echo ">> analysis type options:"
     sed -n '/ANALYSIS TYPE - GROUPS/,+5p' rsettings.py | grep -v 'ANALYSIS TYPE - GROUPS' | tr '\n' '  ' | xargs echo ">===> atype values: " # should output the results of the pipes AFTER "check config"
     echo -e '\t>> run again with "help" for more info on analysis types'
@@ -97,25 +98,27 @@ for val in "$@"; do # loop through all CLI arguments
   elif [[ "$val" == *"ml"* ]]; then #+> need the double brackets
     export XLA_PYTHON_CLIENT_MEM_FRACTION=("${val:2}")
   elif [[ "$val" == *"other:"* ]]; then #+> need the double brackets
-    argList+=("$val")
+    argList+=("--oval=\"${val:6}\"")
   elif [[ "$val" == *"msg:"* ]]; then #+> need the double brackets
-    argList+=("$val")
-  elif [[ "$val" == *"r"* ]]; then #+> need the double brackets
-    argList+=("$val")
+    argList+=("--msg=\"${val:4}\"")
+  elif [[ "$val" == *"rep"* ]]; then #+> need the double brackets
+    argList+=("--nreps=${val:3}")
   elif [[ "$val" == *"at"* ]]; then 
-    argList+=("$val")
+    argList+=("--atype=\"${val:2}\"")
   elif [[ "$val" == *"par"* ]]; then 
-    argList+=("$val")
+    argList+=("--par=${val:3}")
   elif [[ "$val" == *"rng"* ]]; then 
-    argList+=("$val")
+    argList+=("--rng=${val:3}")
   elif [[ "$val" == *"db"* ]]; then 
-    argList+=("$val")
+    argList+=("--db=${val:2}")
   elif [[ "$val" == *"savend"* ]]; then 
-    argList+=("$val")
+    argList+=("--savend")
   elif [[ "$val" == *"nomc"* ]]; then 
-    argList+=("$val")
+    argList+=("--nomc")
   elif [[ "$val" == *"nolx"* ]]; then 
-    argList+=("$val")
+    argList+=("--nolx")
+  elif [[ "$val" == *"pred"* ]]; then 
+    argList+=("--pred")
   else
     pref+="-$val" # all characters starting at index 4 (everything after 'out:'
     # rrList+=("$val")
@@ -134,18 +137,19 @@ echo -e "|> Rscript "$file" "${argList[@]}" >> "$outFile" 2>&1 &"
 Rscript "$file" "${argList[@]}" >> "$outFile" 2>&1 &
 # mypid="$!"
 mypid=$!
-echo -e " \n [] [] [] [] $datestr - $now [] [] [] PID = $mypid [] [] [] output file = $outFile [] [] [] [] [] []" >> "$outFile"
+echo -e "\n\n+ + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + " >> "$outFile"
+echo -e -n "\n[] [] [] [] $datestr - $now [] [] [] PID = $mypid [] [] [] output file = $outFile [] [] [] [] [] []" >> "$outFile"
 # echo -n "args to pass to script: ${argList[@]} |"
 # echo -n " | PID = $mypid"
 echo -e -n "\t\t>>>> PID = $mypid"
 # echo -e -n ">> $datestr - $now >>>> PID = $mypid" >> "PIDs.txt"
-sleep 3
+sleep 2
 cpulimit -p "$mypid" -l "$clim" &
 clpid=$!
 
+echo " ** cpulimit PID = $clpid [] [] []" >> "$outFile"
 echo -n " | cpulimit PID = $clpid"
 echo -n " | limiting CPU to $clim % | "
-echo " | cpulimit PID = $clpid" >> "$outFile"
 
 # rngSeed=$(sed -n '/^rngSeed: /,+2p' rsettings.py | tr '\n' '  ') 
 # rngSeed=$(grep -oP "rngSeed:\s+\K\w+" "$config") 
