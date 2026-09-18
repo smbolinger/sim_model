@@ -81,6 +81,7 @@ argList=() ## args that will be passed
 rrList=()
 # testOn="false"
 pref=""
+PIDlog="/home/wodehouse/Dropbox/Models/ch2_analysis/py_out/PIDs.txt"
 
 # arg_pref
 
@@ -158,7 +159,7 @@ echo -n " | limiting CPU to $clim % | "
 # mcType=$(grep -oP '^mcType:\s+\K\d' <<< "$config") 
 # numNests=$(grep -oP '^numNests:\s+\K\d' <<< "$config") 
 # echo "seed= $rngSeed ; sfate= $sfate ; mctype= $mcType ; num nests= $numNests"
-echo -e -n ">> $datestr - $now >>>> PID: $mypid | cpulimit PID: $clpid " >> "PIDs.txt"
-echo -e "|> Rscript "$file" "${argList[@]}" >> "$outFile" 2>&1 &" >> "PIDs.txt"
+echo -e -n ">> $datestr - $now >>>> PID: $mypid | cpulimit PID: $clpid " >> "$PIDlog"
+echo -e "|> Rscript "$file" "${argList[@]}" >> "$outFile" 2>&1 &" >> "$PIDlog"
 # echo -e "$configStr \n" >> "PIDs.txt"
-echo -e "  >> config (before changes): $configStr \n" >> "PIDs.txt"
+echo -e "  >> config (before changes): $configStr \n" >> "$PIDlog"
