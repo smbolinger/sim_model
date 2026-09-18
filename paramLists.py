@@ -1,12 +1,11 @@
 
 import numpy as np
 
+# +> param lists to use for different analyses
+
 # NOTE make sure params are in same order!!! makes loading for analysis much easier!
 
 staticPar = {
-            # 'discProb': 0.8,
-            # 'probSurv' : 0.97,
-            # 'brDays': 180,
             'discProb': [0.8],
             # 'discProb': [0.9],
             # 'discProb': [1.0],
@@ -20,7 +19,6 @@ staticPar = {
             # 'decayStorm': [0.2],
             'stormUnk': [False]
             # 'stormUnk': [True],
-            # 'useSMat': False #not used
              }
 
 parLists = {
@@ -28,7 +26,6 @@ parLists = {
             # 'stormFate': [False],
             # 'stormFate': [True],
             # 'numNests' : [ 250,500],
-            # 'numNests' : [ 300],
             'numNests' : [ 250],
             # 'pMortFl'  : [0.9, 0.75, 0.6], # flood/storm severity
             'pMortFl'  : [0.9,0.7,0.5], # flood/storm severity6

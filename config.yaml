@@ -18,7 +18,7 @@ default:
   # mcmc: False
   logex: True
   rangeVar: 0
-  predict: False
+  predict: False ## default is to get coefs & then predict later
   survSave: "all"
   coefSave: "all"
   ndatSave: True
@@ -96,7 +96,7 @@ full:
   # mcmc: False
   logex: True
   testing: "no"
-  predict: False
+  predict: False ## default is to get coefs & then predict later
   # survSave: "trueVal" # "all"=all DSR/PSR/SE vals; "trueVal"=just the "true" vals
   survSave: "all" # "all"=all DSR/PSR/SE vals; "trueVal"=just the "true" vals
   coefSave: "all"
@@ -160,7 +160,7 @@ test:
   mcmc: True
   # logex: False
   logex: True
-  predict: False
+  predict: False ## default is to get coefs & then predict later
   testing: "yes"
   survSave: "all"
 
@@ -172,7 +172,7 @@ test:
   debug: 2
   debugLL: 1 #mcmc
   debugLogEx: 3
-  debugNests: 2 #nest creation
+  debugNests: 3 #nest creation
   debugM: 0 #mark
   debugObs: 4
   debugFlood: 0
@@ -219,7 +219,7 @@ ctrl:
   mcmc: True
   # mcmc: False
   logex: True
-  predict: False
+  predict: False ## default is to get coefs & then predict later
   testing: "no"
   survSave: "all"
   coefSave: "all"
